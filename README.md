@@ -122,9 +122,9 @@ evsieve --input /dev/input/by-id/keyboard \
 
 You can execute a certain script when a certain key or combination of keys are pressed simultaneously using the `--hook` argument.
 
-Each time the left control and the H key are pressed simultaneously, evsieve will execute the command `echo Hello, world!` using your OS' default POSIX shell, i.e. `/bin/sh -c "echo Hello, world!"`. Note that the script will be executed as the same user as `evsieve` runs as, which may be `root`.
+Each time the left control and the H key are pressed simultaneously, evsieve will execute the command `echo Hello, world!` using your OS' default POSIX shell, i.e. `/bin/sh -c "echo Hello, world!"`. Note that the script will be executed as the same user as evsieve runs as, which may be `root`.
 
-Since we did not need to modify the events and merely read them, there is no `grab` flag on the input device, causing `evsieve` to open it in nonexclusive mode. Since we didn't claim exclusive access to the device, there is no need to generate a virtual device using `--output` either.
+Since we did not need to modify the events and merely read them, there is no `grab` flag on the input device, causing evsieve to open it in nonexclusive mode. Since we didn't claim exclusive access to the device, there is no need to generate a virtual device using `--output` either.
 
 In case some other program (such as Qemu) claims exclusive access to your keyboard and you still want to be able to listen to hotkeys, you can generate a virtual device and let Qemu claim access to the virtual device instead:
 
@@ -512,7 +512,7 @@ Ranges and transitions are particularly useful for mapping absolute events to ke
 
 **Key names**
 
-All names that `evsieve` uses for events are derived from the names used by the Linux kernel for such events, using a fairly systematic way that's understood most quickly by looking at the following examples:
+All names that evsieve uses for events are derived from the names used by the Linux kernel for such events, using a fairly systematic way that's understood most quickly by looking at the following examples:
 
 ```
     EV_KEY, KEY_A -> key:a
@@ -524,7 +524,7 @@ All names that `evsieve` uses for events are derived from the names used by the 
 
 In case you're wondering what the kernel calls a certain button on your device, we recommend using the third-party program `evtest`, which is probably shipped by your favourite distribution.
 
-There is one notable exceptions to the above scheme. There are events with type EV_KEY and a code of form BTN_*. These are called btn:something by `evsieve` even though though there is no EV_BTN event type. For example:
+There is one notable exceptions to the above scheme. There are events with type EV_KEY and a code of form BTN_*. These are called btn:something by evsieve even though though there is no EV_BTN event type. For example:
 
 ```
     EV_KEY, BTN_RIGHT -> btn:right
