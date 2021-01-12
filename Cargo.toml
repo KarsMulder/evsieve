@@ -21,8 +21,8 @@ license = "GPL-2.0-or-later AND MIT AND HPND-sell-variant AND GPL-2.0-only WITH 
 
 [dependencies]
 lazy_static = "1.4.0"
-libc = "0.2.81"
-signal-hook = "0.3.1"
+libc = "0.2.82"
+signal-hook = "0.3.3"
 
 [profile.release]
 panic = "unwind"
