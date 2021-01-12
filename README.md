@@ -414,8 +414,8 @@ evsieve --input /dev/input/by-id/usb-Microsoft_Controller_*-event-joystick \
         --copy btn:tr                  key:e@kb       \
         --copy abs:z:~203..204~        key:u:1@kb     \
         --copy abs:z:204~..~203        key:u:0@kb     \
-        --copy abs:rz:~203..204~       key:u:1@kb     \
-        --copy abs:rz:204~..~203       key:u:0@kb     \
+        --copy abs:rz:~203..204~       key:o:1@kb     \
+        --copy abs:rz:204~..~203       key:o:0@kb     \
                                                       \
         `# Special buttons: start, select, Xbox button` \
         --copy btn:start               key:enter@kb   \
