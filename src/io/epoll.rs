@@ -2,6 +2,7 @@
 
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::io;
+use crate::error::{InternalError, RuntimeError};
 use crate::event::Event;
 use crate::io::input::InputDevice;
 use crate::sysexit;
@@ -11,13 +12,8 @@ use std::collections::HashMap;
 /// The evsieve program spends most of its time waiting on Epoll::poll, which waits until
 /// some input device has events available.
 /// 
-/// The Epoll additionally contains a Receiver, which can instruct it to return even if
-/// no events are available. This is useful when some other thread or signal handler wants
-/// something to happen on the main thread.
-/// 
 /// It also keeps track of when input devices unexpectedly close. When some device closes,
-/// it will be removed from the Epoll and returned as an EpollResult. If the receiver
-/// somehow unexpectedly closes, the system will panic.
+/// it will be removed from the Epoll and returned as an EpollResult.
 pub struct Epoll {
     fd: RawFd,
     files: HashMap<u64, InputDevice>,
@@ -90,10 +86,10 @@ impl Epoll {
         }
     }
 
-    fn remove_file_by_index(&mut self, index: u64) -> Result<InputDevice, io::Error> {
+    fn remove_file_by_index(&mut self, index: u64) -> Result<InputDevice, RuntimeError> {
         let file = match self.files.remove(&index) {
             Some(file) => file,
-            None => return Err(io::Error::new(io::ErrorKind::Other, "Internal error: attempted to remove a device from an epoll that's not registered with it.")),
+            None => return Err(InternalError::new("Attempted to remove a device from an epoll that's not registered with it.").into()),
         };
 
         let result = unsafe { libc::epoll_ctl(
@@ -104,7 +100,7 @@ impl Epoll {
         )};
 
         if result < 0 {
-            Err(io::Error::new(io::ErrorKind::Other, "Failed to remove a device from an epoll instance."))
+            Err(io::Error::new(io::ErrorKind::Other, "Failed to remove a device from an epoll instance.").into())
         } else {
             Ok(file)
         }
@@ -152,7 +148,7 @@ impl Epoll {
 
         if result < 0 {
             // Either we got an SIGINT/SIGTERM interrupt or an unexpected error.
-            // The former case is more likely. In either case we should exit.
+            // It's unfortunately difficult to read errno from libc, so for now we assume the former.
             return vec![EpollResult::Interrupt];
         }
 
