@@ -1,0 +1,232 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+
+use std::os::unix::io::{AsRawFd, RawFd};
+use std::io;
+use crate::event::Event;
+use crate::io::input::InputDevice;
+use crate::sysexit;
+use std::collections::HashMap;
+
+/// The epoll is responsible for detecting which input devices have events available.
+/// The evsieve program spends most of its time waiting on Epoll::poll, which waits until
+/// some input device has events available.
+/// 
+/// The Epoll additionally contains a Receiver, which can instruct it to return even if
+/// no events are available. This is useful when some other thread or signal handler wants
+/// something to happen on the main thread.
+/// 
+/// It also keeps track of when input devices unexpectedly close. When some device closes,
+/// it will be removed from the Epoll and returned as an EpollResult. If the receiver
+/// somehow unexpectedly closes, the system will panic.
+pub struct Epoll {
+    fd: RawFd,
+    files: HashMap<u64, InputDevice>,
+    /// A counter, so every file registered can get an unique index in the files map.
+    counter: u64,
+}
+
+pub enum EpollResult {
+    /// An event has been received.
+    Event(Event),
+    /// A message has been received from a thread or interrupt.
+    Interrupt,
+    /// Tells us that one of the input devices we're receiving events from has ceased working
+    /// for some reason, most likely that reason being that the device has been physically
+    /// disconnected from the computer.
+    BrokenInputDevice(Box<InputDevice>),
+}
+
+impl Epoll {
+    pub fn new(files: Vec<InputDevice>) -> Result<Epoll, io::Error> {
+        let epoll_fd = unsafe {
+            libc::epoll_create1(0)
+        };
+        if epoll_fd < 0 {
+            return Err(io::Error::new(io::ErrorKind::Other, "Failed to create epoll instance."));
+        }
+
+        let mut epoll = Epoll {
+            fd: epoll_fd,
+            files: HashMap::new(),
+            counter: 0,
+        };
+
+        for file in files {
+            unsafe { epoll.add_file(file)? };
+        }
+
+        Ok(epoll)
+    }
+
+    fn get_unique_index(&mut self) -> u64 {
+        self.counter += 1;
+        self.counter
+    }
+
+    /// Unsafe: must not add a file that already belongs to this Epoll, the file must
+    /// return a valid raw file descriptor.
+    unsafe fn add_file(&mut self, file: InputDevice) -> Result<(), io::Error> {
+        let index = self.get_unique_index();
+        let file_fd = file.as_raw_fd();
+        self.files.insert(index, file);
+
+        // We set the data to the index of said file, so we know which file is ready for reading.
+        let mut event = libc::epoll_event {
+            events: libc::EPOLLIN as u32,
+            u64: index,
+        };
+
+        let result = libc::epoll_ctl(
+            self.fd,
+            libc::EPOLL_CTL_ADD,
+            file_fd,
+            &mut event,
+        );
+
+        if result < 0 {
+            Err(io::Error::new(io::ErrorKind::Other, "Failed to add a device to an epoll instance."))
+        } else {
+            Ok(())
+        }
+    }
+
+    fn remove_file_by_index(&mut self, index: u64) -> Result<InputDevice, io::Error> {
+        let file = match self.files.remove(&index) {
+            Some(file) => file,
+            None => return Err(io::Error::new(io::ErrorKind::Other, "Internal error: attempted to remove a device from an epoll that's not registered with it.")),
+        };
+
+        let result = unsafe { libc::epoll_ctl(
+            self.fd,
+            libc::EPOLL_CTL_DEL,
+            file.as_raw_fd(),
+            std::ptr::null_mut(),
+        )};
+
+        if result < 0 {
+            Err(io::Error::new(io::ErrorKind::Other, "Failed to remove a device from an epoll instance."))
+        } else {
+            Ok(file)
+        }
+    }
+
+    /// Tries to read all events from all ready devices. Returns a vector containing all events read.
+    /// If a device reports an error, said device is removed from self and also returned.
+    pub fn poll(&mut self) -> Vec<EpollResult> {
+        // The number 8 was chosen arbitrarily.
+        let max_events: i32 = std::cmp::min(self.files.len(), 8) as i32;
+        let mut events: Vec<libc::epoll_event> = (0 .. max_events).map(|_| libc::epoll_event {
+            // The following values don't matter since the kernel will overwrite them anyway.
+            // We're just initialzing them to make the compiler happy.
+            events: 0, u64: 0
+        }).collect();
+
+        let result = unsafe {
+            // Ensure that we cannot be interrupted by a signal in the short timespan between when
+            // we check for the should_exit status, and when the epoll_pwait system call starts.
+            let mut orig_sigmask: libc::sigset_t = std::mem::zeroed();
+            let mut sigmask: libc::sigset_t = std::mem::zeroed();
+            let orig_sigmask_mut_ptr = &mut orig_sigmask as *mut libc::sigset_t;
+            let sigmask_mut_ptr = &mut sigmask as *mut libc::sigset_t;
+            libc::sigemptyset(sigmask_mut_ptr);
+            for &signal in sysexit::EXIT_SIGNALS {
+                libc::sigaddset(sigmask_mut_ptr, signal);
+            }
+            libc::sigprocmask(libc::SIG_SETMASK, sigmask_mut_ptr, orig_sigmask_mut_ptr);
+
+            if sysexit::should_exit() {
+                return vec![EpollResult::Interrupt];
+            }
+
+            let result = libc::epoll_pwait(
+                self.fd,
+                events.as_mut_ptr(),
+                max_events,
+                -1, // timeout, -1 means it will wait indefinitely
+                orig_sigmask_mut_ptr,
+            );
+
+            libc::sigprocmask(libc::SIG_SETMASK, orig_sigmask_mut_ptr, std::ptr::null_mut());
+            result
+        };
+
+        if result < 0 {
+            // Either we got an SIGINT/SIGTERM interrupt or an unexpected error.
+            // The former case is more likely. In either case we should exit.
+            return vec![EpollResult::Interrupt];
+        }
+
+        let num_fds = result as usize;
+
+        // Create a list of which devices are ready and which are broken.
+        let mut ready_file_indices: Vec<u64> = Vec::new();
+        let mut broken_file_indices: Vec<u64> = Vec::new();
+
+        for event in events[0 .. num_fds].iter() {
+            let file_index = event.u64;
+            if event.events & libc::EPOLLIN as u32 != 0 {
+                ready_file_indices.push(file_index);
+            }
+            if event.events & libc::EPOLLERR as u32 != 0 || event.events & libc::EPOLLHUP as u32 != 0 {
+                eprintln!("An event device has been disconnected.");
+                broken_file_indices.push(file_index);
+            }
+        }
+
+        // Retrieve all events from ready devices.
+        let mut polled_results: Vec<EpollResult> = Vec::new();
+        for index in ready_file_indices {
+            if let Some(file) = self.files.get_mut(&index) {
+                match file.poll() {
+                    Ok(events) => polled_results.extend(
+                        events.into_iter().map(EpollResult::Event)
+                    ),
+                    Err(error) => {
+                        eprintln!("{}", error);
+                        if ! broken_file_indices.contains(&index) {
+                            broken_file_indices.push(index);
+                        }
+                    },
+                }
+            }
+        }
+
+        // Remove the broken devices from self and return them.
+        polled_results.extend(
+            broken_file_indices.into_iter()
+            // Turn the broken indices into files.
+            .filter_map(
+                |index| match self.remove_file_by_index(index) {
+                    Ok(file) => Some(file),
+                    Err(error) => {
+                        eprintln!("{}", error);
+                        None
+                    },
+                }
+            )
+            // Turn the broken files into results.
+            .map(|device| EpollResult::BrokenInputDevice(Box::new(device)))
+        );
+
+        polled_results
+    }
+
+    pub fn get_input_devices_mut(&mut self) -> impl Iterator<Item=&mut InputDevice> {
+        self.files.iter_mut().map(
+            |(_index, file)| file
+        )
+    }
+
+    /// Returns whether currently any files are opened under this epoll.
+    pub fn has_files(&self) -> bool {
+        ! self.files.is_empty()
+    }
+}
+
+impl Drop for Epoll {
+    fn drop(&mut self) {
+        unsafe {
+            libc::close(self.fd);
+        }
+    }
+}

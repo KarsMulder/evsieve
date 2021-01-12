@@ -1,0 +1,52 @@
+Evsieve, Copyright © 2021, Kars Mulder
+
+Unless mentioned otherwise, all parts of this program are available of
+the GNU General Public License version 2.0, or at your option, any later
+version, provided that your choosing to follow a later version shall not
+impose any additional obligations on any author or copyright holder of
+this program.
+
+A copy of the GNU General Public License version 2.0 can be found in the
+"LICENSE" file. This program is distributed in the hope that it will be
+useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+Public License for more details.
+
+This program may contain parts derived from third-party programs or
+libraries. The General Public License does not necessarily apply to any
+third party content in this program or on this repository. All third-party
+components are licensed under their original licenses.
+
+
+The file "src/bindings/libevdev.rs" was programmatically derived from
+header files belonging to the "libevdev" library. The license applying
+to those files can be found in the file "licenses/thirdparty/libevdev/
+header.txt". Those libevdev headers on their turn contain some content
+that was derived from a Linux kernel header file, which is available under
+the GNU General Public License version 2.0 with the Linux syscall note.
+A notice from said kernel header file can be found in "licenses/thirdparty/
+linux/linux_kernel_input_codes_notice.txt". A copy of the Linux syscall
+note can be found in "licenses/thirdparty/linux/linux_syscall_note.txt".
+
+Once compiled, this program will link against the libevdev library. The
+license of the libevdev library can be found in "licenses/thirdparty/
+libevdev/license.txt".
+
+Once compiled, this program will statically link against the Rust standard
+library. The Rust standard library is generally dual-licensed under the
+MIT license and the Apache 2.0 license. These licenses can be found in
+"licenses/thirdparty/rust". The Rust project may contain parts under
+different licenses. See "licenses/thirdparty/rust/COPYRIGHT" for a file
+taken from the Rust project describing their legal situation.
+
+Once compiled, this program will statically link against the third-party
+Cargo crates "lazy_static", "libc", "signal-hook", "signal-hook-registry".
+These are dual-licensed under the MIT license and the Apache 2.0 license.
+Copies of the licenses for these crates can be found in the "licenses/
+thirdparty/crates" directory. The crates "signal-hook" and "signal-hook-registry"
+are both under the same license which can be found in "licenses/thirdparty/
+crates/signal-hook".
+
+Compiled forms of this program may statically or dynamically link against
+other libraries. All those libraries are available under their respective
+licenses.

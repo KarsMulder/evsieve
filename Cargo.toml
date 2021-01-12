@@ -1,0 +1,29 @@
+[package]
+name = "evsieve"
+version = "0.1.0"
+authors = ["Kars Mulder <devmail@karsmulder.nl>"]
+edition = "2018"
+keywords = ["evdev"]
+categories = ["command-line-utilities"]
+links = "evdev"
+
+# The following "license = " key includes licenses from some dependencies, even if no code
+# from those dependencies is on this repository. See the COPYING file for more detailed information.
+#
+# Most of this program is (compatible with) GPL-2.0-or-later, but I'm not a lawyer and
+# I am unable to determine whether or not this program is legally a derivative work of the
+# Linux kernel, so I'm marking the license conservatively in Cargo.toml. If you wish to
+# redistribute this program under GPLv3+, you should do your own legal research on whether
+# that is possible.
+license = "GPL-2.0-or-later AND MIT AND HPND-sell-variant AND GPL-2.0-only WITH Linux-syscall-note"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+lazy_static = "1.4.0"
+libc = "0.2.81"
+signal-hook = "0.3.1"
+
+[profile.release]
+panic = "unwind"
+lto = true
