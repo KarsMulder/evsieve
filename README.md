@@ -31,7 +31,7 @@ Compiling this program requires the Rust toolchain and the libevdev library. To 
 After you've installed the dependencies and obtained a copy of the source code, you can compile the program using:
 
 ```
-    cargo build --release
+cargo build --release
 ```
 
 An executable binary can then be found in `target/release/evsieve`.
@@ -62,11 +62,11 @@ evsieve --input /dev/input/by-id/keyboard grab --output
 
 In this example, evsieve will open the event device `/dev/input/by-id/keyboard` for exclusive read access (specified by the `grab` flag), read events from it, and write those same events to an unnamed virtual event device. This changes the flow of events from:
 
-* Keyboard -> Kernel -> Event Device -> Xorg/Wayland -> Applications
+* Keyboard → Kernel → Event Device → Xorg/Wayland → Applications
 
 To:
 
-* Keyboard -> Kernel -> Event Device -> Evsieve -> Virtual Event Device -> Xorg/Wayland -> Applications
+* Keyboard → Kernel → Event Device → Evsieve → Virtual Event Device → Xorg/Wayland → Applications
 
 This has effectively accomplished nothing beside adding about 0.25ms of latency. However, if we add additional arguments to evsieve, we can use this construction to add, change, or suppress events. For example, the following script will turn the capslock into a second backspace:
 
