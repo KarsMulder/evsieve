@@ -46,6 +46,18 @@ pub enum RuntimeError {
     InterruptError,
 }
 
+impl fmt::Display for RuntimeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            RuntimeError::ArgumentError(error) => write!(f, "{}", error),
+            RuntimeError::InternalError(error) => write!(f, "{}", error),
+            RuntimeError::IoError(error)       => write!(f, "{}", error),
+            RuntimeError::InterruptError       => write!(f, "Interrupt received."),
+        }
+    }
+}
+
+
 impl From<ArgumentError> for RuntimeError {
     fn from(error: ArgumentError) -> RuntimeError {
         RuntimeError::ArgumentError(error)
