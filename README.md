@@ -431,7 +431,7 @@ The chosen thresholds determine how far you need to move a stick or trigger to m
 
 The `repeat=enable` clause makes the virtual keyboard emit key repeat events if a button is held down, like a keyboard does, even though the controllers do not emit repeat events themselves. Since most applications that read event devices ignore repeat events anyway, this clause isn't very important.
 
-# In detail
+# Usage: In detail
 
 In this section, we'll provide comprehensive documentation about all the arguments evsieve accepts.
 
