@@ -44,7 +44,7 @@ Linux event devices are a tool the kernel uses to inform userspace applications 
 
 Event devices emit a stream of events. For example, when you press the A key on your key board, it will emit an (EV_KEY, KEY_A, 1) event, and when you release it it will emit an (EV_KEY, KEY_A, 0) event.
 
-The quickest way to get an idea of how it works is to just look at it. You can either install the utility `evtest` (shipped by most major Linux distributions), run it as `sudo evtest`, select your keyboard/mouse/whatever and look at the events it emits, or run evsieve with the following arguments to see all events that are emitted on your device:
+The quickest way to get an idea of how it works is to just look at it. You can either install the utility `evtest` (shipped by most major Linux distributions), run it as `sudo evtest`, select your keyboard/mouse/whatever and look at the events it emits, or run evsieve with the following arguments to see all events that are emitted on your computer:
 
 ```
 sudo evsieve --input /dev/input/event* --print
@@ -68,7 +68,7 @@ To:
 
 * Keyboard → Kernel → Event Device → Evsieve → Virtual Event Device → Xorg/Wayland → Applications
 
-This has effectively accomplished nothing beside adding about 0.25ms of latency. However, if we add additional arguments to evsieve, we can use this construction to add, change, or suppress events. For example, the following script will turn the capslock into a second backspace:
+This has effectively accomplished nothing besides adding about 0.25ms of latency. However, if we add additional arguments to evsieve, we can use this construction to add, change, or suppress events. For example, the following script will turn the capslock into a second backspace:
 
 ```
 evsieve --input /dev/input/by-id/keyboard grab \
@@ -728,7 +728,7 @@ The default formatter prints events in a human-readable way, for example:
 Event:  type:code = key:a          value = 1 (down)    domain = /dev/input/by-id/keyboard
 ```
 
-If you specify `format=direct`, then it will print the events using evsieve's standard key format that's also used for maps and other arguments:
+If you specify `format=direct`, then it will print the events using evsieve's standard key format that's also used for maps and other arguments, for example:
 
 ```
 key:a:1@/dev/input/by-id/keyboard
