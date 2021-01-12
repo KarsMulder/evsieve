@@ -1,8 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-//! This module contains utilities that are useful for parsing hooks.
-//! This module can be seen as an extension of crate::argument_parser.
-
 use crate::error::ArgumentError;
 use crate::utils;
 use crate::state::{State, ToggleIndex};
