@@ -6,10 +6,46 @@
 use crate::error::ArgumentError;
 use crate::utils;
 use crate::state::{State, ToggleIndex};
-use crate::hook::{Hook, Effect};
-use crate::key::KeyParser;
+use crate::hook::Effect;
+use crate::key::{Key, KeyParser};
 use crate::event::Namespace;
+use crate::arguments::lib::ComplexArgGroup;
 use std::collections::HashMap;
+
+/// Represents a --hook argument.
+pub(super) struct HookArg {
+    pub exec_shell: Vec<String>,
+    pub hold_keys: Vec<Key>,
+    pub toggle_action: HookToggleAction,
+}
+
+impl HookArg {
+	pub fn parse(args: Vec<String>) -> Result<HookArg, ArgumentError> {
+        let arg_group = ComplexArgGroup::parse(args,
+            &["toggle"],
+            &["exec-shell", "toggle"],
+            false,
+            true,
+        )?;
+
+        let toggle_action = HookToggleAction::parse(arg_group.has_flag("toggle"), arg_group.get_clauses("toggle"))?;
+        let hold_keys = KeyParser {
+            allow_transitions: false,
+            allow_ranges: true,
+            default_value: "1~",
+            namespace: Namespace::User,
+        }.parse_all(&arg_group.keys)?;
+
+        if arg_group.keys.is_empty() {
+            Err(ArgumentError::new("A --hook argument requires at least one key."))
+        } else {
+            Ok(HookArg {
+                exec_shell: arg_group.get_clauses("exec-shell"),
+                hold_keys, toggle_action,
+            })
+        }
+    }
+}
 
 /// Represents how a single toggle clause on a hook should modify some toggle.
 #[derive(Clone, Copy)]
@@ -105,16 +141,4 @@ impl HookToggleAction {
 
         Ok(effects)
     }
-}
-
-/// Intended to interpret the keys of a --hook command line argument.
-pub fn interpret_hook(hold_key_strs: &[String], state: &mut State) -> Result<Hook, ArgumentError> {
-    let hold_keys = KeyParser {
-        allow_transitions: false,
-        allow_ranges: true,
-        default_value: "1~",
-        namespace: Namespace::User,
-    }.parse_all(hold_key_strs)?;
-	
-    Ok(Hook::new(hold_keys, state))
 }

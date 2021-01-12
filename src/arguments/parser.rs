@@ -4,19 +4,19 @@ use crate::domain;
 use crate::error::{ArgumentError, RuntimeError};
 use crate::key::Key;
 use crate::event::Namespace;
+use crate::hook::Hook;
 use crate::map::{Map, Toggle};
 use crate::stream::{StreamEntry, Setup};
 use crate::predevice::{PreInputDevice, PreOutputDevice};
 use crate::io::output::OutputSystem;
 use crate::io::input::InputSystem;
 use crate::state::{State, ToggleIndex};
-use crate::arguments::hook::{HookToggleAction, interpret_hook};
+use crate::arguments::hook::HookArg;
 use crate::arguments::input::InputDevice;
 use crate::arguments::output::OutputDevice;
 use crate::arguments::toggle::ToggleArg;
 use crate::arguments::map::{MapArg, BlockArg};
 use crate::arguments::print::PrintArg;
-use crate::arguments::lib::ComplexArgGroup;
 use std::collections::HashMap;
 
 const USAGE_MSG: &str = 
@@ -28,36 +28,6 @@ const USAGE_MSG: &str =
                [--hook KEY... [exec-shell=COMMAND]... [toggle[=[ID][:INDEX]]]...]...
                [--print [EVENTS...] [format=default|direct]]...
                [--output [EVENTS...] [create-link=PATH]]... [repeat[=MODE]]";
-
-/// Represents a --hook argument.
-struct HookArg {
-    exec_shell: Vec<String>,
-    hold_keys: Vec<String>,
-    toggle_action: HookToggleAction,
-}
-
-impl HookArg {
-	fn parse(args: Vec<String>) -> Result<HookArg, ArgumentError> {
-        let arg_group = ComplexArgGroup::parse(args,
-            &["toggle"],
-            &["exec-shell", "toggle"],
-            false,
-            true,
-        )?;
-
-        let toggle_action = HookToggleAction::parse(arg_group.has_flag("toggle"), arg_group.get_clauses("toggle"))?;
-
-        if arg_group.keys.is_empty() {
-            Err(ArgumentError::new("A --hook argument requires at least one key."))
-        } else {
-            Ok(HookArg {
-                exec_shell: arg_group.get_clauses("exec-shell"),
-                hold_keys: arg_group.keys,
-                toggle_action,
-            })
-        }
-    }
-}
 
 enum Argument {
     InputDevice(InputDevice),
@@ -220,7 +190,7 @@ pub fn implement(args_str: Vec<String>) -> Result<Setup, RuntimeError> {
                 }
             },
             Argument::HookArg(hook_arg) => {
-                let mut hook = interpret_hook(&hook_arg.hold_keys, &mut state)?;
+                let mut hook = Hook::new(hook_arg.hold_keys, &mut state);
                 for exec_shell in hook_arg.exec_shell.iter().cloned() {
                     hook.add_command("/bin/sh".to_owned(), vec!["-c".to_owned(), exec_shell]);
                 }
