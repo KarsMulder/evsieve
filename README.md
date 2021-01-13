@@ -471,7 +471,7 @@ Any part that is not specified will be interpreted to mean "any" for source even
 ```
     ""              # The empty string matches any event
     key:a           # Matches any event with type EV_KEY, code KEY_A
-    key:a:1         # Matches any event with type EV_KEY, code KEY_A, value 1 (key_down)
+    key:a:1         # Matches any event with type EV_KEY, code KEY_A, value 1 (down)
     key:a@keyboard  # Matches any event with type EV_KEY, code KEY_A with domain "keyboard"
     @keyboard       # Matches any event with domain "keyboard"   
 ```
@@ -487,7 +487,7 @@ For output events, any part that is not specified will be interpreted as "same a
 The value for input events may also be expressed as an (optionally bounded) range. For example:
 
 ```
-    key:a:1~2        # Matches any event with type EV_KEY, code KEY_A, a value of 1 (key_down) or 2 (key_repeat)
+    key:a:1~2        # Matches any event with type EV_KEY, code KEY_A, a value of 1 (down) or 2 (repeat)
     abs:x:10~50      # Matches any event with type EV_ABS, code ABS_X, a value between 10 and 50
     abs:x:51~        # Matches any event with type EV_ABS, code ABS_X, a value of 51 or higher
 ```
@@ -497,8 +497,8 @@ No ranges may be specified for the values of the output events, they can only be
 Furthermore, when matching an input event, it is possible to specify a transition of values. If a transition is specified, then a certain event only matches if its value lies in the specified range and the value of the previous event with the same type and code from the same input device also lies within a certain range. For example:
 
 ```
-    key:a:1..2       # Matches an A key event with value 2 (key_repeat),
-                     # if the last A key event had value 1 (key_down).
+    key:a:1..2       # Matches an A key event with value 2 (repeat),
+                     # if the last A key event had value 1 (down).
     abs:x:~50..51~   # Matches an X axis event with a value of 51 or greater,
                      # provided that the previous X axis value was 50 or less.
 ```
