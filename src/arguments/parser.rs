@@ -40,7 +40,7 @@ enum Argument {
 }
 
 impl Argument {
-    fn parse(args: Vec<String>) -> Result<Argument, ArgumentError> {
+    fn parse(args: Vec<String>) -> Result<Argument, RuntimeError> {
         let first_arg = args[0].clone();
         match first_arg.as_str() {
             "--input" => Ok(Argument::InputDevice(InputDevice::parse(args)?)),
@@ -51,7 +51,7 @@ impl Argument {
             "--toggle" => Ok(Argument::ToggleArg(ToggleArg::parse(args)?)),
             "--block" => Ok(Argument::BlockArg(BlockArg::parse(args)?)),
             "--print" => Ok(Argument::PrintArg(PrintArg::parse(args)?)),
-            _ => Err(ArgumentError::new(format!("Encountered unknown argument: {}", first_arg))),
+            _ => Err(ArgumentError::new(format!("Encountered unknown argument: {}", first_arg)).into()),
         }
     }
 }
@@ -90,7 +90,7 @@ fn parse(args: Vec<String>) -> Result<Vec<Argument>, RuntimeError> {
     }
 
     Ok(groups.into_iter().map(Argument::parse)
-        .collect::<Result<Vec<Argument>, ArgumentError>>()?)
+        .collect::<Result<Vec<Argument>, RuntimeError>>()?)
 }
 
 pub fn implement(args_str: Vec<String>) -> Result<Setup, RuntimeError> {   
