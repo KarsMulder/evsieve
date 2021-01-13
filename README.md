@@ -305,9 +305,9 @@ If an application does not support controllers or joysticks but you want to cont
 
 Controllers are seen as joysticks by the Linux kernel. The good news is that they have event devices just like keyboards and can be processed by evsieve. The bad news is that the buttons on them do not tend to have sensible names or event codes, so the commands you need to map them tend to be cryptic and dependent on what controller you use.
 
-Below are example scripts that create a virtual keyboard based on a DualSense or Xbox One controller. You can change the keyboard keys the controller gets mapped to as you please.
+Below are example scripts that create a virtual keyboard based on a DualSense or Xbox One controller. You can change which keyboard keys the controller buttons get mapped to as you please.
 
-If you want to write a mapping script for some other controller or joystick, we recommend using the Linux utility `evtest` (available on most major distributions) to discover which event codes are associated with the buttons on your controller.
+If you want to write a mapping script for some other controller or joystick, we recommend using the `--print` argument or the Linux utility `evtest` to discover which event codes are associated with the buttons on your controller.
 
 **DualSense controller:**
 
