@@ -34,7 +34,11 @@ After you've installed the dependencies and obtained a copy of the source code, 
 cargo build --release
 ```
 
-An executable binary can then be found in `target/release/evsieve`.
+An executable binary can then be found in `target/release/evsieve`. You can either execute it as-is, or copy it to somewhere in your PATH for your convenience, e.g.:
+
+```
+sudo install -m 755 -t /usr/local/bin target/release/evsieve
+```
 
 The source code repository contains some files which were automatically generated. You can optionally regenerate these files before compilation. To regenerate these files, run the `generate_bindings.sh` script before running `cargo build`. This script requires the `rust-bindgen` tool to be installed on your system.
 
