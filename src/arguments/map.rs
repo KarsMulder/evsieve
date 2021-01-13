@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use crate::error::ArgumentError;
+use crate::error::{ArgumentError, InternalError, RuntimeError};
 use crate::arguments::lib::ComplexArgGroup;
 use crate::key::{Key, KeyParser};
 use crate::event::Namespace;
@@ -12,7 +12,7 @@ pub(super) struct MapArg {
 }
 
 impl MapArg {
-	pub fn parse(args: Vec<String>) -> Result<MapArg, ArgumentError> {
+	pub fn parse(args: Vec<String>) -> Result<MapArg, RuntimeError> {
         let arg_group = ComplexArgGroup::parse(args,
             &["yield"],
             &[],
@@ -23,7 +23,7 @@ impl MapArg {
         let copy = match arg_group.name.as_str() {
             "--copy" => true,
             "--map" => false,
-            _ => return Err(ArgumentError::new("Internal error: a map has been constructed from neither a --map or a --copy.".to_owned())),
+            _ => return Err(InternalError::new("A map has been constructed from neither a --map or a --copy.").into()),
         };
 
         // Parse the keys.
