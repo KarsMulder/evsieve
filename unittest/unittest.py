@@ -496,7 +496,10 @@ def unittest_namespace():
         "--output", "create-link=/dev/input/by-id/unittest-namespace-out-2",
         "--hook", "key:a", "exec-shell=echo baz",],
         {
-            "/dev/input/by-id/unittest-namespace-in-1": [],
+            "/dev/input/by-id/unittest-namespace-in-1": [
+                (e.EV_KEY, e.KEY_Q, 1),
+                (e.EV_KEY, e.KEY_Q, 0),
+            ],
             "/dev/input/by-id/unittest-namespace-in-2": [
                 (e.EV_KEY, e.KEY_A, 1),
                 (e.EV_KEY, e.KEY_A, 0),
@@ -508,6 +511,8 @@ def unittest_namespace():
         },
         {
             "/dev/input/by-id/unittest-namespace-out-1": [
+                (e.EV_KEY, e.KEY_Q, 1),
+                (e.EV_KEY, e.KEY_Q, 0),
                 (e.EV_KEY, e.KEY_A, 1),
                 (e.EV_KEY, e.KEY_D, 1),
                 (e.EV_KEY, e.KEY_A, 0),
