@@ -649,7 +649,7 @@ If an `exec-shell` clause is specified, then a certain command will be executed 
 
 This will be executed as the same user that evsieve is running as, which may be root. If you want to run it as another user, you can make `sudo -u $USER` part of the command.
 
-The command is executed asynchronously, which means that the processing of events will *not* halt until the command's execution has completed. In case the command takes sufficiently long to complete and the used presses keys sufficiently fast, it may be possible to trigger the hook again before the command's execution has finished, which will lead to multiple copies of the command being executed simultaneously.
+The command is executed asynchronously, which means that the processing of events will *not* halt until the command's execution has completed. In case the command takes sufficiently long to complete and the user presses keys sufficiently fast, it may be possible to trigger the hook again before the command's execution has finished, which will lead to multiple copies of the command being executed simultaneously.
 
 ## Inputs
 
