@@ -190,7 +190,8 @@ impl Capabilities {
                 value: new_range.bound(meta.value),
             };
 
-            // We might get None in case we mapped some non-abs event with unknown value range.
+            // We might get an unbounded range in case we mapped some non-abs non-key event with
+            // an unknown value range.
             if ! new_range.is_bounded() {
                 eprintln!("Warning: could not automatically derive the possible range of the absolute axis {}.", ecodes::event_name(cap.ev_type, cap.code));
             };
