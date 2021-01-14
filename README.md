@@ -611,6 +611,35 @@ The `--block` argument takes a list of event filters with the same format as the
 
 Using `--block` is equivalent to using maps that generate zero output events; the above argument would have the same effect as `--map key:a --map key:b`.
 
+## Toggles
+
+The `--toggle` argument has the following basic syntax:
+
+```
+    --toggle SOURCE_EVENT TARGET_EVENT... [id=ID] [mode=consistent|passive]
+```
+
+Toggles work the same way as `--map`s do, with one difference: a `--map` will map each source event to all of its target events, whereas a `--toggle` will map each source events to only one of its target events. The target event it gets mapped to is called the "active target".
+
+The first target listed becomes the active target when the program starts. The active target can be changed using a `--hook` with a `toggle` clause. For more information, see the "Toggles" subsection under the "Hooks" section.
+
+An optional `id=` clause can be specified to give this `--toggle` a name. This ID can be used to modify specific toggles in the `--hook toggle=` clause. No two toggles may have the same ID.
+
+**Modes**
+
+There are two modes of operation for toggles: consistent and passive. The mode of operation can be chosen by supplying a `mode=` clause to a `--toggle` argument. If no mode is specified, then "consistent" will be chosen by default.
+
+The easiest mode to understand is "passive". If `mode=passive` is specified on a toggle, then all source events will be mapped to the currently active target event, no exceptions. However, this mode of operation can introduce some unexpected issues. For example, consider the following argument:
+
+```
+    --toggle key:a key:b key:c mode=passive \
+    --hook key:z toggle
+```
+
+Suppose the user presses the A key. Then a B key down event will be generated. Now suppose the user presses the Z key before releasing the A key. When the user releases the A key, the A key up event will be mapped to a C key up event, which results in the B key being stuck in a key_down state.
+
+To address this problem, `mode=consistent` exists. If a toggle operates in consistent mode, then for every key it will remember which target was active when it received a key_down event of that key, and and will then map all events related to that key to that target until a key_up event of that key is received, even if the active target changed in the meanwhile. In the above example, this ensures that an A key up event is mapped to a B key up event event if the active target was changed.
+
 ## Hooks
 
 The `--hook` argument has the following basic syntax:
@@ -650,6 +679,47 @@ If an `exec-shell` clause is specified, then a certain command will be executed 
 This will be executed as the same user that evsieve is running as, which may be root. If you want to run it as another user, you can make `sudo -u $USER` part of the command.
 
 The command is executed asynchronously, which means that the processing of events will *not* halt until the command's execution has completed. In case the command takes sufficiently long to complete and the user presses keys sufficiently fast, it may be possible to trigger the hook again before the command's execution has finished, which will lead to multiple copies of the command being executed simultaneously.
+
+**Toggles**
+
+Hooks are capable of modifying the active target of `--toggle` arguments specified elsewhere in the script. Any hook can modify any toggle, it doesn't matter whether the `--hook` or the `--toggle` argument was specified first, e.g. the following two orders are functionally identical:
+
+```
+    # Order 1
+    --hook key:leftctrl toggle \
+    --toggle @source @target-1 @target-2
+
+    # Order 2, functionally identical to Order 1
+    --toggle @source @target-1 @target-2 \
+    --hook key:leftctrl toggle
+```
+
+If a `toggle` flag is specified on a hook, then all toggles specified anywhere in the script will have their active target moved to the next one, wrapping around. The above example maps all events with domain `source` to domain `target-1` by default. Once the lctrl key is pressed, they will start mapping the events to `target-2` instead. By pressing lctrl again, they will start mapping the events to `target-1` again.
+
+It is also possible to specify a toggle clause, using the syntax:
+
+```
+    --hook toggle=[ID][:TARGET]
+```
+
+Both the ID and the TARGET are optional. If an ID is specified, then only the `--toggle` with the matching ID will be affected. For example, the following hook will affect the first toggle but not the second:
+
+```
+    --toggle @source-1 @target-1 @target-2 @target-3 id=first-toggle \
+    --toggle @source-1 @target-1 @target-2 id=second-toggle \
+    --hook key:leftctrl toggle=first-toggle
+```
+
+By default, the active target is always moved to the next one in the list. It is also possible to move the active target to a specific one by providing a numerical index for TARGET, for example:
+
+```
+    --toggle @source-1 @target-1 @target-2 id=first-toggle \
+    --toggle @source-1 @target-1 @target-2 id=second-toggle \
+    --hook key:leftctrl toggle=first-toggle:1 \
+    --hook key:rightctrl toggle=:2 \
+```
+
+This will move the active target to the first one (`@target-1`) for `first-toggle` when lctrl is pressed, and move the active target to the second one (`@target-2`) for all toggles when rctrl is pressed.
 
 ## Inputs
 
