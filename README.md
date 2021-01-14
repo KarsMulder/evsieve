@@ -435,6 +435,33 @@ The chosen thresholds determine how far you need to move a stick or trigger to m
 
 The `repeat=enable` clause makes the virtual keyboard emit key repeat events if a button is held down, like a keyboard does, even though the controllers do not emit repeat events themselves. Since most applications that read event devices ignore repeat events anyway, this clause isn't very important.
 
+## Change your keyboard layout on an evdev level
+
+It is probably better to change your keyboard layout by changing your OS settings, but that isn't possible for some reason, it is possible to use evsieve to map every key to its corresponding key on your favourite keyboard layout. For example, the following script will map the Qwerty keys to [Colemak](https://colemak.com/):
+
+```
+evsieve --input /dev/input/by-id/keyboard grab \
+        --map yield key:e key:f \
+        --map yield key:r key:p \
+        --map yield key:t key:g \
+        --map yield key:y key:j \
+        --map yield key:u key:l \
+        --map yield key:i key:u \
+        --map yield key:o key:y \
+        --map yield key:s key:r \
+        --map yield key:d key:s \
+        --map yield key:f key:t \
+        --map yield key:g key:d \
+        --map yield key:j key:n \
+        --map yield key:k key:e \
+        --map yield key:l key:i \
+        --map yield key:n key:k \
+        --map yield key:p key:semicolon \
+        --map yield key:semicolon key:o \
+        --map yield key:capslock key:backspace \
+        --output
+```
+
 # Usage: In detail
 
 In this section, we'll provide comprehensive documentation about all the arguments evsieve accepts.
