@@ -182,14 +182,22 @@ impl<'a> KeyParser<'a> {
 /// flags and the user might end up with useless error messages such as "the --map argument
 /// doesn't take a key:lctrl flag".
 pub fn resembles_key(key_str: &str) -> bool {
-    KeyParser {
-        default_value: "",
-        allow_ranges: true,
-        allow_transitions: true,
-        namespace: Namespace::User,
-    }.parse(key_str).is_ok()
-    || utils::split_once(key_str, "=").0.contains(':')
-    || utils::split_once(key_str, "=").0.contains('@')
+    // Make sure we don't confuse a path for a key.
+    if key_str.starts_with('/') {
+        false
+    } else {
+        // Check if it is an actual key.
+        KeyParser {
+            default_value: "",
+            allow_ranges: true,
+            allow_transitions: true,
+            namespace: Namespace::User,
+        }.parse(key_str).is_ok()
+        // Otherwise, check if it contains some of the key-like characters.
+        // No flag or clause name should contain a : or @ to make sure they're not mistaken for keys.
+        || utils::split_once(key_str, "=").0.contains(':')
+        || utils::split_once(key_str, "=").0.contains('@')
+    }
 }
 
 /// Interprets a key that optionally has a domain attached, like "key:a@keyboard".
