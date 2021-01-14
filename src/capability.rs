@@ -191,7 +191,7 @@ impl Capabilities {
             };
 
             // We might get None in case we mapped some non-abs event with unknown value range.
-            if new_range.is_bounded() {
+            if ! new_range.is_bounded() {
                 eprintln!("Warning: could not automatically derive the possible range of the absolute axis {}.", ecodes::event_name(cap.ev_type, cap.code));
             };
             // i32::MIN and i32::MAX respectively. We use literals instead of constant names to be
