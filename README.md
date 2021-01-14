@@ -437,7 +437,7 @@ The `repeat=enable` clause makes the virtual keyboard emit key repeat events if 
 
 ## Change your keyboard layout on an evdev level
 
-It is probably better to change your keyboard layout by changing your OS settings, but that isn't possible for some reason, it is possible to use evsieve to map every key to its corresponding key on your favourite keyboard layout. For example, the following script will map the Qwerty keys to [Colemak](https://colemak.com/):
+It is probably better to change your keyboard layout by changing your OS settings, but if that isn't possible for some reason, it is possible to use evsieve to map every key to its corresponding key on your favourite keyboard layout. For example, the following script will map the Qwerty keys to [Colemak](https://colemak.com/):
 
 ```
 evsieve --input /dev/input/by-id/keyboard grab \
