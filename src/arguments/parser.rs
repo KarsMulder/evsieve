@@ -17,7 +17,8 @@ use crate::arguments::output::OutputDevice;
 use crate::arguments::toggle::ToggleArg;
 use crate::arguments::map::{MapArg, BlockArg};
 use crate::arguments::print::PrintArg;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 
 const USAGE_MSG: &str = 
 "Usage: evsieve [--input PATH... [domain=DOMAIN] [grab[=auto|force]]]...
@@ -122,19 +123,26 @@ pub fn implement(args_str: Vec<String>) -> Result<Setup, RuntimeError> {
         }
     }
 
+    // Keep trach of the real paths for the input devices we've opened so we don't open the same
+    // one twice.
+    let mut input_device_real_paths: HashSet<PathBuf> = HashSet::new();
+
     // Construct the stream.
     for arg in args {
         match arg {
             Argument::InputDevice(device) => {
                 for path_str in &device.paths {
-                    let path = path_str.into();
+                    let path: PathBuf = path_str.into();
+                    let real_path = std::fs::canonicalize(path.clone()).map_err(
+                        |_| ArgumentError::new(format!("The input device \"{}\" does not exist.", path_str))
+                    )?;
 
                     // Opening the same device multiple times could spell trouble for certain
                     // possible future features and has little purpose, so we don't allow it.
-                    if input_devices.iter().any(
-                        |device| device.path == path
-                    ) {
-                        return Err(ArgumentError::new(format!("The input device \"{}\" has been opened multiple times.", path_str)).into())
+                    if input_device_real_paths.contains(&real_path) {
+                        return Err(ArgumentError::new(format!("The input device \"{}\" has been opened multiple times.", path_str)).into());
+                    } else {
+                        input_device_real_paths.insert(real_path);
                     }
                     
                     let source_domain = domain::get_unique_domain();
