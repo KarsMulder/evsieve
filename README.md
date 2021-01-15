@@ -239,7 +239,7 @@ In this script, we do not match events by type or code such as `key:a`, but inst
 
 A filter like `@kb` matches all events which have domain `kb`, just like a filter `key:a` matches all events with type EV_KEY and code KEY_A. The argument `--toggle @kb @guest-kb @host-kb` will take all events with domain `kb` and change their domain to `guest-kb`. When the `--hook toggle` is triggered, it will start changing their domain to `host-kb` instead.
 
-Next, the output devices also filter by domain. There is one virtual output which will write all events with domain `guest-kb` to it, and another output which will write all events with domain `host-kb` to it. Thus, by changing the domains of events, this `--toggle` effectively decides to which virtual device events will be written.
+Next, the output devices also filter by domain. There is one virtual output which will write all events with domain `guest-kb` to it, and another output which will write all events with domain `host-kb` to it. Thus, by changing the domains of events, this `--toggle` effectively decides to which virtual device the events will be written.
 
 **Advanced variations**
 
@@ -282,7 +282,7 @@ You may need to adjust the numbers involved depending on your monitor. Not all m
 ## Control your mouse using your keyboard
 
 ```
-evsieve --input /dev/input/by-id/keyboard  \
+evsieve --input /dev/input/by-id/keyboard \
         --input /dev/input/by-id/mouse grab domain=mouse \
         --map key:left:1~2      rel:x:-20@mouse \
         --map key:right:1~2     rel:x:20@mouse  \
@@ -835,7 +835,7 @@ If you specify `format=direct`, then it will print the events using evsieve's st
 key:a:1@/dev/input/by-id/keyboard
 ```
 
-**Beware:** `--print` is intended for human readers, not for scripts. Even if `format=<something>` is specified, evsieve makes absolutely no guarantees about how the events are printed. Future versions of evsieve may change the format of the printed events without warning. It is not recommended to attempt to programatically parse the output of evsieve.
+**Beware:** `--print` is intended for human readers, not for scripts. Even if `format=<something>` is specified, evsieve makes absolutely no guarantees about how the events are printed. Future versions of evsieve may change the format of the printed events without warning. It is not recommended to attempt to programmatically parse the output of evsieve.
 
 # License
 Most of the content on this repository is licensed under the GPLv2 or later, though the repository does contain some files derived from third-party content with a different license, including some content indirectly derived from Linux kernel headers which, depending on legal interpretation, may or may not effectively render the program GPLv2 only. To the extent of our knowledge, all content on this repository is compatible with the GPLv2. See the COPYING file for more information.
