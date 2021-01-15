@@ -4,7 +4,7 @@ use crate::domain::Domain;
 use std::path::PathBuf;
 
 /// Represents whether and how the user has requested the device to be grabbed.
-/// Set through the grab flag or grab= command on --input arguments.
+/// Set through the grab flag or grab= clause on --input arguments.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum GrabMode {
     /// The user has requested this device to be grabbed immediately.
