@@ -600,7 +600,7 @@ If a `yield` flag is provided to a `--copy` argument, then source events matchin
 The `--block` arguments have the form:
 
 ```
-    --block SOURCE...
+    --block [SOURCE_EVENT...]
 ```
 
 The `--block` argument takes a list of event filters with the same format as the source events for `--map`s. All events that match one of the filters provided will be removed from the processing stream. For example, the following argument will drop all events related to the A or B keys:
@@ -610,6 +610,8 @@ The `--block` argument takes a list of event filters with the same format as the
 ```
 
 Using `--block` is equivalent to using maps that generate zero output events; the above argument would have the same effect as `--map key:a --map key:b`.
+
+If no source events are specified, the `--block` argument will drop all events from the processing stream.
 
 ## Toggles
 
