@@ -22,9 +22,10 @@ The source code file "src/bindings/libevdev.rs" was programmatically
 derived from header files belonging to the "libevdev" library. The license
 applying to those files can be found in the file "licenses/thirdparty/
 libevdev/header.txt". Those libevdev headers on their turn include some
-content from Linux kernel header files, which is available under the
-GNU General Public License version 2.0 with the Linux syscall note.
-A notice from such a kernel header file can be found in "licenses/thirdparty/
+content from Linux kernel header files, such as input event codes and some
+data structures. The Linux kernel is available under the GNU General Public
+License version 2.0 with the Linux syscall note. A notice from the kernel
+header file containing input event codes can be found in "licenses/thirdparty/
 linux/linux_kernel_input_codes_notice.txt". A copy of the Linux syscall
 note can be found in "licenses/thirdparty/linux/linux_syscall_note.txt".
 
