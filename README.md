@@ -229,7 +229,7 @@ By default, all events will be written to the `guest-*` devices, but by pressing
 
 If you then pass the `guest-*` devices through to your virtual machine and leave the `host-*` devices on your host, then you can switch your input between your host and guest by pressing the scrolllock key. The scrolllock key is always sent to the host using `--map` so the LED indicator works properly.
 
-You could also do something like passing both of the devices through to two different virtual machines, so you can toggle between both of the machines instead of toggling between host and guest. Of course, it is also possible to create more than two virtual devices per real device: just add more of the `@something` domains to the `--toggle`s along with corresponding `--output`s.
+You could also do something like passing both of the devices through to two different virtual machines, so you can toggle between both of the machines instead of toggling between host and guest. Of course, it is also possible to create more than two virtual devices per real device: just add more `@something` domains to the `--toggle`s along with corresponding `--output`s.
 
 **Explanation**
 
