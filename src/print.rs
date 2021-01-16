@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 use crate::key::Key;
-use crate::event::Event;
+use crate::event::{Event, EventType};
 use crate::ecodes;
 use crate::domain;
 
@@ -40,7 +40,7 @@ impl EventPrinter {
 pub fn print_event_detailed(event: Event) -> String {
     let name = ecodes::event_name(event.ev_type, event.code);
     let value_str = match event.ev_type {
-        ecodes::EV_KEY => match event.value {
+        EventType::Key => match event.value {
             0 => "0 (up)".to_string(),
             1 => "1 (down)".to_string(),
             2 => "2 (repeat)".to_string(),

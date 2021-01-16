@@ -137,7 +137,7 @@ impl Capabilities {
             let abs_info = self.abs_info.get(&(ev_type, code));
             let (value_range, abs_meta) = match abs_info {
                 None => match ev_type {
-                    ecodes::EV_KEY => (Range::new(Some(0), Some(2)), None),
+                    EventType::Key => (Range::new(Some(0), Some(2)), None),
                     _ => (Range::new(None, None), None),
                 },
                 Some(info) => (
@@ -149,8 +149,8 @@ impl Capabilities {
             // The repeats are are realised through keys. Attach rep_info to EV_KEY events,
             // but do not emit EV_REP capabilities themself.
             let rep_info = match ev_type {
-                ecodes::EV_KEY => self.rep_info,
-                ecodes::EV_REP => return None,
+                EventType::Key => self.rep_info,
+                EventType::Rep => return None,
                 _ => None,
             };
 
@@ -163,7 +163,7 @@ impl Capabilities {
         self.codes.insert((cap.ev_type, cap.code));
 
         // For events of type EV_ABS, an accompanying AbsInfo is required.
-        if cap.ev_type == ecodes::EV_ABS {
+        if cap.ev_type.is_abs() {
             // It is possible to lack abs_meta on this capability, e.g. if some non-abs event got
             // mapped to an abs-event. In that case, use the sanest default we can think of.
             let meta = match cap.abs_meta {
@@ -208,7 +208,7 @@ impl Capabilities {
 
         // Events of type EV_KEY may have some accompanying rep_info which must be translated
         // to EV_REP capabilities.
-        if cap.ev_type == ecodes::EV_KEY && cap.value_range.contains(2) {
+        if cap.ev_type.is_key() && cap.value_range.contains(2) {
             // Extract the repeat info from this capability, or use a sane default if none
             // is available.
             let rep_info = match cap.rep_info {
@@ -242,18 +242,18 @@ impl Capabilities {
     /// Removes EV_REP cababilities from self.
     pub fn remove_ev_rep(&mut self) {
         self.rep_info = None;
-        self.ev_types.remove(&ecodes::EV_REP);
-        self.codes.remove(&(ecodes::EV_REP, ecodes::REP_DELAY));
-        self.codes.remove(&(ecodes::EV_REP, ecodes::REP_PERIOD));
+        self.ev_types.remove(&EventType::Rep);
+        self.codes.remove(&(EventType::Rep, ecodes::REP_DELAY));
+        self.codes.remove(&(EventType::Rep, ecodes::REP_PERIOD));
     }
 
     /// Sets the rep_info variable of self and makes sure that the correct capabilities
     /// are inserted to self.ev_types and self.codes.
     fn set_ev_rep(&mut self, repeat_info: RepeatInfo) {
         self.rep_info = Some(repeat_info);
-        self.ev_types.insert(ecodes::EV_REP);
-        self.codes.insert((ecodes::EV_REP, ecodes::REP_DELAY));
-        self.codes.insert((ecodes::EV_REP, ecodes::REP_PERIOD));
+        self.ev_types.insert(EventType::Rep);
+        self.codes.insert((EventType::Rep, ecodes::REP_DELAY));
+        self.codes.insert((EventType::Rep, ecodes::REP_PERIOD));
     }
 }
 

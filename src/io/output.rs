@@ -7,6 +7,7 @@ use std::ptr;
 use std::collections::HashMap;
 use std::path::{Path};
 use std::path::PathBuf;
+use crate::event::EventType;
 use crate::bindings::libevdev;
 use crate::capability::{Capability, Capabilities};
 use crate::event::Event;
@@ -110,19 +111,19 @@ impl OutputDevice {
             libevdev::libevdev_set_name(dev, name);
 
             for &ev_type in &caps.ev_types {
-                libevdev::libevdev_enable_event_type(dev, ev_type as u32);
+                libevdev::libevdev_enable_event_type(dev, ev_type.into());
             }
             for &(ev_type, code) in &caps.codes {
                 let res = match ev_type {
-                    ecodes::EV_ABS => {
+                    EventType::Abs => {
                         let abs_info = caps.abs_info.get(&(ev_type, code))
                             .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Internal error: cannot create uinput device: device has absolute axis without associated capabilities."))?;
                         let libevdev_abs_info: libevdev::input_absinfo = (*abs_info).into();
                         let libevdev_abs_info_ptr = &libevdev_abs_info as *const libevdev::input_absinfo;
                         libevdev::libevdev_enable_event_code(
-                            dev, ev_type as u32, code as u32, libevdev_abs_info_ptr as *const libc::c_void)
+                            dev, ev_type.into(), code as u32, libevdev_abs_info_ptr as *const libc::c_void)
                     },
-                    ecodes::EV_REP => {
+                    EventType::Rep => {
                         // Known issue: due to limitations in the uinput kernel module, the REP_DELAY
                         // and REP_PERIOD values are ignored and the kernel defaults will be used instead,
                         // according to the libevdev documentation. Status: won't fix.
@@ -135,13 +136,13 @@ impl OutputDevice {
                                     continue;
                                 },
                             };
-                            libevdev::libevdev_enable_event_code(dev, ev_type as u32, code as u32, &value as *const libc::c_int as *const libc::c_void)
+                            libevdev::libevdev_enable_event_code(dev, ev_type.into(), code as u32, &value as *const libc::c_int as *const libc::c_void)
                         } else {
                             eprintln!("Internal error: an output device claims EV_REP capabilities, but no repeat info is available.");
                             continue;
                         }
                     },
-                    _ => libevdev::libevdev_enable_event_code(dev, ev_type as u32, code as u32, ptr::null_mut()),
+                    _ => libevdev::libevdev_enable_event_code(dev, ev_type.into(), code as u32, ptr::null_mut()),
                 };
                 if res < 0 {
                     eprintln!("Warning: failed to enable event {} on uinput device.", ecodes::event_name(ev_type, code));
@@ -167,7 +168,7 @@ impl OutputDevice {
     }
 
     fn write(&mut self, ev_type: u32, code: u32, value: i32) {
-        if ! self.allows_repeat && ev_type == ecodes::EV_KEY as u32 && value == 2 {
+        if ! self.allows_repeat && ev_type == ecodes::EV_KEY.into() && value == 2 {
             return;
         }
         let res = unsafe { libevdev::libevdev_uinput_write_event(self.device, ev_type, code, value) };
@@ -178,7 +179,7 @@ impl OutputDevice {
     }
 
     fn write_event(&mut self, event: Event) {
-        self.write(event.ev_type as u32, event.code as u32, event.value as i32);
+        self.write(event.ev_type.into(), event.code as u32, event.value as i32);
     }
 
     fn syn_if_required(&mut self) {

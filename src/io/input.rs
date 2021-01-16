@@ -146,9 +146,9 @@ impl InputDevice {
             const EAGAIN: i32 = -libc::EAGAIN;
 
             match res {
-                SUCCESS => events.push(((event.type_, event.code), event.value)),
+                SUCCESS => events.push(((event.type_.into(), event.code), event.value)),
                 SYNC => {
-                    events.push(((event.type_, event.code), event.value));
+                    events.push(((event.type_.into(), event.code), event.value));
                     should_sync = true;
                 },
                 EAGAIN => break,
@@ -188,7 +188,7 @@ impl InputDevice {
             GrabMode::Auto => {
                 // Grab if no key is currently pressed.
                 for (event_id, value) in &self.state {
-                    if event_id.0 == ecodes::EV_KEY && *value > 0 {
+                    if event_id.0.is_key() && *value > 0 {
                         return Ok(());
                     }
                 }
@@ -233,24 +233,22 @@ unsafe fn get_capabilities(evdev: *mut libevdev::libevdev) -> Capabilities {
     let event_codes = ecodes::EVENT_IDS.iter().cloned();
     
     let supported_event_types: HashSet<EventType> = event_types.filter(|&ev_type| {
-        libevdev::libevdev_has_event_type(evdev, ev_type as u32) == 1
+        libevdev::libevdev_has_event_type(evdev, ev_type.into()) == 1
     }).collect();
 
     let supported_event_codes: HashSet<EventId> = event_codes
         .filter(|&(ev_type, _code)| supported_event_types.contains(&ev_type))
         .filter(|&(ev_type,  code)| {
-            libevdev::libevdev_has_event_code(evdev, ev_type as u32, code as u32) == 1
+            libevdev::libevdev_has_event_code(evdev, ev_type.into(), code as u32) == 1
         }).collect();
     
     // Query the abs_info from this device.
     let mut abs_info: HashMap<EventId, AbsInfo> = HashMap::new();
     for &(ev_type, code) in &supported_event_codes {
-        if ev_type != ecodes::EV_ABS {
-            continue;
+        if ev_type.is_abs() {
+            let evdev_abs_info: *const libevdev::input_absinfo = libevdev::libevdev_get_abs_info(evdev, code as u32);
+            abs_info.insert((ev_type, code), (*evdev_abs_info).into());
         }
-        let evdev_abs_info: *const libevdev::input_absinfo = libevdev::libevdev_get_abs_info(evdev, code as u32);
-
-        abs_info.insert((ev_type, code), (*evdev_abs_info).into());
     }
 
     // Query rep_info from this device.
@@ -278,7 +276,7 @@ unsafe fn get_device_state(evdev: *mut libevdev::libevdev, capabilities: &Capabi
     for &(ev_type, code) in &capabilities.codes {
         // ISSUE: ABS_MT support
         if ! ecodes::is_abs_mt(ev_type, code) {
-            let value: i32 = libevdev::libevdev_get_event_value(evdev, ev_type as u32, code as u32);
+            let value: i32 = libevdev::libevdev_get_event_value(evdev, ev_type.into(), code as u32);
             device_state.insert((ev_type, code), value);
         } else {
             // The return value of libevdev_get_event_value() for ABS_MT_* is undefined. Until we

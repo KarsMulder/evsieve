@@ -8,6 +8,7 @@ use crate::error::ArgumentError;
 use crate::capability::{Capability, CapMatch};
 use crate::range::Range;
 use crate::ecodes;
+use crate::event::{EventType, EventCode};
 
 #[derive(Clone, Debug)]
 pub struct Key {
@@ -89,8 +90,8 @@ impl Key {
 
 #[derive(Clone, Copy, Debug)]
 enum KeyProperty {
-    Evtype(u16),
-    Code(u16),
+    Evtype(EventType),
+    Code(EventCode),
     Domain(Domain),
     Namespace(Namespace),
     Value(Range),
@@ -231,7 +232,7 @@ fn interpret_key(key_str: &str, parser: &KeyParser) -> Result<Key, ArgumentError
             key_str, event_type_name
         ))
     )?;
-    if event_type == ecodes::EV_SYN {
+    if event_type.is_syn() {
         return Err(ArgumentError::new("Cannot use event type \"syn\": it is impossible to manipulate synchronisation events because synchronisation is automatically taken care of by evsieve."));
     }
     key.add_property(KeyProperty::Evtype(event_type));

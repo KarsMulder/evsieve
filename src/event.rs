@@ -4,11 +4,63 @@ use std::fmt;
 use crate::domain::Domain;
 use crate::ecodes;
 
-pub type EventType = u16;
 pub type EventCode = u16;
 pub type EventId = (EventType, EventCode);
 pub type EventValue = i32;
 
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
+pub enum EventType {
+    Key,
+    Abs,
+    Rep,
+    Syn,
+    Other(u16),
+}
+
+impl EventType {
+    pub fn is_key(self) -> bool {
+        self == EventType::Key
+    }
+    pub fn is_abs(self) -> bool {
+        self == EventType::Abs
+    }
+    pub fn is_rep(self) -> bool {
+        self == EventType::Rep
+    }
+    pub fn is_syn(self) -> bool {
+        self == EventType::Syn
+    }
+}
+
+impl From<u16> for EventType {
+    fn from(value: u16) -> EventType {
+        match value {
+            ecodes::EV_ABS => EventType::Abs,
+            ecodes::EV_KEY => EventType::Key,
+            ecodes::EV_REP => EventType::Rep,
+            ecodes::EV_SYN => EventType::Syn,
+            _ => EventType::Other(value),
+        }
+    }
+}
+
+impl From<EventType> for u16 {
+    fn from(ev_type: EventType) -> u16 {
+        match ev_type {
+            EventType::Key => ecodes::EV_KEY,
+            EventType::Abs => ecodes::EV_ABS,
+            EventType::Rep => ecodes::EV_REP,
+            EventType::Syn => ecodes::EV_SYN,
+            EventType::Other(value) => value,
+        }
+    }
+}
+
+impl From<EventType> for u32 {
+    fn from(ev_type: EventType) -> u32 {
+        u16::from(ev_type) as u32
+    }
+}
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub struct Event {

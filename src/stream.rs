@@ -9,7 +9,6 @@ use crate::capability::Capability;
 use crate::io::input::InputSystem;
 use crate::io::output::OutputSystem;
 use crate::error::RuntimeError;
-use crate::ecodes;
 
 pub enum StreamEntry {
     Map(Map),
@@ -35,7 +34,7 @@ pub fn run(setup: &mut Setup) -> Result<(), RuntimeError> {
     let input_events = setup.input.poll()?;
     let mut output_events: Vec<Event> = Vec::with_capacity(input_events.len());
     for event in input_events {
-        if event.ev_type == ecodes::EV_SYN {
+        if event.ev_type.is_syn() {
             setup.output.route_events(&output_events);
             output_events.clear();
             setup.output.synchronize();

@@ -31,7 +31,7 @@ lazy_static! {
                     None => continue,
                 };
                 
-                result.insert(name, ev_type as EventType);
+                result.insert(name, (ev_type as u16).into());
             }
         }
 
@@ -47,9 +47,9 @@ lazy_static! {
     pub static ref EVENT_CODES: HashMap<(String, String), EventCode> = {
         let mut result = HashMap::new();
         for (ev_type_name, &ev_type) in EVENT_TYPES.iter() {
-            let code_max = unsafe { libevdev::libevdev_event_type_get_max(ev_type as u32) };
+            let code_max = unsafe { libevdev::libevdev_event_type_get_max(ev_type.into()) };
             for code in 0 ..= code_max {
-                if let Some(raw_code_name) = unsafe { parse_cstr(libevdev::libevdev_event_code_get_name(ev_type as u32, code as u32)) } {
+                if let Some(raw_code_name) = unsafe { parse_cstr(libevdev::libevdev_event_code_get_name(ev_type.into(), code as u32)) } {
                     let (code_type_name, code_name_opt) = split_once(&raw_code_name, "_");
 
                     // This test helps us not confuse KEY_* with BTN_* events.
@@ -90,36 +90,36 @@ lazy_static! {
 pub fn event_name(ev_type: EventType, code: EventCode) -> String {
     match EVENT_NAMES.get(&(ev_type, code)) {
         Some(name) => name.to_owned(),
-        None => format!("{}:{}", ev_type, code),
+        None => format!("{}:{}", u16::from(ev_type), code),
     }
 }
 
 // Returns whether this event is an multitouch event.
 pub fn is_abs_mt(ev_type: EventType, code: EventCode) -> bool {
-    ev_type == EV_ABS && event_name(ev_type, code).starts_with("abs:mt_")
+    ev_type == EventType::Abs && event_name(ev_type, code).starts_with("abs:mt_")
 }
 
 pub fn event_type(name: &str) -> Option<EventType> {
     EVENT_TYPES.get(name).cloned()
 }
 
-pub fn event_code(type_name: &str, code_name: &str) -> Option<EventType> {
+pub fn event_code(type_name: &str, code_name: &str) -> Option<EventCode> {
     EVENT_CODES.get(&(type_name.to_string(), code_name.to_string())).cloned()
 }
 
-pub const EV_ABS: EventType = libevdev::EV_ABS as u16;
-pub const EV_SYN: EventType = libevdev::EV_SYN as u16;
-pub const EV_REP: EventType = libevdev::EV_REP as u16;
-pub const EV_KEY: EventType = libevdev::EV_KEY as u16;
+pub const EV_ABS: u16 = libevdev::EV_ABS as u16;
+pub const EV_SYN: u16 = libevdev::EV_SYN as u16;
+pub const EV_REP: u16 = libevdev::EV_REP as u16;
+pub const EV_KEY: u16 = libevdev::EV_KEY as u16;
 
-pub const REP_DELAY: EventType = libevdev::REP_DELAY as u16;
-pub const REP_PERIOD: EventType = libevdev::REP_PERIOD as u16;
+pub const REP_DELAY: EventCode = libevdev::REP_DELAY as u16;
+pub const REP_PERIOD: EventCode = libevdev::REP_PERIOD as u16;
 
 #[test]
 fn unittest() {
     // Since the is_abs_mt function depends on the user-facing representation we use for events,
     // this test makes sure it doesn't accidentally break if we change out naming scheme.
-    assert!(is_abs_mt(EV_ABS, 0x35));
-    assert!(!is_abs_mt(EV_ABS, 0x01));
-    assert!(!is_abs_mt(EV_KEY, 0x35));
+    assert!(is_abs_mt(EventType::Abs, 0x35));
+    assert!(!is_abs_mt(EventType::Abs, 0x01));
+    assert!(!is_abs_mt(EventType::Key, 0x35));
 }
