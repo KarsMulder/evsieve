@@ -146,15 +146,14 @@ impl Capabilities {
                 ),
             };
 
-            // The repeats are are realised through keys. Attach rep_info to EV_KEY events,
-            // but do not emit EV_REP capabilities themself.
-            let rep_info = match ev_type {
-                EventType::Key => self.rep_info,
-                EventType::Rep => return None,
-                _ => None,
-            };
-
-            Some(Capability { ev_type, code, domain, value_range, abs_meta, rep_info, namespace })
+            // The EV_REP capability signifies that the kernel has been asked to automatically
+            // generate repeat events, not the ability to generate repeat events. As such, it
+            // doesn't make sense to propagate EV_REP capabilities.
+            if ev_type.is_rep() {
+                None
+            } else {
+                Some(Capability { ev_type, code, domain, value_range, abs_meta, namespace })
+            }
         }).collect()
     }
 
@@ -205,34 +204,10 @@ impl Capabilities {
                 min_value, max_value, meta: new_meta
             });
         }
-
-        // Events of type EV_KEY may have some accompanying rep_info which must be translated
-        // to EV_REP capabilities.
-        if cap.ev_type.is_key() && cap.value_range.contains(2) {
-            // Extract the repeat info from this capability, or use a sane default if none
-            // is available.
-            let rep_info = match cap.rep_info {
-                Some(info) => info,
-                None => match self.rep_info {
-                    Some(info) => info,
-                    None => RepeatInfo::kernel_default(),
-                },
-            };
-
-            // Merge the new info with the existing info.
-            let current_rep_info = match self.rep_info {
-                Some(info) => info,
-                None => rep_info,
-            };
-            let delay = std::cmp::min(current_rep_info.delay, rep_info.delay);
-            let period = std::cmp::min(current_rep_info.period, rep_info.period);
-
-            self.set_ev_rep(RepeatInfo { delay, period });
-        }
     }
 
     /// Adds EV_REP capabilities to self with arbitrary delay and period.
-    /// The kernel is goint to ignore the delay and period we give it anyway.
+    /// The kernel is going to ignore the delay and period we give it anyway.
     pub fn require_ev_rep(&mut self) {
         if self.rep_info == None {
             self.set_ev_rep(RepeatInfo::kernel_default())
@@ -265,7 +240,6 @@ pub struct Capability {
     pub namespace: Namespace,
     pub value_range: Range,
     pub abs_meta: Option<AbsMeta>,
-    pub rep_info: Option<RepeatInfo>,
 }
 
 impl Capability {

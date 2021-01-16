@@ -40,7 +40,6 @@ impl OutputSystem {
                 return Err(InternalError::new("Multiple output devices with the same domain have been created.").into());
             }
 
-            // TODO: autodetected repeat capabilities will be ignored anyway. Time for a code cleanup?
             let mut capabilities = capability_map.get(&domain).cloned().unwrap_or_else(Capabilities::new);
             match pre_device.repeat_mode {
                 RepeatMode::Disable => capabilities.remove_ev_rep(),
