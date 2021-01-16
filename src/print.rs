@@ -40,7 +40,7 @@ impl EventPrinter {
 pub fn print_event_detailed(event: Event) -> String {
     let name = ecodes::event_name(event.ev_type, event.code);
     let value_str = match event.ev_type {
-        EventType::Key => match event.value {
+        EventType::KEY => match event.value {
             0 => "0 (up)".to_string(),
             1 => "1 (down)".to_string(),
             2 => "2 (repeat)".to_string(),

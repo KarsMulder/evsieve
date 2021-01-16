@@ -137,7 +137,7 @@ impl Capabilities {
             let abs_info = self.abs_info.get(&(ev_type, code));
             let (value_range, abs_meta) = match abs_info {
                 None => match ev_type {
-                    EventType::Key => (Range::new(Some(0), Some(2)), None),
+                    EventType::KEY => (Range::new(Some(0), Some(2)), None),
                     _ => (Range::new(None, None), None),
                 },
                 Some(info) => (
@@ -217,18 +217,18 @@ impl Capabilities {
     /// Removes EV_REP cababilities from self.
     pub fn remove_ev_rep(&mut self) {
         self.rep_info = None;
-        self.ev_types.remove(&EventType::Rep);
-        self.codes.remove(&(EventType::Rep, ecodes::REP_DELAY));
-        self.codes.remove(&(EventType::Rep, ecodes::REP_PERIOD));
+        self.ev_types.remove(&EventType::REP);
+        self.codes.remove(&(EventType::REP, ecodes::REP_DELAY));
+        self.codes.remove(&(EventType::REP, ecodes::REP_PERIOD));
     }
 
     /// Sets the rep_info variable of self and makes sure that the correct capabilities
     /// are inserted to self.ev_types and self.codes.
     fn set_ev_rep(&mut self, repeat_info: RepeatInfo) {
         self.rep_info = Some(repeat_info);
-        self.ev_types.insert(EventType::Rep);
-        self.codes.insert((EventType::Rep, ecodes::REP_DELAY));
-        self.codes.insert((EventType::Rep, ecodes::REP_PERIOD));
+        self.ev_types.insert(EventType::REP);
+        self.codes.insert((EventType::REP, ecodes::REP_DELAY));
+        self.codes.insert((EventType::REP, ecodes::REP_PERIOD));
     }
 }
 

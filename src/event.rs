@@ -9,50 +9,37 @@ pub type EventId = (EventType, EventCode);
 pub type EventValue = i32;
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
-pub enum EventType {
-    Key,
-    Abs,
-    Rep,
-    Syn,
-    Other(u16),
-}
+pub struct EventType(u16);
 
 impl EventType {
+    pub const KEY: EventType = EventType(ecodes::EV_KEY);
+    pub const ABS: EventType = EventType(ecodes::EV_ABS);
+    pub const REP: EventType = EventType(ecodes::EV_REP);
+    pub const SYN: EventType = EventType(ecodes::EV_SYN);
+
     pub fn is_key(self) -> bool {
-        self == EventType::Key
+        self == EventType::KEY
     }
     pub fn is_abs(self) -> bool {
-        self == EventType::Abs
+        self == EventType::ABS
     }
     pub fn is_rep(self) -> bool {
-        self == EventType::Rep
+        self == EventType::REP
     }
     pub fn is_syn(self) -> bool {
-        self == EventType::Syn
+        self == EventType::SYN
     }
 }
 
 impl From<u16> for EventType {
     fn from(value: u16) -> EventType {
-        match value {
-            ecodes::EV_ABS => EventType::Abs,
-            ecodes::EV_KEY => EventType::Key,
-            ecodes::EV_REP => EventType::Rep,
-            ecodes::EV_SYN => EventType::Syn,
-            _ => EventType::Other(value),
-        }
+        EventType(value)
     }
 }
 
 impl From<EventType> for u16 {
     fn from(ev_type: EventType) -> u16 {
-        match ev_type {
-            EventType::Key => ecodes::EV_KEY,
-            EventType::Abs => ecodes::EV_ABS,
-            EventType::Rep => ecodes::EV_REP,
-            EventType::Syn => ecodes::EV_SYN,
-            EventType::Other(value) => value,
-        }
+        ev_type.0
     }
 }
 

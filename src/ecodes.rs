@@ -96,7 +96,7 @@ pub fn event_name(ev_type: EventType, code: EventCode) -> String {
 
 // Returns whether this event is an multitouch event.
 pub fn is_abs_mt(ev_type: EventType, code: EventCode) -> bool {
-    ev_type == EventType::Abs && event_name(ev_type, code).starts_with("abs:mt_")
+    ev_type.is_abs() && event_name(ev_type, code).starts_with("abs:mt_")
 }
 
 pub fn event_type(name: &str) -> Option<EventType> {
@@ -119,7 +119,7 @@ pub const REP_PERIOD: EventCode = libevdev::REP_PERIOD as u16;
 fn unittest() {
     // Since the is_abs_mt function depends on the user-facing representation we use for events,
     // this test makes sure it doesn't accidentally break if we change out naming scheme.
-    assert!(is_abs_mt(EventType::Abs, 0x35));
-    assert!(!is_abs_mt(EventType::Abs, 0x01));
-    assert!(!is_abs_mt(EventType::Key, 0x35));
+    assert!(is_abs_mt(EventType::ABS, 0x35));
+    assert!(!is_abs_mt(EventType::ABS, 0x01));
+    assert!(!is_abs_mt(EventType::KEY, 0x35));
 }

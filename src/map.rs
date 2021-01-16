@@ -6,7 +6,6 @@ use crate::domain::Domain;
 use crate::capability::{Capability, CapMatch};
 use crate::error::InternalError;
 use crate::state::{State, ToggleIndex};
-use crate::event::EventType;
 
 #[derive(Clone, Debug)]
 pub struct Map {
@@ -159,7 +158,7 @@ impl Toggle {
     /// This should be called _after_ as_map_for_event(), because otherwise it may erase the
     /// memory we were left by the previous event.
     fn remember(&self, event: Event, state: &mut State) {
-        if self.mode == ToggleMode::Consistent && event.ev_type == EventType::Key {
+        if self.mode == ToggleMode::Consistent && event.ev_type.is_key() {
             let active_value = state[self.state_index].value();
             let memory = &mut state[self.state_index].memory;
             let event_id = (event.ev_type, event.code);

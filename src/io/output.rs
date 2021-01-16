@@ -114,7 +114,7 @@ impl OutputDevice {
             }
             for &(ev_type, code) in &caps.codes {
                 let res = match ev_type {
-                    EventType::Abs => {
+                    EventType::ABS => {
                         let abs_info = caps.abs_info.get(&(ev_type, code))
                             .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Internal error: cannot create uinput device: device has absolute axis without associated capabilities."))?;
                         let libevdev_abs_info: libevdev::input_absinfo = (*abs_info).into();
@@ -122,7 +122,7 @@ impl OutputDevice {
                         libevdev::libevdev_enable_event_code(
                             dev, ev_type.into(), code as u32, libevdev_abs_info_ptr as *const libc::c_void)
                     },
-                    EventType::Rep => {
+                    EventType::REP => {
                         // Known issue: due to limitations in the uinput kernel module, the REP_DELAY
                         // and REP_PERIOD values are ignored and the kernel defaults will be used instead,
                         // according to the libevdev documentation. Status: won't fix.
