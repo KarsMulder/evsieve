@@ -334,6 +334,16 @@ evsieve --input /dev/input/by-id/usb-Sony_Interactive_Entertainment_Wireless_Con
         --copy btn:south         key:c@kb       \
         --copy btn:north         key:v@kb       \
                                                 \
+        `# Left pad`                            \
+        --copy abs:z:38~..~37    key:j:1@kb     \
+        --copy abs:z:~37..38~    key:j:0@kb     \
+        --copy abs:z:~216..217~  key:l:1@kb     \
+        --copy abs:z:217~..~216  key:l:0@kb     \
+        --copy abs:rz:38~..~37   key:i:1@kb     \
+        --copy abs:rz:~37..38~   key:i:0@kb     \
+        --copy abs:rz:~216..217~ key:k:1@kb     \
+        --copy abs:rz:217~..~216 key:k:0@kb     \
+                                                \
         `# Right pad`                           \
         --copy abs:x:38~..~37    key:a:1@kb     \
         --copy abs:x:~37..38~    key:a:0@kb     \
@@ -344,15 +354,9 @@ evsieve --input /dev/input/by-id/usb-Sony_Interactive_Entertainment_Wireless_Con
         --copy abs:y:~216..217~  key:s:1@kb     \
         --copy abs:y:217~..~216  key:s:0@kb     \
                                                 \
-        `# Left pad`                            \
-        --copy abs:z:38~..~37    key:j:1@kb     \
-        --copy abs:z:~37..38~    key:j:0@kb     \
-        --copy abs:z:~216..217~  key:l:1@kb     \
-        --copy abs:z:217~..~216  key:l:0@kb     \
-        --copy abs:rz:38~..~37   key:i:1@kb     \
-        --copy abs:rz:~37..38~   key:i:0@kb     \
-        --copy abs:rz:~216..217~ key:k:1@kb     \
-        --copy abs:rz:217~..~216 key:k:0@kb     \
+        `# Press left pad, press right pad`     \
+        --copy btn:select        key:t@kb       \
+        --copy btn:start         key:g@kb       \
                                                 \
         `# Back buttons: LB, RB, LT, RT`        \
         --copy btn:west         key:q@kb        \
@@ -369,7 +373,7 @@ evsieve --input /dev/input/by-id/usb-Sony_Interactive_Entertainment_Wireless_Con
         --copy btn:thumbl        key:n@kb       \
         --copy btn:thumbr        key:m@kb       \
                                                 \
-        --output @kb repeat=enable
+        --output @kb repeat
 ```
 
 **Xbox One controller:**
@@ -393,6 +397,16 @@ evsieve --input /dev/input/by-id/usb-Microsoft_Controller_*-event-joystick \
         --copy btn:north               key:c@kb       \
         --copy btn:west                key:v@kb       \
                                                       \
+        `# Left pad`                                  \
+        --copy abs:x:~23169..23170~    key:d:1@kb     \
+        --copy abs:x:23170~..~23169    key:d:0@kb     \
+        --copy abs:x:-23169~..~-23170  key:a:1@kb     \
+        --copy abs:x:~-23170..-23169~  key:a:0@kb     \
+        --copy abs:y:~23169..23170~    key:s:1@kb     \
+        --copy abs:y:23170~..~23169    key:s:0@kb     \
+        --copy abs:y:-23169~..~-23170  key:w:1@kb     \
+        --copy abs:y:~-23170..-23169~  key:w:0@kb     \
+                                                      \
         `# Right pad`                                 \
         --copy abs:rx:~23169..23170~   key:l:1@kb     \
         --copy abs:rx:23170~..~23169   key:l:0@kb     \
@@ -403,15 +417,9 @@ evsieve --input /dev/input/by-id/usb-Microsoft_Controller_*-event-joystick \
         --copy abs:ry:-23169~..~-23170 key:i:1@kb     \
         --copy abs:ry:~-23170..-23169~ key:i:0@kb     \
                                                       \
-        `# Left pad`                                  \
-        --copy abs:x:~23169..23170~    key:d:1@kb     \
-        --copy abs:x:23170~..~23169    key:d:0@kb     \
-        --copy abs:x:-23169~..~-23170  key:a:1@kb     \
-        --copy abs:x:~-23170..-23169~  key:a:0@kb     \
-        --copy abs:y:~23169..23170~    key:s:1@kb     \
-        --copy abs:y:23170~..~23169    key:s:0@kb     \
-        --copy abs:y:-23169~..~-23170  key:w:1@kb     \
-        --copy abs:y:~-23170..-23169~  key:w:0@kb     \
+        `# Press left pad, press right pad`           \
+        --copy btn:thumbl              key:t@kb       \
+        --copy btn:thumbr              key:g@kb       \
                                                       \
         `# Back buttons: LB, RB, LT, RT`              \
         --copy btn:tl                  key:q@kb       \
@@ -426,14 +434,14 @@ evsieve --input /dev/input/by-id/usb-Microsoft_Controller_*-event-joystick \
         --copy btn:select              key:space@kb   \
         --copy btn:mode                key:esc@kb     \
                                                       \
-        --output @kb repeat=enable
+        --output @kb repeat
 ```
 
 The major new feature used in these scripts are transitions: a transition like `~203..204~` matches an event with a value of 204 or greater, provided that the last event with the same type and code had a value of 203 or less. These transitions are useful for detecting when an absolute axis event goes over or under a certain threshold.
 
 The chosen thresholds determine how far you need to move a stick or trigger to make them cause a keyboard event. You can adjust them to make the maps more or less sensitive to small movements.
 
-The `repeat=enable` clause makes the virtual keyboard emit key repeat events if a button is held down, like a keyboard does, even though the controllers do not emit repeat events themselves. Since most applications that read event devices ignore repeat events anyway, this clause isn't very important.
+The `repeat` flag makes the virtual keyboard emit key repeat events if a button is held down, like a keyboard does, even though the controllers do not emit repeat events themselves. Since most applications that read event devices ignore repeat events anyway, this clause isn't very important.
 
 ## Change your keyboard layout on an evdev level
 
