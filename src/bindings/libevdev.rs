@@ -227,102 +227,32 @@ fn bindgen_test_layout_input_absinfo() {
     );
 }
 pub type va_list = __builtin_va_list;
-#[doc = " @ingroup init"]
-#[doc = ""]
-#[doc = " Opaque struct representing an evdev device."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct libevdev {
     _unused: [u8; 0],
 }
-#[doc = "< Process data in sync mode"]
 pub const libevdev_read_flag_LIBEVDEV_READ_FLAG_SYNC: libevdev_read_flag = 1;
-#[doc = "< Process data in normal mode"]
 pub const libevdev_read_flag_LIBEVDEV_READ_FLAG_NORMAL: libevdev_read_flag = 2;
-#[doc = "< Pretend the next event is a SYN_DROPPED and"]
-#[doc = "require the caller to sync"]
 pub const libevdev_read_flag_LIBEVDEV_READ_FLAG_FORCE_SYNC: libevdev_read_flag = 4;
-#[doc = "< The fd is not in O_NONBLOCK and a read may block"]
 pub const libevdev_read_flag_LIBEVDEV_READ_FLAG_BLOCKING: libevdev_read_flag = 8;
-#[doc = " @ingroup events"]
 pub type libevdev_read_flag = ::std::os::raw::c_uint;
 extern "C" {
-    #[doc = " @ingroup init"]
-    #[doc = ""]
-    #[doc = " Initialize a new libevdev device. This function only allocates the"]
-    #[doc = " required memory and initializes the struct to sane default values."]
-    #[doc = " To actually hook up the device to a kernel device, use"]
-    #[doc = " libevdev_set_fd()."]
-    #[doc = ""]
-    #[doc = " Memory allocated through libevdev_new() must be released by the"]
-    #[doc = " caller with libevdev_free()."]
-    #[doc = ""]
-    #[doc = " @see libevdev_set_fd"]
-    #[doc = " @see libevdev_free"]
     pub fn libevdev_new() -> *mut libevdev;
 }
 extern "C" {
-    #[doc = " @ingroup init"]
-    #[doc = ""]
-    #[doc = " Initialize a new libevdev device from the given fd."]
-    #[doc = ""]
-    #[doc = " This is a shortcut for"]
-    #[doc = ""]
-    #[doc = " @code"]
-    #[doc = " int err;"]
-    #[doc = " struct libevdev *dev = libevdev_new();"]
-    #[doc = " err = libevdev_set_fd(dev, fd);"]
-    #[doc = " @endcode"]
-    #[doc = ""]
-    #[doc = " @param fd A file descriptor to the device in O_RDWR or O_RDONLY mode."]
-    #[doc = " @param[out] dev The newly initialized evdev device."]
-    #[doc = ""]
-    #[doc = " @return On success, 0 is returned and dev is set to the newly"]
-    #[doc = " allocated struct. On failure, a negative errno is returned and the value"]
-    #[doc = " of dev is undefined."]
-    #[doc = ""]
-    #[doc = " @see libevdev_free"]
     pub fn libevdev_new_from_fd(
         fd: ::std::os::raw::c_int,
         dev: *mut *mut libevdev,
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup init"]
-    #[doc = ""]
-    #[doc = " Clean up and free the libevdev struct. After completion, the <code>struct"]
-    #[doc = " libevdev</code> is invalid and must not be used."]
-    #[doc = ""]
-    #[doc = " Note that calling libevdev_free() does not close the file descriptor"]
-    #[doc = " currently associated with this instance."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device"]
-    #[doc = ""]
-    #[doc = " @note This function may be called before libevdev_set_fd()."]
     pub fn libevdev_free(dev: *mut libevdev);
 }
-#[doc = "< critical errors and application bugs"]
 pub const libevdev_log_priority_LIBEVDEV_LOG_ERROR: libevdev_log_priority = 10;
-#[doc = "< informational messages"]
 pub const libevdev_log_priority_LIBEVDEV_LOG_INFO: libevdev_log_priority = 20;
-#[doc = "< debug information"]
 pub const libevdev_log_priority_LIBEVDEV_LOG_DEBUG: libevdev_log_priority = 30;
-#[doc = " @ingroup logging"]
 pub type libevdev_log_priority = ::std::os::raw::c_uint;
-#[doc = " @ingroup logging"]
-#[doc = ""]
-#[doc = " Logging function called by library-internal logging."]
-#[doc = " This function is expected to treat its input like printf would."]
-#[doc = ""]
-#[doc = " @param priority Log priority of this message"]
-#[doc = " @param data User-supplied data pointer (see libevdev_set_log_function())"]
-#[doc = " @param file libevdev source code file generating this message"]
-#[doc = " @param line libevdev source code line generating this message"]
-#[doc = " @param func libevdev source code function generating this message"]
-#[doc = " @param format printf-style format string"]
-#[doc = " @param args List of arguments"]
-#[doc = ""]
-#[doc = " @see libevdev_set_log_function"]
 pub type libevdev_log_func_t = ::std::option::Option<
     unsafe extern "C" fn(
         priority: libevdev_log_priority,
@@ -335,69 +265,17 @@ pub type libevdev_log_func_t = ::std::option::Option<
     ),
 >;
 extern "C" {
-    #[doc = " @ingroup logging"]
-    #[doc = ""]
-    #[doc = " Set a printf-style logging handler for library-internal logging. The default"]
-    #[doc = " logging function is to stdout."]
-    #[doc = ""]
-    #[doc = " @note The global log handler is only called if no context-specific log"]
-    #[doc = " handler has been set with libevdev_set_device_log_function()."]
-    #[doc = ""]
-    #[doc = " @param logfunc The logging function for this device. If NULL, the current"]
-    #[doc = " logging function is unset and no logging is performed."]
-    #[doc = " @param data User-specific data passed to the log handler."]
-    #[doc = ""]
-    #[doc = " @note This function may be called before libevdev_set_fd()."]
-    #[doc = ""]
-    #[doc = " @deprecated Use per-context logging instead, see"]
-    #[doc = " libevdev_set_device_log_function()."]
     pub fn libevdev_set_log_function(
         logfunc: libevdev_log_func_t,
         data: *mut ::std::os::raw::c_void,
     );
 }
 extern "C" {
-    #[doc = " @ingroup logging"]
-    #[doc = ""]
-    #[doc = " Define the minimum level to be printed to the log handler."]
-    #[doc = " Messages higher than this level are printed, others are discarded. This"]
-    #[doc = " is a global setting and applies to any future logging messages."]
-    #[doc = ""]
-    #[doc = " @param priority Minimum priority to be printed to the log."]
-    #[doc = ""]
-    #[doc = " @deprecated Use per-context logging instead, see"]
-    #[doc = " libevdev_set_device_log_function()."]
     pub fn libevdev_set_log_priority(priority: libevdev_log_priority);
 }
 extern "C" {
-    #[doc = " @ingroup logging"]
-    #[doc = ""]
-    #[doc = " Return the current log priority level. Messages higher than this level"]
-    #[doc = " are printed, others are discarded. This is a global setting."]
-    #[doc = ""]
-    #[doc = " @return the current log level"]
-    #[doc = ""]
-    #[doc = " @deprecated Use per-context logging instead, see"]
-    #[doc = " libevdev_set_device_log_function()."]
     pub fn libevdev_get_log_priority() -> libevdev_log_priority;
 }
-#[doc = " @ingroup logging"]
-#[doc = ""]
-#[doc = " Logging function called by library-internal logging for a specific"]
-#[doc = " libevdev context. This function is expected to treat its input like"]
-#[doc = " printf would."]
-#[doc = ""]
-#[doc = " @param dev The evdev device"]
-#[doc = " @param priority Log priority of this message"]
-#[doc = " @param data User-supplied data pointer (see libevdev_set_log_function())"]
-#[doc = " @param file libevdev source code file generating this message"]
-#[doc = " @param line libevdev source code line generating this message"]
-#[doc = " @param func libevdev source code function generating this message"]
-#[doc = " @param format printf-style format string"]
-#[doc = " @param args List of arguments"]
-#[doc = ""]
-#[doc = " @see libevdev_set_log_function"]
-#[doc = " @since 1.3"]
 pub type libevdev_device_log_func_t = ::std::option::Option<
     unsafe extern "C" fn(
         dev: *const libevdev,
@@ -411,25 +289,6 @@ pub type libevdev_device_log_func_t = ::std::option::Option<
     ),
 >;
 extern "C" {
-    #[doc = " @ingroup logging"]
-    #[doc = ""]
-    #[doc = " Set a printf-style logging handler for library-internal logging for this"]
-    #[doc = " device context. The default logging function is NULL, i.e. the global log"]
-    #[doc = " handler is invoked. If a context-specific log handler is set, the global"]
-    #[doc = " log handler is not invoked for this device."]
-    #[doc = ""]
-    #[doc = " @note This log function applies for this device context only, even if"]
-    #[doc = " another context exists for the same fd."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device"]
-    #[doc = " @param logfunc The logging function for this device. If NULL, the current"]
-    #[doc = " logging function is unset and logging falls back to the global log"]
-    #[doc = " handler, if any."]
-    #[doc = " @param priority Minimum priority to be printed to the log."]
-    #[doc = " @param data User-specific data passed to the log handler."]
-    #[doc = ""]
-    #[doc = " @note This function may be called before libevdev_set_fd()."]
-    #[doc = " @since 1.3"]
     pub fn libevdev_set_device_log_function(
         dev: *mut libevdev,
         logfunc: libevdev_device_log_func_t,
@@ -437,182 +296,28 @@ extern "C" {
         data: *mut ::std::os::raw::c_void,
     );
 }
-#[doc = "< Grab the device if not currently grabbed"]
 pub const libevdev_grab_mode_LIBEVDEV_GRAB: libevdev_grab_mode = 3;
-#[doc = "< Ungrab the device if currently grabbed"]
 pub const libevdev_grab_mode_LIBEVDEV_UNGRAB: libevdev_grab_mode = 4;
-#[doc = " @ingroup init"]
 pub type libevdev_grab_mode = ::std::os::raw::c_uint;
 extern "C" {
-    #[doc = " @ingroup init"]
-    #[doc = ""]
-    #[doc = " Grab or ungrab the device through a kernel EVIOCGRAB. This prevents other"]
-    #[doc = " clients (including kernel-internal ones such as rfkill) from receiving"]
-    #[doc = " events from this device."]
-    #[doc = ""]
-    #[doc = " This is generally a bad idea. Don't do this."]
-    #[doc = ""]
-    #[doc = " Grabbing an already grabbed device, or ungrabbing an ungrabbed device is"]
-    #[doc = " a noop and always succeeds."]
-    #[doc = ""]
-    #[doc = " A grab is an operation tied to a file descriptor, not a device. If a"]
-    #[doc = " client changes the file descriptor with libevdev_change_fd(), it must"]
-    #[doc = " also re-issue a grab with libevdev_grab()."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param grab If true, grab the device. Otherwise ungrab the device."]
-    #[doc = ""]
-    #[doc = " @return 0 if the device was successfully grabbed or ungrabbed, or a"]
-    #[doc = " negative errno in case of failure."]
     pub fn libevdev_grab(dev: *mut libevdev, grab: libevdev_grab_mode) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup init"]
-    #[doc = ""]
-    #[doc = " Set the fd for this struct and initialize internal data."]
-    #[doc = " The fd must be in O_RDONLY or O_RDWR mode."]
-    #[doc = ""]
-    #[doc = " This function may only be called once per device. If the device changed and"]
-    #[doc = " you need to re-read a device, use libevdev_free() and libevdev_new(). If"]
-    #[doc = " you need to change the fd after closing and re-opening the same device, use"]
-    #[doc = " libevdev_change_fd()."]
-    #[doc = ""]
-    #[doc = " A caller should ensure that any events currently pending on the fd are"]
-    #[doc = " drained before the file descriptor is passed to libevdev for"]
-    #[doc = " initialization. Due to how the kernel's ioctl handling works, the initial"]
-    #[doc = " device state will reflect the current device state *after* applying all"]
-    #[doc = " events currently pending on the fd. Thus, if the fd is not drained, the"]
-    #[doc = " state visible to the caller will be inconsistent with the events"]
-    #[doc = " immediately available on the device. This does not affect state-less"]
-    #[doc = " events like EV_REL."]
-    #[doc = ""]
-    #[doc = " Unless otherwise specified, libevdev function behavior is undefined until"]
-    #[doc = " a successful call to libevdev_set_fd()."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device"]
-    #[doc = " @param fd The file descriptor for the device"]
-    #[doc = ""]
-    #[doc = " @return 0 on success, or a negative errno on failure"]
-    #[doc = ""]
-    #[doc = " @see libevdev_change_fd"]
-    #[doc = " @see libevdev_new"]
-    #[doc = " @see libevdev_free"]
     pub fn libevdev_set_fd(dev: *mut libevdev, fd: ::std::os::raw::c_int) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup init"]
-    #[doc = ""]
-    #[doc = " Change the fd for this device, without re-reading the actual device. If the fd"]
-    #[doc = " changes after initializing the device, for example after a VT-switch in the"]
-    #[doc = " X.org X server, this function updates the internal fd to the newly opened."]
-    #[doc = " No check is made that new fd points to the same device. If the device has"]
-    #[doc = " changed, libevdev's behavior is undefined."]
-    #[doc = ""]
-    #[doc = " libevdev does not sync itself after changing the fd and keeps the current"]
-    #[doc = " device state. Use libevdev_next_event with the"]
-    #[doc = " @ref LIBEVDEV_READ_FLAG_FORCE_SYNC flag to force a re-sync."]
-    #[doc = ""]
-    #[doc = " The example code below illustrates how to force a re-sync of the"]
-    #[doc = " library-internal state. Note that this code doesn't handle the events in"]
-    #[doc = " the caller, it merely forces an update of the internal library state."]
-    #[doc = " @code"]
-    #[doc = "     struct input_event ev;"]
-    #[doc = "     libevdev_change_fd(dev, new_fd);"]
-    #[doc = "     libevdev_next_event(dev, LIBEVDEV_READ_FLAG_FORCE_SYNC, &ev);"]
-    #[doc = "     while (libevdev_next_event(dev, LIBEVDEV_READ_FLAG_SYNC, &ev) == LIBEVDEV_READ_STATUS_SYNC)"]
-    #[doc = "                             ; // noop"]
-    #[doc = " @endcode"]
-    #[doc = ""]
-    #[doc = " The fd may be open in O_RDONLY or O_RDWR."]
-    #[doc = ""]
-    #[doc = " After changing the fd, the device is assumed ungrabbed and a caller must"]
-    #[doc = " call libevdev_grab() again."]
-    #[doc = ""]
-    #[doc = " It is an error to call this function before calling libevdev_set_fd()."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param fd The new fd"]
-    #[doc = ""]
-    #[doc = " @return 0 on success, or -1 on failure."]
-    #[doc = ""]
-    #[doc = " @see libevdev_set_fd"]
     pub fn libevdev_change_fd(
         dev: *mut libevdev,
         fd: ::std::os::raw::c_int,
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup init"]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device"]
-    #[doc = ""]
-    #[doc = " @return The previously set fd, or -1 if none had been set previously."]
-    #[doc = " @note This function may be called before libevdev_set_fd()."]
     pub fn libevdev_get_fd(dev: *const libevdev) -> ::std::os::raw::c_int;
 }
-#[doc = " libevdev_next_event() has finished without an error"]
-#[doc = " and an event is available for processing."]
-#[doc = ""]
-#[doc = " @see libevdev_next_event"]
 pub const libevdev_read_status_LIBEVDEV_READ_STATUS_SUCCESS: libevdev_read_status = 0;
-#[doc = " Depending on the libevdev_next_event() read flag:"]
-#[doc = " * libevdev received a SYN_DROPPED from the device, and the caller should"]
-#[doc = " now resync the device, or,"]
-#[doc = " * an event has been read in sync mode."]
-#[doc = ""]
-#[doc = " @see libevdev_next_event"]
 pub const libevdev_read_status_LIBEVDEV_READ_STATUS_SYNC: libevdev_read_status = 1;
-#[doc = " @ingroup events"]
 pub type libevdev_read_status = ::std::os::raw::c_uint;
 extern "C" {
-    #[doc = " @ingroup events"]
-    #[doc = ""]
-    #[doc = " Get the next event from the device. This function operates in two different"]
-    #[doc = " modes: normal mode or sync mode."]
-    #[doc = ""]
-    #[doc = " In normal mode (when flags has @ref LIBEVDEV_READ_FLAG_NORMAL set), this"]
-    #[doc = " function returns @ref LIBEVDEV_READ_STATUS_SUCCESS and returns the event"]
-    #[doc = " in the argument @p ev. If no events are available at this"]
-    #[doc = " time, it returns -EAGAIN and ev is undefined."]
-    #[doc = ""]
-    #[doc = " If the current event is an EV_SYN SYN_DROPPED event, this function returns"]
-    #[doc = " @ref LIBEVDEV_READ_STATUS_SYNC and ev is set to the EV_SYN event."]
-    #[doc = " The caller should now call this function with the"]
-    #[doc = " @ref LIBEVDEV_READ_FLAG_SYNC flag set, to get the set of events that make up the"]
-    #[doc = " device state delta. This function returns @ref LIBEVDEV_READ_STATUS_SYNC for"]
-    #[doc = " each event part of that delta, until it returns -EAGAIN once all events"]
-    #[doc = " have been synced. For more details on what libevdev does to sync after a"]
-    #[doc = " SYN_DROPPED event, see @ref syn_dropped."]
-    #[doc = ""]
-    #[doc = " If a device needs to be synced by the caller but the caller does not call"]
-    #[doc = " with the @ref LIBEVDEV_READ_FLAG_SYNC flag set, all events from the diff are"]
-    #[doc = " dropped after libevdev updates its internal state and event processing"]
-    #[doc = " continues as normal. Note that the current slot and the state of touch"]
-    #[doc = " points may have updated during the SYN_DROPPED event, it is strongly"]
-    #[doc = " recommended that a caller ignoring all sync events calls"]
-    #[doc = " libevdev_get_current_slot() and checks the ABS_MT_TRACKING_ID values for"]
-    #[doc = " all slots."]
-    #[doc = ""]
-    #[doc = " If a device has changed state without events being enqueued in libevdev,"]
-    #[doc = " e.g. after changing the file descriptor, use the @ref"]
-    #[doc = " LIBEVDEV_READ_FLAG_FORCE_SYNC flag. This triggers an internal sync of the"]
-    #[doc = " device and libevdev_next_event() returns @ref LIBEVDEV_READ_STATUS_SYNC."]
-    #[doc = " Any state changes are available as events as described above. If"]
-    #[doc = " @ref LIBEVDEV_READ_FLAG_FORCE_SYNC is set, the value of ev is undefined."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param flags Set of flags to determine behaviour. If @ref LIBEVDEV_READ_FLAG_NORMAL"]
-    #[doc = " is set, the next event is read in normal mode. If @ref LIBEVDEV_READ_FLAG_SYNC is"]
-    #[doc = " set, the next event is read in sync mode."]
-    #[doc = " @param ev On success, set to the current event."]
-    #[doc = " @return On failure, a negative errno is returned."]
-    #[doc = " @retval LIBEVDEV_READ_STATUS_SUCCESS One or more events were read of the"]
-    #[doc = " device and ev points to the next event in the queue"]
-    #[doc = " @retval -EAGAIN No events are currently available on the device"]
-    #[doc = " @retval LIBEVDEV_READ_STATUS_SYNC A SYN_DROPPED event was received, or a"]
-    #[doc = " synced event was returned and ev points to the SYN_DROPPED event"]
-    #[doc = ""]
-    #[doc = " @note This function is signal-safe."]
     pub fn libevdev_next_event(
         dev: *mut libevdev,
         flags: ::std::os::raw::c_uint,
@@ -620,278 +325,78 @@ extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup events"]
-    #[doc = ""]
-    #[doc = " Check if there are events waiting for us. This function does not read an"]
-    #[doc = " event off the fd and may not access the fd at all. If there are events"]
-    #[doc = " queued internally this function will return non-zero. If the internal"]
-    #[doc = " queue is empty, this function will poll the file descriptor for data."]
-    #[doc = ""]
-    #[doc = " This is a convenience function for simple processes, most complex programs"]
-    #[doc = " are expected to use select(2) or poll(2) on the file descriptor. The kernel"]
-    #[doc = " guarantees that if data is available, it is a multiple of sizeof(struct"]
-    #[doc = " input_event), and thus calling libevdev_next_event() when select(2) or"]
-    #[doc = " poll(2) return is safe. You do not need libevdev_has_event_pending() if"]
-    #[doc = " you're using select(2) or poll(2)."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @return On failure, a negative errno is returned."]
-    #[doc = " @retval 0 No event is currently available"]
-    #[doc = " @retval 1 One or more events are available on the fd"]
-    #[doc = ""]
-    #[doc = " @note This function is signal-safe."]
     pub fn libevdev_has_event_pending(dev: *mut libevdev) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup bits"]
-    #[doc = ""]
-    #[doc = " Retrieve the device's name, either as set by the caller or as read from"]
-    #[doc = " the kernel. The string returned is valid until libevdev_free() or until"]
-    #[doc = " libevdev_set_name(), whichever comes earlier."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = ""]
-    #[doc = " @return The device name as read off the kernel device. The name is never"]
-    #[doc = " NULL but it may be the empty string."]
-    #[doc = ""]
-    #[doc = " @note This function is signal-safe."]
     pub fn libevdev_get_name(dev: *const libevdev) -> *const ::std::os::raw::c_char;
 }
 extern "C" {
-    #[doc = " @ingroup kernel"]
-    #[doc = ""]
-    #[doc = " Change the device's name as returned by libevdev_get_name(). This"]
-    #[doc = " function destroys the string previously returned by libevdev_get_name(),"]
-    #[doc = " a caller must take care that no references are kept."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device"]
-    #[doc = " @param name The new, non-NULL, name to assign to this device."]
-    #[doc = ""]
-    #[doc = " @note This function may be called before libevdev_set_fd(). A call to"]
-    #[doc = " libevdev_set_fd() will overwrite any previously set value."]
     pub fn libevdev_set_name(dev: *mut libevdev, name: *const ::std::os::raw::c_char);
 }
 extern "C" {
-    #[doc = " @ingroup bits"]
-    #[doc = ""]
-    #[doc = " Retrieve the device's physical location, either as set by the caller or"]
-    #[doc = " as read from the kernel. The string returned is valid until"]
-    #[doc = " libevdev_free() or until libevdev_set_phys(), whichever comes earlier."]
-    #[doc = ""]
-    #[doc = " Virtual devices such as uinput devices have no phys location."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = ""]
-    #[doc = " @return The physical location of this device, or NULL if there is none"]
-    #[doc = ""]
-    #[doc = " @note This function is signal safe."]
     pub fn libevdev_get_phys(dev: *const libevdev) -> *const ::std::os::raw::c_char;
 }
 extern "C" {
-    #[doc = " @ingroup kernel"]
-    #[doc = ""]
-    #[doc = " Change the device's physical location as returned by libevdev_get_phys()."]
-    #[doc = " This function destroys the string previously returned by"]
-    #[doc = " libevdev_get_phys(), a caller must take care that no references are kept."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device"]
-    #[doc = " @param phys The new phys to assign to this device."]
-    #[doc = ""]
-    #[doc = " @note This function may be called before libevdev_set_fd(). A call to"]
-    #[doc = " libevdev_set_fd() will overwrite any previously set value."]
     pub fn libevdev_set_phys(dev: *mut libevdev, phys: *const ::std::os::raw::c_char);
 }
 extern "C" {
-    #[doc = " @ingroup bits"]
-    #[doc = ""]
-    #[doc = " Retrieve the device's unique identifier, either as set by the caller or"]
-    #[doc = " as read from the kernel. The string returned is valid until"]
-    #[doc = " libevdev_free() or until libevdev_set_uniq(), whichever comes earlier."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = ""]
-    #[doc = " @return The unique identifier for this device, or NULL if there is none"]
-    #[doc = ""]
-    #[doc = " @note This function is signal safe."]
     pub fn libevdev_get_uniq(dev: *const libevdev) -> *const ::std::os::raw::c_char;
 }
 extern "C" {
-    #[doc = " @ingroup kernel"]
-    #[doc = ""]
-    #[doc = " Change the device's unique identifier as returned by libevdev_get_uniq()."]
-    #[doc = " This function destroys the string previously returned by"]
-    #[doc = " libevdev_get_uniq(), a caller must take care that no references are kept."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device"]
-    #[doc = " @param uniq The new uniq to assign to this device."]
-    #[doc = ""]
-    #[doc = " @note This function may be called before libevdev_set_fd(). A call to"]
-    #[doc = " libevdev_set_fd() will overwrite any previously set value."]
     pub fn libevdev_set_uniq(dev: *mut libevdev, uniq: *const ::std::os::raw::c_char);
 }
 extern "C" {
-    #[doc = " @ingroup bits"]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = ""]
-    #[doc = " @return The device's product ID"]
-    #[doc = ""]
-    #[doc = " @note This function is signal-safe."]
     pub fn libevdev_get_id_product(dev: *const libevdev) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup kernel"]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device"]
-    #[doc = " @param product_id The product ID to assign to this device"]
-    #[doc = ""]
-    #[doc = " @note This function may be called before libevdev_set_fd(). A call to"]
-    #[doc = " libevdev_set_fd() will overwrite any previously set value. Even though"]
-    #[doc = " the function accepts an int for product_id the value is truncated at 16"]
-    #[doc = " bits."]
     pub fn libevdev_set_id_product(dev: *mut libevdev, product_id: ::std::os::raw::c_int);
 }
 extern "C" {
-    #[doc = " @ingroup bits"]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = ""]
-    #[doc = " @return The device's vendor ID"]
-    #[doc = ""]
-    #[doc = " @note This function is signal-safe."]
     pub fn libevdev_get_id_vendor(dev: *const libevdev) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup kernel"]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device"]
-    #[doc = " @param vendor_id The vendor ID to assign to this device"]
-    #[doc = ""]
-    #[doc = " @note This function may be called before libevdev_set_fd(). A call to"]
-    #[doc = " libevdev_set_fd() will overwrite any previously set value. Even though"]
-    #[doc = " the function accepts an int for vendor_id the value is truncated at 16"]
-    #[doc = " bits."]
     pub fn libevdev_set_id_vendor(dev: *mut libevdev, vendor_id: ::std::os::raw::c_int);
 }
 extern "C" {
-    #[doc = " @ingroup bits"]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = ""]
-    #[doc = " @return The device's bus type"]
-    #[doc = ""]
-    #[doc = " @note This function is signal-safe."]
     pub fn libevdev_get_id_bustype(dev: *const libevdev) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup kernel"]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device"]
-    #[doc = " @param bustype The bustype to assign to this device"]
-    #[doc = ""]
-    #[doc = " @note This function may be called before libevdev_set_fd(). A call to"]
-    #[doc = " libevdev_set_fd() will overwrite any previously set value. Even though"]
-    #[doc = " the function accepts an int for bustype the value is truncated at 16"]
-    #[doc = " bits."]
     pub fn libevdev_set_id_bustype(dev: *mut libevdev, bustype: ::std::os::raw::c_int);
 }
 extern "C" {
-    #[doc = " @ingroup bits"]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = ""]
-    #[doc = " @return The device's firmware version"]
-    #[doc = ""]
-    #[doc = " @note This function is signal-safe."]
     pub fn libevdev_get_id_version(dev: *const libevdev) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup kernel"]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device"]
-    #[doc = " @param version The version to assign to this device"]
-    #[doc = ""]
-    #[doc = " @note This function may be called before libevdev_set_fd(). A call to"]
-    #[doc = " libevdev_set_fd() will overwrite any previously set value. Even though"]
-    #[doc = " the function accepts an int for version the value is truncated at 16"]
-    #[doc = " bits."]
     pub fn libevdev_set_id_version(dev: *mut libevdev, version: ::std::os::raw::c_int);
 }
 extern "C" {
-    #[doc = " @ingroup bits"]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = ""]
-    #[doc = " @return The driver version for this device"]
-    #[doc = ""]
-    #[doc = " @note This function is signal-safe."]
     pub fn libevdev_get_driver_version(dev: *const libevdev) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup bits"]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param prop The input property to query for, one of INPUT_PROP_..."]
-    #[doc = ""]
-    #[doc = " @return 1 if the device provides this input property, or 0 otherwise."]
-    #[doc = ""]
-    #[doc = " @note This function is signal-safe"]
     pub fn libevdev_has_property(
         dev: *const libevdev,
         prop: ::std::os::raw::c_uint,
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup kernel"]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device"]
-    #[doc = " @param prop The input property to enable, one of INPUT_PROP_..."]
-    #[doc = ""]
-    #[doc = " @return 0 on success or -1 on failure"]
-    #[doc = ""]
-    #[doc = " @note This function may be called before libevdev_set_fd(). A call to"]
-    #[doc = " libevdev_set_fd() will overwrite any previously set value."]
     pub fn libevdev_enable_property(
         dev: *mut libevdev,
         prop: ::std::os::raw::c_uint,
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup kernel"]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device"]
-    #[doc = " @param prop The input property to disable, one of INPUT_PROP_..."]
-    #[doc = ""]
-    #[doc = " @return 0 on success or -1 on failure"]
     pub fn libevdev_disable_property(
         dev: *mut libevdev,
         prop: ::std::os::raw::c_uint,
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup bits"]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param type The event type to query for, one of EV_SYN, EV_REL, etc."]
-    #[doc = ""]
-    #[doc = " @return 1 if the device supports this event type, or 0 otherwise."]
-    #[doc = ""]
-    #[doc = " @note This function is signal-safe."]
     pub fn libevdev_has_event_type(
         dev: *const libevdev,
         type_: ::std::os::raw::c_uint,
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup bits"]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param type The event type for the code to query (EV_SYN, EV_REL, etc.)"]
-    #[doc = " @param code The event code to query for, one of ABS_X, REL_X, etc."]
-    #[doc = ""]
-    #[doc = " @return 1 if the device supports this event type and code, or 0 otherwise."]
-    #[doc = ""]
-    #[doc = " @note This function is signal-safe."]
     pub fn libevdev_has_event_code(
         dev: *const libevdev,
         type_: ::std::os::raw::c_uint,
@@ -899,123 +404,42 @@ extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup bits"]
-    #[doc = ""]
-    #[doc = " Get the minimum axis value for the given axis, as advertised by the kernel."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param code The EV_ABS event code to query for, one of ABS_X, ABS_Y, etc."]
-    #[doc = ""]
-    #[doc = " @return axis minimum for the given axis or 0 if the axis is invalid"]
-    #[doc = ""]
-    #[doc = " @note This function is signal-safe."]
     pub fn libevdev_get_abs_minimum(
         dev: *const libevdev,
         code: ::std::os::raw::c_uint,
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup bits"]
-    #[doc = ""]
-    #[doc = " Get the maximum axis value for the given axis, as advertised by the kernel."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param code The EV_ABS event code to query for, one of ABS_X, ABS_Y, etc."]
-    #[doc = ""]
-    #[doc = " @return axis maximum for the given axis or 0 if the axis is invalid"]
-    #[doc = ""]
-    #[doc = " @note This function is signal-safe."]
     pub fn libevdev_get_abs_maximum(
         dev: *const libevdev,
         code: ::std::os::raw::c_uint,
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup bits"]
-    #[doc = ""]
-    #[doc = " Get the axis fuzz for the given axis, as advertised by the kernel."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param code The EV_ABS event code to query for, one of ABS_X, ABS_Y, etc."]
-    #[doc = ""]
-    #[doc = " @return axis fuzz for the given axis or 0 if the axis is invalid"]
-    #[doc = ""]
-    #[doc = " @note This function is signal-safe."]
     pub fn libevdev_get_abs_fuzz(
         dev: *const libevdev,
         code: ::std::os::raw::c_uint,
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup bits"]
-    #[doc = ""]
-    #[doc = " Get the axis flat for the given axis, as advertised by the kernel."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param code The EV_ABS event code to query for, one of ABS_X, ABS_Y, etc."]
-    #[doc = ""]
-    #[doc = " @return axis flat for the given axis or 0 if the axis is invalid"]
-    #[doc = ""]
-    #[doc = " @note This function is signal-safe."]
     pub fn libevdev_get_abs_flat(
         dev: *const libevdev,
         code: ::std::os::raw::c_uint,
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup bits"]
-    #[doc = ""]
-    #[doc = " Get the axis resolution for the given axis, as advertised by the kernel."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param code The EV_ABS event code to query for, one of ABS_X, ABS_Y, etc."]
-    #[doc = ""]
-    #[doc = " @return axis resolution for the given axis or 0 if the axis is invalid"]
-    #[doc = ""]
-    #[doc = " @note This function is signal-safe."]
     pub fn libevdev_get_abs_resolution(
         dev: *const libevdev,
         code: ::std::os::raw::c_uint,
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup bits"]
-    #[doc = ""]
-    #[doc = " Get the axis info for the given axis, as advertised by the kernel."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param code The EV_ABS event code to query for, one of ABS_X, ABS_Y, etc."]
-    #[doc = ""]
-    #[doc = " @return The input_absinfo for the given code, or NULL if the device does"]
-    #[doc = " not support this event code."]
-    #[doc = ""]
-    #[doc = " @note This function is signal-safe."]
     pub fn libevdev_get_abs_info(
         dev: *const libevdev,
         code: ::std::os::raw::c_uint,
     ) -> *const input_absinfo;
 }
 extern "C" {
-    #[doc = " @ingroup bits"]
-    #[doc = ""]
-    #[doc = " Behaviour of this function is undefined if the device does not provide"]
-    #[doc = " the event."]
-    #[doc = ""]
-    #[doc = " If the device supports ABS_MT_SLOT, the value returned for any ABS_MT_*"]
-    #[doc = " event code is the value of the currently active slot. You should use"]
-    #[doc = " libevdev_get_slot_value() instead."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param type The event type for the code to query (EV_SYN, EV_REL, etc.)"]
-    #[doc = " @param code The event code to query for, one of ABS_X, REL_X, etc."]
-    #[doc = ""]
-    #[doc = " @return The current value of the event."]
-    #[doc = ""]
-    #[doc = " @note This function is signal-safe."]
-    #[doc = " @note The value for ABS_MT_ events is undefined, use"]
-    #[doc = " libevdev_get_slot_value() instead"]
-    #[doc = ""]
-    #[doc = " @see libevdev_get_slot_value"]
     pub fn libevdev_get_event_value(
         dev: *const libevdev,
         type_: ::std::os::raw::c_uint,
@@ -1023,38 +447,6 @@ extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup kernel"]
-    #[doc = ""]
-    #[doc = " Set the value for a given event type and code. This only makes sense for"]
-    #[doc = " some event types, e.g. setting the value for EV_REL is pointless."]
-    #[doc = ""]
-    #[doc = " This is a local modification only affecting only this representation of"]
-    #[doc = " this device. A future call to libevdev_get_event_value() will return this"]
-    #[doc = " value, unless the value was overwritten by an event."]
-    #[doc = ""]
-    #[doc = " If the device supports ABS_MT_SLOT, the value set for any ABS_MT_*"]
-    #[doc = " event code is the value of the currently active slot. You should use"]
-    #[doc = " libevdev_set_slot_value() instead."]
-    #[doc = ""]
-    #[doc = " If the device supports ABS_MT_SLOT and the type is EV_ABS and the code is"]
-    #[doc = " ABS_MT_SLOT, the value must be a positive number less then the number of"]
-    #[doc = " slots on the device. Otherwise, libevdev_set_event_value() returns -1."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param type The event type for the code to query (EV_SYN, EV_REL, etc.)"]
-    #[doc = " @param code The event code to set the value for, one of ABS_X, LED_NUML, etc."]
-    #[doc = " @param value The new value to set"]
-    #[doc = ""]
-    #[doc = " @return 0 on success, or -1 on failure."]
-    #[doc = " @retval -1"]
-    #[doc = " - the device does not have the event type or"]
-    #[doc = " - code enabled, or the code is outside the, or"]
-    #[doc = " - the code is outside the allowed limits for the given type, or"]
-    #[doc = " - the type cannot be set, or"]
-    #[doc = " - the value is not permitted for the given code."]
-    #[doc = ""]
-    #[doc = " @see libevdev_set_slot_value"]
-    #[doc = " @see libevdev_get_event_value"]
     pub fn libevdev_set_event_value(
         dev: *mut libevdev,
         type_: ::std::os::raw::c_uint,
@@ -1063,29 +455,6 @@ extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup bits"]
-    #[doc = ""]
-    #[doc = " Fetch the current value of the event type. This is a shortcut for"]
-    #[doc = ""]
-    #[doc = " @code"]
-    #[doc = "   if (libevdev_has_event_type(dev, t) && libevdev_has_event_code(dev, t, c))"]
-    #[doc = "        val = libevdev_get_event_value(dev, t, c);"]
-    #[doc = " @endcode"]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param type The event type for the code to query (EV_SYN, EV_REL, etc.)"]
-    #[doc = " @param code The event code to query for, one of ABS_X, REL_X, etc."]
-    #[doc = " @param[out] value The current value of this axis returned."]
-    #[doc = ""]
-    #[doc = " @return If the device supports this event type and code, the return value is"]
-    #[doc = " non-zero and value is set to the current value of this axis. Otherwise,"]
-    #[doc = " 0 is returned and value is unmodified."]
-    #[doc = ""]
-    #[doc = " @note This function is signal-safe."]
-    #[doc = " @note The value for ABS_MT_ events is undefined, use"]
-    #[doc = " libevdev_fetch_slot_value() instead"]
-    #[doc = ""]
-    #[doc = " @see libevdev_fetch_slot_value"]
     pub fn libevdev_fetch_event_value(
         dev: *const libevdev,
         type_: ::std::os::raw::c_uint,
@@ -1094,24 +463,6 @@ extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup mt"]
-    #[doc = ""]
-    #[doc = " Return the current value of the code for the given slot."]
-    #[doc = ""]
-    #[doc = " The return value is undefined for a slot exceeding the available slots on"]
-    #[doc = " the device, for a code that is not in the permitted ABS_MT range or for a"]
-    #[doc = " device that does not have slots."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param slot The numerical slot number, must be smaller than the total number"]
-    #[doc = " of slots on this device"]
-    #[doc = " @param code The event code to query for, one of ABS_MT_POSITION_X, etc."]
-    #[doc = ""]
-    #[doc = " @note This function is signal-safe."]
-    #[doc = " @note The value for events other than ABS_MT_ is undefined, use"]
-    #[doc = " libevdev_fetch_value() instead"]
-    #[doc = ""]
-    #[doc = " @see libevdev_get_event_value"]
     pub fn libevdev_get_slot_value(
         dev: *const libevdev,
         slot: ::std::os::raw::c_uint,
@@ -1119,32 +470,6 @@ extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup kernel"]
-    #[doc = ""]
-    #[doc = " Set the value for a given code for the given slot."]
-    #[doc = ""]
-    #[doc = " This is a local modification only affecting only this representation of"]
-    #[doc = " this device. A future call to libevdev_get_slot_value() will return this"]
-    #[doc = " value, unless the value was overwritten by an event."]
-    #[doc = ""]
-    #[doc = " This function does not set event values for axes outside the ABS_MT range,"]
-    #[doc = " use libevdev_set_event_value() instead."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param slot The numerical slot number, must be smaller than the total number"]
-    #[doc = " of slots on this device"]
-    #[doc = " @param code The event code to set the value for, one of ABS_MT_POSITION_X, etc."]
-    #[doc = " @param value The new value to set"]
-    #[doc = ""]
-    #[doc = " @return 0 on success, or -1 on failure."]
-    #[doc = " @retval -1"]
-    #[doc = " - the device does not have the event code enabled, or"]
-    #[doc = " - the code is outside the allowed limits for multitouch events, or"]
-    #[doc = " - the slot number is outside the limits for this device, or"]
-    #[doc = " - the device does not support multitouch events."]
-    #[doc = ""]
-    #[doc = " @see libevdev_set_event_value"]
-    #[doc = " @see libevdev_get_slot_value"]
     pub fn libevdev_set_slot_value(
         dev: *mut libevdev,
         slot: ::std::os::raw::c_uint,
@@ -1153,29 +478,6 @@ extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup mt"]
-    #[doc = ""]
-    #[doc = " Fetch the current value of the code for the given slot. This is a shortcut for"]
-    #[doc = ""]
-    #[doc = " @code"]
-    #[doc = "   if (libevdev_has_event_type(dev, EV_ABS) &&"]
-    #[doc = "       libevdev_has_event_code(dev, EV_ABS, c) &&"]
-    #[doc = "       slot < device->number_of_slots)"]
-    #[doc = "       val = libevdev_get_slot_value(dev, slot, c);"]
-    #[doc = " @endcode"]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param slot The numerical slot number, must be smaller than the total number"]
-    #[doc = " of slots on this * device"]
-    #[doc = " @param[out] value The current value of this axis returned."]
-    #[doc = ""]
-    #[doc = " @param code The event code to query for, one of ABS_MT_POSITION_X, etc."]
-    #[doc = " @return If the device supports this event code, the return value is"]
-    #[doc = " non-zero and value is set to the current value of this axis. Otherwise, or"]
-    #[doc = " if the event code is not an ABS_MT_* event code, 0 is returned and value"]
-    #[doc = " is unmodified."]
-    #[doc = ""]
-    #[doc = " @note This function is signal-safe."]
     pub fn libevdev_fetch_slot_value(
         dev: *const libevdev,
         slot: ::std::os::raw::c_uint,
@@ -1184,45 +486,12 @@ extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup mt"]
-    #[doc = ""]
-    #[doc = " Get the number of slots supported by this device."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = ""]
-    #[doc = " @return The number of slots supported, or -1 if the device does not provide"]
-    #[doc = " any slots"]
-    #[doc = ""]
-    #[doc = " @note A device may provide ABS_MT_SLOT but a total number of 0 slots. Hence"]
-    #[doc = " the return value of -1 for \"device does not provide slots at all\""]
     pub fn libevdev_get_num_slots(dev: *const libevdev) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup mt"]
-    #[doc = ""]
-    #[doc = " Get the currently active slot. This may differ from the value"]
-    #[doc = " an ioctl may return at this time as events may have been read off the fd"]
-    #[doc = " since changing the slot value but those events are still in the buffer"]
-    #[doc = " waiting to be processed. The returned value is the value a caller would"]
-    #[doc = " see if it were to process events manually one-by-one."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = ""]
-    #[doc = " @return the currently active slot (logically)"]
-    #[doc = ""]
-    #[doc = " @note This function is signal-safe."]
     pub fn libevdev_get_current_slot(dev: *const libevdev) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup kernel"]
-    #[doc = ""]
-    #[doc = " Change the minimum for the given EV_ABS event code, if the code exists."]
-    #[doc = " This function has no effect if libevdev_has_event_code() returns false for"]
-    #[doc = " this code."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param code One of ABS_X, ABS_Y, ..."]
-    #[doc = " @param val The new minimum for this axis"]
     pub fn libevdev_set_abs_minimum(
         dev: *mut libevdev,
         code: ::std::os::raw::c_uint,
@@ -1230,15 +499,6 @@ extern "C" {
     );
 }
 extern "C" {
-    #[doc = " @ingroup kernel"]
-    #[doc = ""]
-    #[doc = " Change the maximum for the given EV_ABS event code, if the code exists."]
-    #[doc = " This function has no effect if libevdev_has_event_code() returns false for"]
-    #[doc = " this code."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param code One of ABS_X, ABS_Y, ..."]
-    #[doc = " @param val The new maxium for this axis"]
     pub fn libevdev_set_abs_maximum(
         dev: *mut libevdev,
         code: ::std::os::raw::c_uint,
@@ -1246,15 +506,6 @@ extern "C" {
     );
 }
 extern "C" {
-    #[doc = " @ingroup kernel"]
-    #[doc = ""]
-    #[doc = " Change the fuzz for the given EV_ABS event code, if the code exists."]
-    #[doc = " This function has no effect if libevdev_has_event_code() returns false for"]
-    #[doc = " this code."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param code One of ABS_X, ABS_Y, ..."]
-    #[doc = " @param val The new fuzz for this axis"]
     pub fn libevdev_set_abs_fuzz(
         dev: *mut libevdev,
         code: ::std::os::raw::c_uint,
@@ -1262,15 +513,6 @@ extern "C" {
     );
 }
 extern "C" {
-    #[doc = " @ingroup kernel"]
-    #[doc = ""]
-    #[doc = " Change the flat for the given EV_ABS event code, if the code exists."]
-    #[doc = " This function has no effect if libevdev_has_event_code() returns false for"]
-    #[doc = " this code."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param code One of ABS_X, ABS_Y, ..."]
-    #[doc = " @param val The new flat for this axis"]
     pub fn libevdev_set_abs_flat(
         dev: *mut libevdev,
         code: ::std::os::raw::c_uint,
@@ -1278,15 +520,6 @@ extern "C" {
     );
 }
 extern "C" {
-    #[doc = " @ingroup kernel"]
-    #[doc = ""]
-    #[doc = " Change the resolution for the given EV_ABS event code, if the code exists."]
-    #[doc = " This function has no effect if libevdev_has_event_code() returns false for"]
-    #[doc = " this code."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param code One of ABS_X, ABS_Y, ..."]
-    #[doc = " @param val The new axis resolution"]
     pub fn libevdev_set_abs_resolution(
         dev: *mut libevdev,
         code: ::std::os::raw::c_uint,
@@ -1294,15 +527,6 @@ extern "C" {
     );
 }
 extern "C" {
-    #[doc = " @ingroup kernel"]
-    #[doc = ""]
-    #[doc = " Change the abs info for the given EV_ABS event code, if the code exists."]
-    #[doc = " This function has no effect if libevdev_has_event_code() returns false for"]
-    #[doc = " this code."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param code One of ABS_X, ABS_Y, ..."]
-    #[doc = " @param abs The new absolute axis data (min, max, fuzz, flat, resolution)"]
     pub fn libevdev_set_abs_info(
         dev: *mut libevdev,
         code: ::std::os::raw::c_uint,
@@ -1310,88 +534,18 @@ extern "C" {
     );
 }
 extern "C" {
-    #[doc = " @ingroup kernel"]
-    #[doc = ""]
-    #[doc = " Forcibly enable an event type on this device, even if the underlying"]
-    #[doc = " device does not support it. While this cannot make the device actually"]
-    #[doc = " report such events, it will now return true for libevdev_has_event_type()."]
-    #[doc = ""]
-    #[doc = " This is a local modification only affecting only this representation of"]
-    #[doc = " this device."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param type The event type to enable (EV_ABS, EV_KEY, ...)"]
-    #[doc = ""]
-    #[doc = " @return 0 on success or -1 otherwise"]
-    #[doc = ""]
-    #[doc = " @see libevdev_has_event_type"]
     pub fn libevdev_enable_event_type(
         dev: *mut libevdev,
         type_: ::std::os::raw::c_uint,
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup kernel"]
-    #[doc = ""]
-    #[doc = " Forcibly disable an event type on this device, even if the underlying"]
-    #[doc = " device provides it. This effectively mutes the respective set of"]
-    #[doc = " events. libevdev will filter any events matching this type and none will"]
-    #[doc = " reach the caller. libevdev_has_event_type() will return false for this"]
-    #[doc = " type."]
-    #[doc = ""]
-    #[doc = " In most cases, a caller likely only wants to disable a single code, not"]
-    #[doc = " the whole type. Use libevdev_disable_event_code() for that."]
-    #[doc = ""]
-    #[doc = " Disabling EV_SYN will not work. Don't shoot yourself in the foot."]
-    #[doc = " It hurts."]
-    #[doc = ""]
-    #[doc = " This is a local modification only affecting only this representation of"]
-    #[doc = " this device."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param type The event type to disable (EV_ABS, EV_KEY, ...)"]
-    #[doc = ""]
-    #[doc = " @return 0 on success or -1 otherwise"]
-    #[doc = ""]
-    #[doc = " @see libevdev_has_event_type"]
-    #[doc = " @see libevdev_disable_event_type"]
     pub fn libevdev_disable_event_type(
         dev: *mut libevdev,
         type_: ::std::os::raw::c_uint,
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup kernel"]
-    #[doc = ""]
-    #[doc = " Forcibly enable an event code on this device, even if the underlying"]
-    #[doc = " device does not support it. While this cannot make the device actually"]
-    #[doc = " report such events, it will now return true for libevdev_has_event_code()."]
-    #[doc = ""]
-    #[doc = " The last argument depends on the type and code:"]
-    #[doc = " - If type is EV_ABS, data must be a pointer to a struct input_absinfo"]
-    #[doc = "   containing the data for this axis."]
-    #[doc = " - If type is EV_REP, data must be a pointer to a int containing the data"]
-    #[doc = "   for this axis"]
-    #[doc = " - For all other types, the argument must be NULL."]
-    #[doc = ""]
-    #[doc = " This function calls libevdev_enable_event_type() if necessary."]
-    #[doc = ""]
-    #[doc = " This is a local modification only affecting only this representation of"]
-    #[doc = " this device."]
-    #[doc = ""]
-    #[doc = " If this function is called with a type of EV_ABS and EV_REP on a device"]
-    #[doc = " that already has the given event code enabled, the values in data"]
-    #[doc = " overwrite the previous values."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param type The event type to enable (EV_ABS, EV_KEY, ...)"]
-    #[doc = " @param code The event code to enable (ABS_X, REL_X, etc.)"]
-    #[doc = " @param data If type is EV_ABS, data points to a struct input_absinfo. If type is EV_REP, data"]
-    #[doc = " points to an integer. Otherwise, data must be NULL."]
-    #[doc = ""]
-    #[doc = " @return 0 on success or -1 otherwise"]
-    #[doc = ""]
-    #[doc = " @see libevdev_enable_event_type"]
     pub fn libevdev_enable_event_code(
         dev: *mut libevdev,
         type_: ::std::os::raw::c_uint,
@@ -1400,31 +554,6 @@ extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup kernel"]
-    #[doc = ""]
-    #[doc = " Forcibly disable an event code on this device, even if the underlying"]
-    #[doc = " device provides it. This effectively mutes the respective set of"]
-    #[doc = " events. libevdev will filter any events matching this type and code and"]
-    #[doc = " none will reach the caller. libevdev_has_event_code() will return false for"]
-    #[doc = " this code."]
-    #[doc = ""]
-    #[doc = " Disabling all event codes for a given type will not disable the event"]
-    #[doc = " type. Use libevdev_disable_event_type() for that."]
-    #[doc = ""]
-    #[doc = " This is a local modification only affecting only this representation of"]
-    #[doc = " this device."]
-    #[doc = ""]
-    #[doc = " Disabling codes of type EV_SYN will not work. Don't shoot yourself in the"]
-    #[doc = " foot. It hurts."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param type The event type to disable (EV_ABS, EV_KEY, ...)"]
-    #[doc = " @param code The event code to disable (ABS_X, REL_X, etc.)"]
-    #[doc = ""]
-    #[doc = " @return 0 on success or -1 otherwise"]
-    #[doc = ""]
-    #[doc = " @see libevdev_has_event_code"]
-    #[doc = " @see libevdev_disable_event_type"]
     pub fn libevdev_disable_event_code(
         dev: *mut libevdev,
         type_: ::std::os::raw::c_uint,
@@ -1432,42 +561,16 @@ extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup kernel"]
-    #[doc = ""]
-    #[doc = " Set the device's EV_ABS axis to the value defined in the abs"]
-    #[doc = " parameter. This will be written to the kernel."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param code The EV_ABS event code to modify, one of ABS_X, ABS_Y, etc."]
-    #[doc = " @param abs Axis info to set the kernel axis to"]
-    #[doc = ""]
-    #[doc = " @return 0 on success, or a negative errno on failure"]
-    #[doc = ""]
-    #[doc = " @see libevdev_enable_event_code"]
     pub fn libevdev_kernel_set_abs_info(
         dev: *mut libevdev,
         code: ::std::os::raw::c_uint,
         abs: *const input_absinfo,
     ) -> ::std::os::raw::c_int;
 }
-#[doc = "< Turn the LED on"]
 pub const libevdev_led_value_LIBEVDEV_LED_ON: libevdev_led_value = 3;
-#[doc = "< Turn the LED off"]
 pub const libevdev_led_value_LIBEVDEV_LED_OFF: libevdev_led_value = 4;
-#[doc = " @ingroup kernel"]
 pub type libevdev_led_value = ::std::os::raw::c_uint;
 extern "C" {
-    #[doc = " @ingroup kernel"]
-    #[doc = ""]
-    #[doc = " Turn an LED on or off. Convenience function, if you need to modify multiple"]
-    #[doc = " LEDs simultaneously, use libevdev_kernel_set_led_values() instead."]
-    #[doc = ""]
-    #[doc = " @note enabling an LED requires write permissions on the device's file descriptor."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param code The EV_LED event code to modify, one of LED_NUML, LED_CAPSL, ..."]
-    #[doc = " @param value Specifies whether to turn the LED on or off"]
-    #[doc = " @return 0 on success, or a negative errno on failure"]
     pub fn libevdev_kernel_set_led_value(
         dev: *mut libevdev,
         code: ::std::os::raw::c_uint,
@@ -1475,94 +578,21 @@ extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup kernel"]
-    #[doc = ""]
-    #[doc = " Turn multiple LEDs on or off simultaneously. This function expects a pair"]
-    #[doc = " of LED codes and values to set them to, terminated by a -1. For example, to"]
-    #[doc = " switch the NumLock LED on but the CapsLock LED off, use:"]
-    #[doc = ""]
-    #[doc = " @code"]
-    #[doc = "     libevdev_kernel_set_led_values(dev, LED_NUML, LIBEVDEV_LED_ON,"]
-    #[doc = "                                         LED_CAPSL, LIBEVDEV_LED_OFF,"]
-    #[doc = "                                         -1);"]
-    #[doc = " @endcode"]
-    #[doc = ""]
-    #[doc = " If any LED code or value is invalid, this function returns -EINVAL and no"]
-    #[doc = " LEDs are modified."]
-    #[doc = ""]
-    #[doc = " @note enabling an LED requires write permissions on the device's file descriptor."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param ... A pair of LED_* event codes and libevdev_led_value_t, followed by"]
-    #[doc = " -1 to terminate the list."]
-    #[doc = " @return 0 on success, or a negative errno on failure"]
     pub fn libevdev_kernel_set_led_values(dev: *mut libevdev, ...) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup kernel"]
-    #[doc = ""]
-    #[doc = " Set the clock ID to be used for timestamps. Further events from this device"]
-    #[doc = " will report an event time based on the given clock."]
-    #[doc = ""]
-    #[doc = " This is a modification only affecting this representation of"]
-    #[doc = " this device."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param clockid The clock to use for future events. Permitted values"]
-    #[doc = " are CLOCK_MONOTONIC and CLOCK_REALTIME (the default)."]
-    #[doc = " @return 0 on success, or a negative errno on failure"]
     pub fn libevdev_set_clock_id(
         dev: *mut libevdev,
         clockid: ::std::os::raw::c_int,
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup misc"]
-    #[doc = ""]
-    #[doc = " Helper function to check if an event is of a specific type. This is"]
-    #[doc = " virtually the same as:"]
-    #[doc = ""]
-    #[doc = "      ev->type == type"]
-    #[doc = ""]
-    #[doc = " with the exception that some sanity checks are performed to ensure type"]
-    #[doc = " is valid."]
-    #[doc = ""]
-    #[doc = " @note The ranges for types are compiled into libevdev. If the kernel"]
-    #[doc = " changes the max value, libevdev will not automatically pick these up."]
-    #[doc = ""]
-    #[doc = " @param ev The input event to check"]
-    #[doc = " @param type Input event type to compare the event against (EV_REL, EV_ABS,"]
-    #[doc = " etc.)"]
-    #[doc = ""]
-    #[doc = " @return 1 if the event type matches the given type, 0 otherwise (or if"]
-    #[doc = " type is invalid)"]
     pub fn libevdev_event_is_type(
         ev: *const input_event,
         type_: ::std::os::raw::c_uint,
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup misc"]
-    #[doc = ""]
-    #[doc = " Helper function to check if an event is of a specific type and code. This"]
-    #[doc = " is virtually the same as:"]
-    #[doc = ""]
-    #[doc = "      ev->type == type && ev->code == code"]
-    #[doc = ""]
-    #[doc = " with the exception that some sanity checks are performed to ensure type and"]
-    #[doc = " code are valid."]
-    #[doc = ""]
-    #[doc = " @note The ranges for types and codes are compiled into libevdev. If the kernel"]
-    #[doc = " changes the max value, libevdev will not automatically pick these up."]
-    #[doc = ""]
-    #[doc = " @param ev The input event to check"]
-    #[doc = " @param type Input event type to compare the event against (EV_REL, EV_ABS,"]
-    #[doc = " etc.)"]
-    #[doc = " @param code Input event code to compare the event against (ABS_X, REL_X,"]
-    #[doc = " etc.)"]
-    #[doc = ""]
-    #[doc = " @return 1 if the event type matches the given type and code, 0 otherwise"]
-    #[doc = " (or if type/code are invalid)"]
     pub fn libevdev_event_is_code(
         ev: *const input_event,
         type_: ::std::os::raw::c_uint,
@@ -1570,54 +600,17 @@ extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup misc"]
-    #[doc = ""]
-    #[doc = " @param type The event type to return the name for."]
-    #[doc = ""]
-    #[doc = " @return The name of the given event type (e.g. EV_ABS) or NULL for an"]
-    #[doc = " invalid type"]
-    #[doc = ""]
-    #[doc = " @note The list of names is compiled into libevdev. If the kernel adds new"]
-    #[doc = " defines for new event types, libevdev will not automatically pick these up."]
     pub fn libevdev_event_type_get_name(
         type_: ::std::os::raw::c_uint,
     ) -> *const ::std::os::raw::c_char;
 }
 extern "C" {
-    #[doc = " @ingroup misc"]
-    #[doc = ""]
-    #[doc = " @param type The event type for the code to query (EV_SYN, EV_REL, etc.)"]
-    #[doc = " @param code The event code to return the name for (e.g. ABS_X)"]
-    #[doc = ""]
-    #[doc = " @return The name of the given event code (e.g. ABS_X) or NULL for an"]
-    #[doc = " invalid type or code"]
-    #[doc = ""]
-    #[doc = " @note The list of names is compiled into libevdev. If the kernel adds new"]
-    #[doc = " defines for new event codes, libevdev will not automatically pick these up."]
     pub fn libevdev_event_code_get_name(
         type_: ::std::os::raw::c_uint,
         code: ::std::os::raw::c_uint,
     ) -> *const ::std::os::raw::c_char;
 }
 extern "C" {
-    #[doc = " @ingroup misc"]
-    #[doc = ""]
-    #[doc = " This function resolves the event value for a code."]
-    #[doc = ""]
-    #[doc = " For almost all event codes this will return NULL as the value is just a"]
-    #[doc = " numerical value. As of kernel 4.17, the only event code that will return"]
-    #[doc = " a non-NULL value is EV_ABS/ABS_MT_TOOL_TYPE."]
-    #[doc = ""]
-    #[doc = " @param type The event type for the value to query (EV_ABS, etc.)"]
-    #[doc = " @param code The event code for the value to query (e.g. ABS_MT_TOOL_TYPE)"]
-    #[doc = " @param value The event value to return the name for (e.g. MT_TOOL_PALM)"]
-    #[doc = ""]
-    #[doc = " @return The name of the given event value (e.g. MT_TOOL_PALM) or NULL for"]
-    #[doc = " an invalid type or code or NULL for an axis that has numerical values"]
-    #[doc = " only."]
-    #[doc = ""]
-    #[doc = " @note The list of names is compiled into libevdev. If the kernel adds new"]
-    #[doc = " defines for new event values, libevdev will not automatically pick these up."]
     pub fn libevdev_event_value_get_name(
         type_: ::std::os::raw::c_uint,
         code: ::std::os::raw::c_uint,
@@ -1625,114 +618,31 @@ extern "C" {
     ) -> *const ::std::os::raw::c_char;
 }
 extern "C" {
-    #[doc = " @ingroup misc"]
-    #[doc = ""]
-    #[doc = " @param prop The input prop to return the name for (e.g. INPUT_PROP_BUTTONPAD)"]
-    #[doc = ""]
-    #[doc = " @return The name of the given input prop (e.g. INPUT_PROP_BUTTONPAD) or NULL for an"]
-    #[doc = " invalid property"]
-    #[doc = ""]
-    #[doc = " @note The list of names is compiled into libevdev. If the kernel adds new"]
-    #[doc = " defines for new properties libevdev will not automatically pick these up."]
-    #[doc = " @note On older kernels input properties may not be defined and"]
-    #[doc = " libevdev_property_get_name() will always return NULL"]
     pub fn libevdev_property_get_name(
         prop: ::std::os::raw::c_uint,
     ) -> *const ::std::os::raw::c_char;
 }
 extern "C" {
-    #[doc = " @ingroup misc"]
-    #[doc = ""]
-    #[doc = " @param type The event type to return the maximum for (EV_ABS, EV_REL, etc.). No max is defined for"]
-    #[doc = " EV_SYN."]
-    #[doc = ""]
-    #[doc = " @return The max value defined for the given event type, e.g. ABS_MAX for a type of EV_ABS, or -1"]
-    #[doc = " for an invalid type."]
-    #[doc = ""]
-    #[doc = " @note The max value is compiled into libevdev. If the kernel changes the"]
-    #[doc = " max value, libevdev will not automatically pick these up."]
     pub fn libevdev_event_type_get_max(type_: ::std::os::raw::c_uint) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup misc"]
-    #[doc = ""]
-    #[doc = " Look up an event-type by its name. Event-types start with \"EV_\" followed by"]
-    #[doc = " the name (eg., \"EV_ABS\"). The \"EV_\" prefix must be included in the name. It"]
-    #[doc = " returns the constant assigned to the event-type or -1 if not found."]
-    #[doc = ""]
-    #[doc = " @param name A non-NULL string describing an input-event type (\"EV_KEY\","]
-    #[doc = " \"EV_ABS\", ...), zero-terminated."]
-    #[doc = ""]
-    #[doc = " @return The given type constant for the passed name or -1 if not found."]
-    #[doc = ""]
-    #[doc = " @note EV_MAX is also recognized."]
     pub fn libevdev_event_type_from_name(
         name: *const ::std::os::raw::c_char,
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup misc"]
-    #[doc = ""]
-    #[doc = " Look up an event-type by its name. Event-types start with \"EV_\" followed by"]
-    #[doc = " the name (eg., \"EV_ABS\"). The \"EV_\" prefix must be included in the name. It"]
-    #[doc = " returns the constant assigned to the event-type or -1 if not found."]
-    #[doc = ""]
-    #[doc = " @param name A non-NULL string describing an input-event type (\"EV_KEY\","]
-    #[doc = " \"EV_ABS\", ...)."]
-    #[doc = " @param len The length of the passed string excluding any terminating 0"]
-    #[doc = " character."]
-    #[doc = ""]
-    #[doc = " @return The given type constant for the passed name or -1 if not found."]
-    #[doc = ""]
-    #[doc = " @note EV_MAX is also recognized."]
     pub fn libevdev_event_type_from_name_n(
         name: *const ::std::os::raw::c_char,
         len: size_t,
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup misc"]
-    #[doc = ""]
-    #[doc = " Look up an event code by its type and name. Event codes start with a fixed"]
-    #[doc = " prefix followed by their name (eg., \"ABS_X\"). The prefix must be included in"]
-    #[doc = " the name. It returns the constant assigned to the event code or -1 if not"]
-    #[doc = " found."]
-    #[doc = ""]
-    #[doc = " You have to pass the event type where to look for the name. For instance, to"]
-    #[doc = " resolve \"ABS_X\" you need to pass EV_ABS as type and \"ABS_X\" as string."]
-    #[doc = " Supported event codes are codes starting with SYN_, KEY_, BTN_, REL_, ABS_,"]
-    #[doc = " MSC_, SND_, SW_, LED_, REP_, FF_."]
-    #[doc = ""]
-    #[doc = " @param type The event type (EV_* constant) where to look for the name."]
-    #[doc = " @param name A non-NULL string describing an input-event code (\"KEY_A\","]
-    #[doc = " \"ABS_X\", \"BTN_Y\", ...), zero-terminated."]
-    #[doc = ""]
-    #[doc = " @return The given code constant for the passed name or -1 if not found."]
     pub fn libevdev_event_code_from_name(
         type_: ::std::os::raw::c_uint,
         name: *const ::std::os::raw::c_char,
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup misc"]
-    #[doc = ""]
-    #[doc = " Look up an event code by its type and name. Event codes start with a fixed"]
-    #[doc = " prefix followed by their name (eg., \"ABS_X\"). The prefix must be included in"]
-    #[doc = " the name. It returns the constant assigned to the event code or -1 if not"]
-    #[doc = " found."]
-    #[doc = ""]
-    #[doc = " You have to pass the event type where to look for the name. For instance, to"]
-    #[doc = " resolve \"ABS_X\" you need to pass EV_ABS as type and \"ABS_X\" as string."]
-    #[doc = " Supported event codes are codes starting with SYN_, KEY_, BTN_, REL_, ABS_,"]
-    #[doc = " MSC_, SND_, SW_, LED_, REP_, FF_."]
-    #[doc = ""]
-    #[doc = " @param type The event type (EV_* constant) where to look for the name."]
-    #[doc = " @param name A non-NULL string describing an input-event code (\"KEY_A\","]
-    #[doc = " \"ABS_X\", \"BTN_Y\", ...)."]
-    #[doc = " @param len The length of the string in @p name excluding any terminating 0"]
-    #[doc = " character."]
-    #[doc = ""]
-    #[doc = " @return The given code constant for the name or -1 if not found."]
     pub fn libevdev_event_code_from_name_n(
         type_: ::std::os::raw::c_uint,
         name: *const ::std::os::raw::c_char,
@@ -1740,25 +650,6 @@ extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup misc"]
-    #[doc = ""]
-    #[doc = " Look up an event value by its type, code and name. Event values start"]
-    #[doc = " with a fixed prefix followed by their name (eg., \"MT_TOOL_PALM\"). The"]
-    #[doc = " prefix must be included in the name. It returns the constant assigned"]
-    #[doc = " to the event code or -1 if not found."]
-    #[doc = ""]
-    #[doc = " You have to pass the event type and code where to look for the name. For"]
-    #[doc = " instance, to resolve \"MT_TOOL_PALM\" you need to pass EV_ABS as type,"]
-    #[doc = " ABS_MT_TOOL_TYPE as code and \"MT_TOOL_PALM\" as string."]
-    #[doc = ""]
-    #[doc = " As of kernel 4.17, only EV_ABS/ABS_MT_TOOL_TYPE support name resolution."]
-    #[doc = ""]
-    #[doc = " @param type The event type (EV_* constant) where to look for the name."]
-    #[doc = " @param code The event code (ABS_* constant) where to look for the name."]
-    #[doc = " @param name A non-NULL string describing an input-event value"]
-    #[doc = " (\"MT_TOOL_TYPE\", ...)"]
-    #[doc = ""]
-    #[doc = " @return The given value constant for the name or -1 if not found."]
     pub fn libevdev_event_value_from_name(
         type_: ::std::os::raw::c_uint,
         code: ::std::os::raw::c_uint,
@@ -1766,109 +657,28 @@ extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup misc"]
-    #[doc = ""]
-    #[doc = " Look up an event type for a  event code name. For example, the name"]
-    #[doc = " \"ABS_Y\" returns EV_ABS. For the lookup to succeed, the name must be"]
-    #[doc = " unique, which is the case for all defines as of kernel 5.0 and likely to"]
-    #[doc = " be the case in the future."]
-    #[doc = ""]
-    #[doc = " This is equivalent to libevdev_event_type_from_name() but takes the code"]
-    #[doc = " name instead of the type name."]
-    #[doc = ""]
-    #[doc = " @param name A non-NULL string describing an input-event value"]
-    #[doc = " (\"ABS_X\", \"REL_Y\", \"KEY_A\", ...)"]
-    #[doc = ""]
-    #[doc = " @return The given event code for the name or -1 if not found."]
     pub fn libevdev_event_type_from_code_name(
         name: *const ::std::os::raw::c_char,
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup misc"]
-    #[doc = ""]
-    #[doc = " Look up an event type for a  event code name. For example, the name"]
-    #[doc = " \"ABS_Y\" returns EV_ABS. For the lookup to succeed, the name must be"]
-    #[doc = " unique, which is the case for all defines as of kernel 5.0 and likely to"]
-    #[doc = " be the case in the future."]
-    #[doc = ""]
-    #[doc = " This is equivalent to libevdev_event_type_from_name_n() but takes the code"]
-    #[doc = " name instead of the type name."]
-    #[doc = ""]
-    #[doc = " @param name A non-NULL string describing an input-event value"]
-    #[doc = " (\"ABS_X\", \"REL_Y\", \"KEY_A\", ...)"]
-    #[doc = " @param len The length of the passed string excluding any terminating 0"]
-    #[doc = " character."]
-    #[doc = ""]
-    #[doc = " @return The given event code for the name or -1 if not found."]
     pub fn libevdev_event_type_from_code_name_n(
         name: *const ::std::os::raw::c_char,
         len: size_t,
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup misc"]
-    #[doc = ""]
-    #[doc = " Look up an event code by its name. For example, the name \"ABS_Y\""]
-    #[doc = " returns 1. For the lookup to succeed, the name must be unique, which is"]
-    #[doc = " the case for all defines as of kernel 5.0 and likely to be the case in"]
-    #[doc = " the future."]
-    #[doc = ""]
-    #[doc = " This is equivalent to libevdev_event_code_from_name() without the need"]
-    #[doc = " for knowing the event type."]
-    #[doc = ""]
-    #[doc = " @param name A non-NULL string describing an input-event value"]
-    #[doc = " (\"ABS_X\", \"REL_Y\", \"KEY_A\", ...)"]
-    #[doc = ""]
-    #[doc = " @return The given event code for the name or -1 if not found."]
     pub fn libevdev_event_code_from_code_name(
         name: *const ::std::os::raw::c_char,
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup misc"]
-    #[doc = ""]
-    #[doc = " Look up an event code by its name. For example, the name \"ABS_Y\""]
-    #[doc = " returns 1. For the lookup to succeed, the name must be unique, which is"]
-    #[doc = " the case for all defines as of kernel 5.0 and likely to be the case in"]
-    #[doc = " the future."]
-    #[doc = ""]
-    #[doc = " This is equivalent to libevdev_event_code_from_name_n() without the need"]
-    #[doc = " for knowing the event type."]
-    #[doc = ""]
-    #[doc = " @param name A non-NULL string describing an input-event value"]
-    #[doc = " (\"ABS_X\", \"REL_Y\", \"KEY_A\", ...)"]
-    #[doc = " @param len The length of the passed string excluding any terminating 0"]
-    #[doc = " character."]
-    #[doc = ""]
-    #[doc = " @return The given event code for the name or -1 if not found."]
     pub fn libevdev_event_code_from_code_name_n(
         name: *const ::std::os::raw::c_char,
         len: size_t,
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup misc"]
-    #[doc = ""]
-    #[doc = " Look up an event value by its type, code and name. Event values start"]
-    #[doc = " with a fixed prefix followed by their name (eg., \"MT_TOOL_PALM\"). The"]
-    #[doc = " prefix must be included in the name. It returns the constant assigned"]
-    #[doc = " to the event code or -1 if not found."]
-    #[doc = ""]
-    #[doc = " You have to pass the event type and code where to look for the name. For"]
-    #[doc = " instance, to resolve \"MT_TOOL_PALM\" you need to pass EV_ABS as type,"]
-    #[doc = " ABS_MT_TOOL_TYPE as code and \"MT_TOOL_PALM\" as string."]
-    #[doc = ""]
-    #[doc = " As of kernel 4.17, only EV_ABS/ABS_MT_TOOL_TYPE support name resolution."]
-    #[doc = ""]
-    #[doc = " @param type The event type (EV_* constant) where to look for the name."]
-    #[doc = " @param code The event code (ABS_* constant) where to look for the name."]
-    #[doc = " @param name A non-NULL string describing an input-event value"]
-    #[doc = " (\"MT_TOOL_TYPE\", ...)"]
-    #[doc = " @param len The length of the string in @p name excluding any terminating 0"]
-    #[doc = " character."]
-    #[doc = ""]
-    #[doc = " @return The given value constant for the name or -1 if not found."]
     pub fn libevdev_event_value_from_name_n(
         type_: ::std::os::raw::c_uint,
         code: ::std::os::raw::c_uint,
@@ -1877,54 +687,17 @@ extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup misc"]
-    #[doc = ""]
-    #[doc = " Look up an input property by its name. Properties start with the fixed"]
-    #[doc = " prefix \"INPUT_PROP_\" followed by their name (eg., \"INPUT_PROP_POINTER\")."]
-    #[doc = " The prefix must be included in the name. It returns the constant assigned"]
-    #[doc = " to the property or -1 if not found."]
-    #[doc = ""]
-    #[doc = " @param name A non-NULL string describing an input property"]
-    #[doc = ""]
-    #[doc = " @return The given code constant for the name or -1 if not found."]
     pub fn libevdev_property_from_name(
         name: *const ::std::os::raw::c_char,
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup misc"]
-    #[doc = ""]
-    #[doc = " Look up an input property by its name. Properties start with the fixed"]
-    #[doc = " prefix \"INPUT_PROP_\" followed by their name (eg., \"INPUT_PROP_POINTER\")."]
-    #[doc = " The prefix must be included in the name. It returns the constant assigned"]
-    #[doc = " to the property or -1 if not found."]
-    #[doc = ""]
-    #[doc = " @param name A non-NULL string describing an input property"]
-    #[doc = " @param len The length of the string in @p name excluding any terminating 0"]
-    #[doc = " character."]
-    #[doc = ""]
-    #[doc = " @return The given code constant for the name or -1 if not found."]
     pub fn libevdev_property_from_name_n(
         name: *const ::std::os::raw::c_char,
         len: size_t,
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup bits"]
-    #[doc = ""]
-    #[doc = " Get the repeat delay and repeat period values for this device. This"]
-    #[doc = " function is a convenience function only, EV_REP is supported by"]
-    #[doc = " libevdev_get_event_value()."]
-    #[doc = ""]
-    #[doc = " @param dev The evdev device, already initialized with libevdev_set_fd()"]
-    #[doc = " @param delay If not null, set to the repeat delay value"]
-    #[doc = " @param period If not null, set to the repeat period value"]
-    #[doc = ""]
-    #[doc = " @return 0 on success, -1 if this device does not have repeat settings."]
-    #[doc = ""]
-    #[doc = " @note This function is signal-safe"]
-    #[doc = ""]
-    #[doc = " @see libevdev_get_event_value"]
     pub fn libevdev_get_repeat(
         dev: *const libevdev,
         delay: *mut ::std::os::raw::c_int,
@@ -1936,117 +709,9 @@ extern "C" {
 pub struct libevdev_uinput {
     _unused: [u8; 0],
 }
-#[doc = "< let libevdev open and close @c /dev/uinput"]
 pub const libevdev_uinput_open_mode_LIBEVDEV_UINPUT_OPEN_MANAGED: libevdev_uinput_open_mode = -2;
-#[doc = " @defgroup uinput uinput device creation"]
-#[doc = ""]
-#[doc = " Creation of uinput devices based on existing libevdev devices. These functions"]
-#[doc = " help to create uinput devices that emulate libevdev devices. In the simplest"]
-#[doc = " form it serves to duplicate an existing device:"]
-#[doc = ""]
-#[doc = " @code"]
-#[doc = " int err;"]
-#[doc = " int fd, new_fd, uifd;"]
-#[doc = " struct libevdev *dev;"]
-#[doc = " struct libevdev_uinput *uidev;"]
-#[doc = " struct input_event ev[2];"]
-#[doc = ""]
-#[doc = " fd = open(\"/dev/input/event0\", O_RDONLY);"]
-#[doc = " if (fd < 0)"]
-#[doc = "     return err;"]
-#[doc = ""]
-#[doc = " err = libevdev_new_from_fd(fd, &dev);"]
-#[doc = " if (err != 0)"]
-#[doc = "     return err;"]
-#[doc = ""]
-#[doc = " uifd = open(\"/dev/uinput\", O_RDWR);"]
-#[doc = " if (uifd < 0)"]
-#[doc = "     return -errno;"]
-#[doc = ""]
-#[doc = " err = libevdev_uinput_create_from_device(dev, uifd, &uidev);"]
-#[doc = " if (err != 0)"]
-#[doc = "     return err;"]
-#[doc = ""]
-#[doc = " // post a REL_X event"]
-#[doc = " err = libevdev_uinput_write_event(uidev, EV_REL, REL_X, -1);"]
-#[doc = " if (err != 0)"]
-#[doc = "     return err;"]
-#[doc = " libevdev_uinput_write_event(uidev, EV_SYN, SYN_REPORT, 0);"]
-#[doc = " if (err != 0)"]
-#[doc = "     return err;"]
-#[doc = ""]
-#[doc = " libevdev_uinput_destroy(uidev);"]
-#[doc = " libevdev_free(dev);"]
-#[doc = " close(uifd);"]
-#[doc = " close(fd);"]
-#[doc = ""]
-#[doc = " @endcode"]
-#[doc = ""]
-#[doc = " Alternatively, a device can be constructed from scratch:"]
-#[doc = ""]
-#[doc = " @code"]
-#[doc = " int err;"]
-#[doc = " struct libevdev *dev;"]
-#[doc = " struct libevdev_uinput *uidev;"]
-#[doc = ""]
-#[doc = " dev = libevdev_new();"]
-#[doc = " libevdev_set_name(dev, \"test device\");"]
-#[doc = " libevdev_enable_event_type(dev, EV_REL);"]
-#[doc = " libevdev_enable_event_code(dev, EV_REL, REL_X, NULL);"]
-#[doc = " libevdev_enable_event_code(dev, EV_REL, REL_Y, NULL);"]
-#[doc = " libevdev_enable_event_type(dev, EV_KEY);"]
-#[doc = " libevdev_enable_event_code(dev, EV_KEY, BTN_LEFT, NULL);"]
-#[doc = " libevdev_enable_event_code(dev, EV_KEY, BTN_MIDDLE, NULL);"]
-#[doc = " libevdev_enable_event_code(dev, EV_KEY, BTN_RIGHT, NULL);"]
-#[doc = ""]
-#[doc = " err = libevdev_uinput_create_from_device(dev,"]
-#[doc = "                                          LIBEVDEV_UINPUT_OPEN_MANAGED,"]
-#[doc = "                                          &uidev);"]
-#[doc = " if (err != 0)"]
-#[doc = "     return err;"]
-#[doc = ""]
-#[doc = " // ... do something ..."]
-#[doc = ""]
-#[doc = " libevdev_uinput_destroy(uidev);"]
-#[doc = ""]
-#[doc = " @endcode"]
 pub type libevdev_uinput_open_mode = ::std::os::raw::c_int;
 extern "C" {
-    #[doc = " @ingroup uinput"]
-    #[doc = ""]
-    #[doc = " Create a uinput device based on the given libevdev device. The uinput device"]
-    #[doc = " will be an exact copy of the libevdev device, minus the bits that uinput doesn't"]
-    #[doc = " allow to be set."]
-    #[doc = ""]
-    #[doc = " If uinput_fd is @ref LIBEVDEV_UINPUT_OPEN_MANAGED, libevdev_uinput_create_from_device()"]
-    #[doc = " will open @c /dev/uinput in read/write mode and manage the file descriptor."]
-    #[doc = " Otherwise, uinput_fd must be opened by the caller and opened with the"]
-    #[doc = " appropriate permissions."]
-    #[doc = ""]
-    #[doc = " The device's lifetime is tied to the uinput file descriptor, closing it will"]
-    #[doc = " destroy the uinput device. You should call libevdev_uinput_destroy() before"]
-    #[doc = " closing the file descriptor to free allocated resources."]
-    #[doc = " A file descriptor can only create one uinput device at a time; the second device"]
-    #[doc = " will fail with -EINVAL."]
-    #[doc = ""]
-    #[doc = " You don't need to keep the file descriptor variable around,"]
-    #[doc = " libevdev_uinput_get_fd() will return it when needed."]
-    #[doc = ""]
-    #[doc = " @note Due to limitations in the uinput kernel module, REP_DELAY and"]
-    #[doc = " REP_PERIOD will default to the kernel defaults, not to the ones set in the"]
-    #[doc = " source device."]
-    #[doc = ""]
-    #[doc = " @note On FreeBSD, if the UI_GET_SYSNAME ioctl() fails, there is no other way"]
-    #[doc = " to get a device, and the function call will fail."]
-    #[doc = ""]
-    #[doc = " @param dev The device to duplicate"]
-    #[doc = " @param uinput_fd @ref LIBEVDEV_UINPUT_OPEN_MANAGED or a file descriptor to @c /dev/uinput,"]
-    #[doc = " @param[out] uinput_dev The newly created libevdev device."]
-    #[doc = ""]
-    #[doc = " @return 0 on success or a negative errno on failure. On failure, the value of"]
-    #[doc = " uinput_dev is unmodified."]
-    #[doc = ""]
-    #[doc = " @see libevdev_uinput_destroy"]
     pub fn libevdev_uinput_create_from_device(
         dev: *const libevdev,
         uinput_fd: ::std::os::raw::c_int,
@@ -2054,94 +719,22 @@ extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup uinput"]
-    #[doc = ""]
-    #[doc = " Destroy a previously created uinput device and free associated memory."]
-    #[doc = ""]
-    #[doc = " If the device was opened with @ref LIBEVDEV_UINPUT_OPEN_MANAGED,"]
-    #[doc = " libevdev_uinput_destroy() also closes the file descriptor. Otherwise, the"]
-    #[doc = " fd is left as-is and must be closed by the caller."]
-    #[doc = ""]
-    #[doc = " @param uinput_dev A previously created uinput device."]
     pub fn libevdev_uinput_destroy(uinput_dev: *mut libevdev_uinput);
 }
 extern "C" {
-    #[doc = " @ingroup uinput"]
-    #[doc = ""]
-    #[doc = " Return the file descriptor used to create this uinput device. This is the"]
-    #[doc = " fd pointing to <strong>/dev/uinput</strong>. This file descriptor may be used to write"]
-    #[doc = " events that are emitted by the uinput device."]
-    #[doc = " Closing this file descriptor will destroy the uinput device, you should"]
-    #[doc = " call libevdev_uinput_destroy() first to free allocated resources."]
-    #[doc = ""]
-    #[doc = " @param uinput_dev A previously created uinput device."]
-    #[doc = ""]
-    #[doc = " @return The file descriptor used to create this device"]
     pub fn libevdev_uinput_get_fd(uinput_dev: *const libevdev_uinput) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[doc = " @ingroup uinput"]
-    #[doc = ""]
-    #[doc = " Return the syspath representing this uinput device. If the UI_GET_SYSNAME"]
-    #[doc = " ioctl not available, libevdev makes an educated guess."]
-    #[doc = " The UI_GET_SYSNAME ioctl is available since Linux 3.15."]
-    #[doc = ""]
-    #[doc = " The syspath returned is the one of the input node itself"]
-    #[doc = " (e.g. /sys/devices/virtual/input/input123), not the syspath of the device"]
-    #[doc = " node returned with libevdev_uinput_get_devnode()."]
-    #[doc = ""]
-    #[doc = " @note This function may return NULL if UI_GET_SYSNAME is not available."]
-    #[doc = " In that case, libevdev uses ctime and the device name to guess devices."]
-    #[doc = " To avoid false positives, wait at least wait at least 1.5s between"]
-    #[doc = " creating devices that have the same name."]
-    #[doc = ""]
-    #[doc = " @note FreeBSD does not have sysfs, on FreeBSD this function always returns"]
-    #[doc = " NULL."]
-    #[doc = ""]
-    #[doc = " @param uinput_dev A previously created uinput device."]
-    #[doc = " @return The syspath for this device, including the preceding /sys"]
-    #[doc = ""]
-    #[doc = " @see libevdev_uinput_get_devnode"]
     pub fn libevdev_uinput_get_syspath(
         uinput_dev: *mut libevdev_uinput,
     ) -> *const ::std::os::raw::c_char;
 }
 extern "C" {
-    #[doc = " @ingroup uinput"]
-    #[doc = ""]
-    #[doc = " Return the device node representing this uinput device."]
-    #[doc = ""]
-    #[doc = " This relies on libevdev_uinput_get_syspath() to provide a valid syspath."]
-    #[doc = " See libevdev_uinput_get_syspath() for more details."]
-    #[doc = ""]
-    #[doc = " @note This function may return NULL. libevdev may have to guess the"]
-    #[doc = " syspath and the device node. See libevdev_uinput_get_syspath() for details."]
-    #[doc = ""]
-    #[doc = " @note On FreeBSD, this function can not return NULL.  libudev uses the"]
-    #[doc = " UI_GET_SYSNAME ioctl to get the device node on this platform and if that"]
-    #[doc = " fails, the call to libevdev_uinput_create_from_device() fails."]
-    #[doc = ""]
-    #[doc = " @param uinput_dev A previously created uinput device."]
-    #[doc = " @return The device node for this device, in the form of /dev/input/eventN"]
-    #[doc = ""]
-    #[doc = " @see libevdev_uinput_get_syspath"]
     pub fn libevdev_uinput_get_devnode(
         uinput_dev: *mut libevdev_uinput,
     ) -> *const ::std::os::raw::c_char;
 }
 extern "C" {
-    #[doc = " @ingroup uinput"]
-    #[doc = ""]
-    #[doc = " Post an event through the uinput device. It is the caller's responsibility"]
-    #[doc = " that any event sequence is terminated with an EV_SYN/SYN_REPORT/0 event."]
-    #[doc = " Otherwise, listeners on the device node will not see the events until the"]
-    #[doc = " next EV_SYN event is posted."]
-    #[doc = ""]
-    #[doc = " @param uinput_dev A previously created uinput device."]
-    #[doc = " @param type Event type (EV_ABS, EV_REL, etc.)"]
-    #[doc = " @param code Event code (ABS_X, REL_Y, etc.)"]
-    #[doc = " @param value The event value"]
-    #[doc = " @return 0 on success or a negative errno on error"]
     pub fn libevdev_uinput_write_event(
         uinput_dev: *const libevdev_uinput,
         type_: ::std::os::raw::c_uint,
