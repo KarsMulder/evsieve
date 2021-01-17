@@ -437,7 +437,7 @@ evsieve --input /dev/input/by-id/usb-Microsoft_Controller_*-event-joystick \
         --output @kb repeat
 ```
 
-The major new feature used in these scripts are transitions: a transition like `~203..204~` matches an event with a value of 204 or greater, provided that the last event with the same type and code had a value of 203 or less. These transitions are useful for detecting when an absolute axis event goes over or under a certain threshold.
+The major new feature used in these scripts are transitions: a transition like `~216..217~` matches an event with a value of 217 or greater, provided that the last event with the same type and code had a value of 216 or less. These transitions are useful for detecting when an absolute axis event goes over or under a certain threshold.
 
 The chosen thresholds determine how far you need to move a stick or trigger to make them cause a keyboard event. You can adjust them to make the maps more or less sensitive to small movements.
 
@@ -715,7 +715,7 @@ It is also possible to specify a toggle clause, using the syntax:
 Both the ID and the TARGET are optional. If an ID is specified, then only the `--toggle` with the matching ID will be affected. For example, the following hook will affect the first toggle but not the second:
 
 ```
-    --toggle @source-1 @target-1 @target-2 @target-3 id=first-toggle \
+    --toggle @source-1 @target-1 @target-2 id=first-toggle \
     --toggle @source-2 @target-1 @target-2 id=second-toggle \
     --hook key:leftctrl toggle=first-toggle
 ```
