@@ -48,16 +48,29 @@ extern crate lazy_static;
 use error::RuntimeError;
 
 fn main() {
-    let result = run();
-    match result {
-        Ok(_) => (),
+    let result = run_and_interpret_exit_code();
+    std::process::exit(result)
+}
+
+fn run_and_interpret_exit_code() -> i32 {
+    match run() {
+        Ok(_) => 0,
         Err(error) => match error {
-            RuntimeError::InterruptError => (),
-            RuntimeError::IoError(io_error) => eprintln!("{}", io_error),
-            RuntimeError::ArgumentError(arg_error) => eprintln!("{}", arg_error),
-            RuntimeError::InternalError(internal_error) => eprintln!("{}", internal_error),
-        }
-    };
+            RuntimeError::InterruptError => 0,
+            RuntimeError::IoError(io_error) => {
+                eprintln!("{}", io_error);
+                1
+            },
+            RuntimeError::ArgumentError(arg_error) => {
+                eprintln!("{}", arg_error);
+                1
+            },
+            RuntimeError::InternalError(internal_error) => {
+                eprintln!("{}", internal_error);
+                1
+            }
+        },
+    }
 }
 
 fn run() -> Result<(), RuntimeError> {
