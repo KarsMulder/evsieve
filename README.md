@@ -476,7 +476,7 @@ In this section, we'll provide comprehensive documentation about all the argumen
 
 ## Maps
 
-The `--map` and `--copy` arguments have a syntax similar to Linux utilities like `cp`:
+The `--map` and `--copy` arguments have the following basic syntax:
 
 ```
     --map  SOURCE_EVENT [TARGET_EVENT...] [yield]
