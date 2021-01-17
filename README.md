@@ -20,8 +20,6 @@ Evsieve is intended to make simple manipulations easy. It is **not** a tool for 
 
 # Compilation
 
-No official releases are available yet, but you can clone the GitHub repository. There will probably be an 1.0 release in the not too distant future. Beware that until version 1.0 is released, no attempt is made to maintain backwards compatibility in the user interface.
-
 Compiling this program requires the Rust toolchain and the libevdev library. To install these dependencies:
 
 * **Debian / Ubuntu:** `sudo apt install cargo libevdev2 libevdev-dev`
