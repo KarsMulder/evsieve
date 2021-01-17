@@ -38,7 +38,7 @@ def run_unittest(
     # Run the actual program.
     process = sp.Popen(EVSIEVE_PROGRAM + arguments, stdout=sp.PIPE)
     # Give the process some time to create the output devices.
-    time.sleep(0.1)
+    time.sleep(0.2)
 
     try:
         # Open the output devices.
