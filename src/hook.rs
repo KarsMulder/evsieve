@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use std::thread;
-use std::process::{Command, Stdio, Child};
-use std::io;
 use crate::range::Range;
 use crate::key::Key;
 use crate::state::{State, BoolIndex};
 use crate::event::Event;
+use crate::subprocess;
 
 pub type Effect = Box<dyn Fn(&mut State)>;
 
@@ -100,50 +98,9 @@ impl Hook {
 
     /// Makes this hook invoke an external subprocess when this hook is triggered.
     pub fn add_command(&mut self, program: String, args: Vec<String>) {
-        // Compute a printable version of the command, so we have something to show the
-        // user in case an error happens.
-        let printable_cmd: String = vec![program.clone()].into_iter().chain(args.iter().map(
-            |arg| if arg.contains(' ') {
-                format!("\"{}\"", arg)
-            } else {
-                arg.clone()
-            }
-        )).collect::<Vec<String>>().join(" ");
-
         self.add_effect(
             Box::new(move |_| {
-                let program = program.clone();
-                let args = args.clone();
-                let printable_cmd = printable_cmd.clone();
-
-                thread::spawn(move || {
-                    let child_res: Result<Child, io::Error> =
-                        Command::new(program)
-                        .args(args)
-                        .stdin(Stdio::null())
-                        .spawn();
-                    let mut child = match child_res {
-                        Ok(proc) => proc,
-                        Err(error) => {
-                            eprintln!("Failed to run {}: {}", printable_cmd, error);
-                            return;
-                        }
-                    };
-
-                    // ISSUE: handling child processes after the evsieve exits
-                    let result = child.wait();
-                    match result {
-                        Err(error) => eprintln!("Error while waiting on {}: {}", printable_cmd, error),
-                        Ok(status) => {
-                            if ! status.success() {
-                                match status.code() {
-                                    Some(code) => eprintln!("Failed to run {}: return code {}.", printable_cmd, code),
-                                    None => eprintln!("Failed to run {}: interrupted by signal.", printable_cmd),
-                                }
-                            }
-                        }
-                    }
-                });
+                subprocess::try_spawn(program.clone(), args.clone());
             })
         );
     }

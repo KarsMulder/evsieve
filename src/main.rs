@@ -19,6 +19,7 @@ pub mod sysexit;
 pub mod hook;
 pub mod predevice;
 pub mod print;
+pub mod subprocess;
 
 pub mod io {
     pub mod input;
@@ -53,7 +54,7 @@ fn main() {
 }
 
 fn run_and_interpret_exit_code() -> i32 {
-    match run() {
+    let result = match run() {
         Ok(_) => 0,
         Err(error) => match error {
             RuntimeError::InterruptError => 0,
@@ -70,7 +71,9 @@ fn run_and_interpret_exit_code() -> i32 {
                 1
             }
         },
-    }
+    };
+    subprocess::terminate_all();
+    result
 }
 
 fn run() -> Result<(), RuntimeError> {
