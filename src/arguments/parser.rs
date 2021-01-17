@@ -203,7 +203,7 @@ pub fn implement(args_str: Vec<String>) -> Result<Setup, RuntimeError> {
                     hook.add_command("/bin/sh".to_owned(), vec!["-c".to_owned(), exec_shell]);
                 }
                 
-                for effect in hook_arg.toggle_action.implement(&toggle_indices)? {
+                for effect in hook_arg.toggle_action.implement(&state, &toggle_indices)? {
                     hook.add_effect(effect);
                 }
                 

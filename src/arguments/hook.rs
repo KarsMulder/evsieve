@@ -109,13 +109,23 @@ impl HookToggleAction {
     /// Returns a list of all toggle effects that a hook needs to implement this HookToggleAction.
     /// Requires a map mapping toggle's id to their index. This map must contain all toggles which
     /// have an ID, but does not need to contain toggles that don't have any ID.
-    pub fn implement(&self, toggle_index_by_id: &HashMap<String, ToggleIndex>) -> Result<Vec<Effect>, ArgumentError> {
+    pub fn implement(&self, state: &State, toggle_index_by_id: &HashMap<String, ToggleIndex>) -> Result<Vec<Effect>, ArgumentError> {
         let mut effects: Vec<Effect> = Vec::new();
         let mut specified_indices: Vec<ToggleIndex> = Vec::new();
         for (toggle_id, &shift) in &self.by_id_actions {
             let toggle_index = *toggle_index_by_id.get(toggle_id).ok_or_else(|| {
                 ArgumentError::new(format!("No toggle with the id \"{}\" exists.", toggle_id))
             })?;
+
+            if let HookToggleShift::ToIndex(target_index) = shift {
+                let toggle_size = state[toggle_index].size();
+                if target_index >= toggle_size {
+                    return Err(ArgumentError::new(format!(
+                        "The index {} is out of range for the toggle with id \"{}\".", target_index + 1, toggle_id
+                    )))
+                }
+            }
+
             specified_indices.push(toggle_index);
             effects.push(Box::new(move |state: &mut State| {
                 match shift {
