@@ -26,9 +26,11 @@ Compiling this program requires the Rust toolchain and the libevdev library. To 
 * **Fedora:** `sudo dnf install cargo libevdev libevdev-devel`
 * **Arch Linux:** `sudo pacman -S rust libevdev`
 
-After you've installed the dependencies and obtained a copy of the source code, you can compile the program using:
+After you've installed the dependencies, you can obtain a copy of the source code and compile the program using:
 
 ```
+wget https://github.com/KarsMulder/evsieve/archive/v1.0.0.tar.gz -O evsieve.tar.gz
+tar -xzf evsieve.tar.gz && cd evsieve-1.0.0
 cargo build --release
 ```
 
