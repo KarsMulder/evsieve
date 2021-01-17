@@ -20,6 +20,7 @@ use crate::arguments::print::PrintArg;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
+const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 const USAGE_MSG: &str = 
 "Usage: evsieve [--input PATH... [domain=DOMAIN] [grab[=auto|force]]]...
                [--map SOURCE [DEST...] [yield]]...
@@ -64,6 +65,12 @@ fn parse(args: Vec<String>) -> Result<Vec<Argument>, RuntimeError> {
             || args.contains(&"--help".to_owned()) {
         println!("{}", USAGE_MSG);
         // Maybe not the correct error kind, but currently the kind that signifies the program should exit.
+        return Err(RuntimeError::InterruptError);
+    }
+
+    if args.contains(&"--version".to_owned()) {
+        let version = VERSION.unwrap_or("unknown");
+        println!("{}", version);
         return Err(RuntimeError::InterruptError);
     }
 	
