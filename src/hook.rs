@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 use std::thread;
-use std::process::{Command, Stdio};
+use std::process::{Command, Stdio, Child};
+use std::io;
 use crate::range::Range;
 use crate::key::Key;
 use crate::state::{State, BoolIndex};
@@ -116,12 +117,23 @@ impl Hook {
                 let printable_cmd = printable_cmd.clone();
 
                 thread::spawn(move || {
-                    let result = Command::new(program)
+                    let child_res: Result<Child, io::Error> =
+                        Command::new(program)
                         .args(args)
                         .stdin(Stdio::null())
-                        .status();
+                        .spawn();
+                    let mut child = match child_res {
+                        Ok(proc) => proc,
+                        Err(error) => {
+                            eprintln!("Failed to run {}: {}", printable_cmd, error);
+                            return;
+                        }
+                    };
+
+                    // ISSUE: handling child processes after the evsieve exits
+                    let result = child.wait();
                     match result {
-                        Err(error) => eprintln!("Failed to run {}: {}", printable_cmd, error),
+                        Err(error) => eprintln!("Error while waiting on {}: {}", printable_cmd, error),
                         Ok(status) => {
                             if ! status.success() {
                                 match status.code() {
