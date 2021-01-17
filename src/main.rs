@@ -2,6 +2,7 @@
 
 #![allow(clippy::new_without_default)]
 #![allow(clippy::comparison_to_empty)]
+#![allow(clippy::collapsible_if)]
 #![warn(clippy::explicit_iter_loop)]
 
 pub mod event;

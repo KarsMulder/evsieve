@@ -690,6 +690,8 @@ This will be executed as the same user that evsieve is running as, which may be 
 
 The command is executed asynchronously, which means that the processing of events will *not* halt until the command's execution has completed. In case the command takes sufficiently long to complete and the user presses keys sufficiently fast, it may be possible to trigger the hook again before the command's execution has finished, which will lead to multiple copies of the command being executed simultaneously.
 
+Any processes spawned by `exec-shell` that are still running when evsieve exits will be sent a SIGTERM signal.
+
 **Toggles**
 
 Hooks are capable of modifying the active target of `--toggle` arguments specified elsewhere in the script. Any hook can modify any toggle, it doesn't matter whether the `--hook` or the `--toggle` argument was specified first, e.g. the following two orders are functionally identical:

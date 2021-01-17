@@ -1,25 +1,85 @@
 use std::process::{Command, Stdio, Child};
 use std::io;
 use std::sync::Mutex;
-
-// TODO: processes' exit codes are not checked until a new process is spawned.
+use signal_hook::iterator::Signals;
 
 lazy_static! {
     /// Keeps track of all subprocess we've spawned so we can terminate them when evsieve exits.
-    static ref PROCESSES: Mutex<Vec<Subprocess>> = Mutex::new(Vec::new());
-}
-
-/// Tries to free the resources of all finished processes.
-pub fn cleanup() {
-    let mut processes_lock = PROCESSES.lock().expect("Internal mutex poisoned.");
-    *processes_lock = processes_lock.drain(..).filter_map(Subprocess::try_cleanup).collect()
+    static ref MANAGER: Mutex<SubprocessManager> = Mutex::new(SubprocessManager::new());
 }
 
 /// Tries to terminate all subprocesses.
 pub fn terminate_all() {
-    let mut processes_lock = PROCESSES.lock().expect("Internal mutex poisoned.");
-    for process in processes_lock.drain(..) {
-        process.terminate();
+    MANAGER.lock().expect("Internal lock poisoned.").terminate_all()
+}
+
+/// Will spawn a process. Will print an error on failure, but will not return an error code.
+/// The process will be SIGTERM'd when subprocess::terminate_all is called (if it is still
+/// running by then).
+pub fn try_spawn(program: String, args: Vec<String>) {
+    // Compute a printable version of the command, so we have something to show the
+    // user in case an error happens.
+    let printable_cmd: String = vec![program.clone()].into_iter().chain(args.iter().map(
+        |arg| if arg.contains(' ') {
+            format!("\"{}\"", arg)
+        } else {
+            arg.clone()
+        }
+    )).collect::<Vec<String>>().join(" ");
+
+    let child_res: Result<Child, io::Error> =
+        Command::new(program)
+        .args(args)
+        .stdin(Stdio::null())
+        .spawn();
+    let child = match child_res {
+        Ok(proc) => proc,
+        Err(error) => {
+            eprintln!("Failed to run {}: {}", printable_cmd, error);
+            return;
+        }
+    };
+
+    let process = Subprocess {
+        child, printable_cmd
+    };
+
+    MANAGER.lock().expect("Internal lock poisoned.").add_process(process)
+}
+
+struct SubprocessManager {
+    processes: Vec<Subprocess>,
+    cleanup_thread_is_running: bool,
+}
+
+impl SubprocessManager {
+    fn new() -> SubprocessManager {
+        SubprocessManager {
+            processes: Vec::new(),
+            cleanup_thread_is_running: false,
+        }
+    }
+
+    /// Tries to free the resources of all finished processes.
+    fn cleanup(&mut self) {
+        self.processes = self.processes.drain(..).filter_map(Subprocess::try_cleanup).collect();
+    }
+
+    fn add_process(&mut self, process: Subprocess) {
+        self.processes.push(process);
+
+        if ! self.cleanup_thread_is_running {
+            if start_cleanup_thread().is_ok() {
+                self.cleanup_thread_is_running = true;
+            }
+        }
+    }
+
+    /// Tries to terminate all subprocesses.
+    fn terminate_all(&mut self) {
+        for process in self.processes.drain(..) {
+            process.terminate();
+        }
     }
 }
 
@@ -67,35 +127,17 @@ impl Subprocess {
     }
 }
 
-/// Will spawn a process. Will print an error on failure, but will not return an error code.
-pub fn try_spawn(program: String, args: Vec<String>) {
-    // Compute a printable version of the command, so we have something to show the
-    // user in case an error happens.
-    let printable_cmd: String = vec![program.clone()].into_iter().chain(args.iter().map(
-        |arg| if arg.contains(' ') {
-            format!("\"{}\"", arg)
-        } else {
-            arg.clone()
+fn start_cleanup_thread() -> Result<(), io::Error> {
+    let mut signals = Signals::new(&[libc::SIGCHLD])?;
+    std::thread::spawn(move || {
+        for signal in signals.forever() {
+            match signal {
+                libc::SIGCHLD => {
+                    MANAGER.lock().expect("Internal lock poisoned.").cleanup();
+                },
+                _ => unreachable!(),
+            }
         }
-    )).collect::<Vec<String>>().join(" ");
-
-    let child_res: Result<Child, io::Error> =
-        Command::new(program)
-        .args(args)
-        .stdin(Stdio::null())
-        .spawn();
-    let child = match child_res {
-        Ok(proc) => proc,
-        Err(error) => {
-            eprintln!("Failed to run {}: {}", printable_cmd, error);
-            return;
-        }
-    };
-
-    let process = Subprocess {
-        child, printable_cmd
-    };
-
-    cleanup();
-    PROCESSES.lock().expect("Internal mutex poisoned.").push(process)
+    });
+    Ok(())
 }

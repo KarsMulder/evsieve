@@ -11,7 +11,6 @@ pub fn should_exit() -> bool {
     SHOULD_EXIT_FLAG.load(Ordering::SeqCst)
 }
 
-
 /// The program should exit when it receives one of the following signals.
 pub static EXIT_SIGNALS: &[i32] = &[
     libc::SIGINT,
