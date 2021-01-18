@@ -676,7 +676,7 @@ As said, the syntax is the same as the syntax used for maps, but the semantics a
     --hook key:a:1~ key:leftcontrol:1~ exec-shell="echo Hello, world!"
 ```
 
-Formally said, the hook triggers when (1) an event is received that matches one of the KEYs specified, (2) the last event whose type and code matched that same KEY did not have a value matching that KEY, and (3) for all other KEYs, the last event whose type and code matched those KEYs had a value matching those KEYs.
+Formally said, the hook triggers when (1) an event is received that matches one of the KEYs specified, (2) the last event whose type, code and domain matched that same KEY did not have a value matching that KEY, and (3) for all other KEYs, the last event whose type, code and domain matched those KEYs had a value matching those KEYs.
 
 It is not possible to specify transitions in these KEYs, e.g. `--hook key:a:1..0` will throw an error.
 
