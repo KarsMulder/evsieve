@@ -441,6 +441,8 @@ The major new feature used in these scripts are transitions: a transition like `
 
 The chosen thresholds determine how far you need to move a stick or trigger to make them cause a keyboard event. You can adjust them to make the maps more or less sensitive to small movements.
 
+You may further notice that these scripts use the `--copy` argument instead of `--map`. The `--copy` and `--map` arguments are identical with one difference: source events matching a `--map` are removed from the processing stream, but those matching `--copy` are not. In these scripts `--copy` is used because it might be theoretically possible that e.g. a `abs:hat0x:-1` event gets followed up by a `abs:hat0x:1` event, which should simultaneously release the left key and press the right key.
+
 The `repeat` flag makes the virtual keyboard emit key repeat events if a button is held down, like a keyboard does, even though the controllers do not emit repeat events themselves. Since most applications that read event devices ignore repeat events anyway, this clause isn't very important.
 
 ## Change your keyboard layout on an evdev level
