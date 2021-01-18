@@ -5,10 +5,13 @@ use crate::error::ArgumentError;
 use crate::arguments::lib::ComplexArgGroup;
 use crate::key::{Key, KeyParser};
 use crate::event::Namespace;
+use std::path::PathBuf;
 
+const DEFAULT_NAME: &str = "Evsieve Virtual Device";
 
 pub(super) struct OutputDevice {
-    pub create_link: Option<String>,
+    pub create_link: Option<PathBuf>,
+    pub name: String,
     pub keys: Vec<Key>,
     pub repeat_mode: RepeatMode,
 }
@@ -17,7 +20,7 @@ impl OutputDevice {
 	pub fn parse(args: Vec<String>) -> Result<OutputDevice, ArgumentError> {
         let arg_group = ComplexArgGroup::parse(args,
             &["repeat"],
-            &["create-link", "repeat"],
+            &["create-link", "name", "repeat"],
             false,
             true,
         )?;
@@ -31,6 +34,11 @@ impl OutputDevice {
                 _ => return Err(ArgumentError::new(format!("Invalid repeat mode \"{}\".", mode)))
             },
         };
+
+        let name = arg_group.get_unique_clause("name")?.unwrap_or_else(|| DEFAULT_NAME.to_owned());
+        if name.is_empty() {
+            return Err(ArgumentError::new("Output device name cannot be empty."));
+        }
 
         // Parse the keys that shall be sent to this output device.
         let key_strs = arg_group.get_keys_or_empty_key();
@@ -47,8 +55,8 @@ impl OutputDevice {
         }
 
 		Ok(OutputDevice {
-            create_link: arg_group.get_unique_clause("create-link")?,
-            keys, repeat_mode,
+            create_link: arg_group.get_unique_clause("create-link")?.map(PathBuf::from),
+            name, keys, repeat_mode,
         })
     }
 }

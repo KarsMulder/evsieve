@@ -50,7 +50,7 @@ impl OutputSystem {
                 eprintln!("Warning: an output device has been specified to which no events can possibly be routed.");
             }
 
-            let mut device = OutputDevice::with_capabilities(capabilities)?;
+            let mut device = OutputDevice::with_name_and_capabilities(pre_device.name, capabilities)?;
             device.allow_repeat(match pre_device.repeat_mode {
                 RepeatMode::Passive  => true,
                 RepeatMode::Disable  => false,
@@ -98,11 +98,11 @@ pub struct OutputDevice {
 }
 
 impl OutputDevice {
-    pub fn with_capabilities(caps: Capabilities) -> Result<OutputDevice, io::Error> {
+    pub fn with_name_and_capabilities(name_str: String, caps: Capabilities) -> Result<OutputDevice, io::Error> {
         unsafe {
             let dev = libevdev::libevdev_new();
 
-            let cstr = CString::new("Evsieve Virtual Device").unwrap();
+            let cstr = CString::new(name_str).unwrap();
             let bytes = cstr.as_bytes_with_nul();
             let ptr = bytes.as_ptr();
             let name = ptr as *const libc::c_char;

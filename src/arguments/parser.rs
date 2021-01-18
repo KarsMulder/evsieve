@@ -29,7 +29,7 @@ const USAGE_MSG: &str =
                [--toggle SOURCE DEST... [id=ID] [mode=consistent|passive]]...
                [--hook KEY... [exec-shell=COMMAND]... [toggle[=[ID][:INDEX]]]...]...
                [--print [EVENTS...] [format=default|direct]]...
-               [--output [EVENTS...] [create-link=PATH] [repeat[=MODE]]]...";
+               [--output [EVENTS...] [create-link=PATH] [name=NAME] [repeat[=MODE]]]...";
 
 enum Argument {
     InputDevice(InputDevice),
@@ -178,10 +178,8 @@ pub fn implement(args_str: Vec<String>) -> Result<Setup, RuntimeError> {
                 let target_domain = domain::get_unique_domain();
                 let output_device = PreOutputDevice {
                     domain: target_domain,
-                    create_link: match &device.create_link {
-                        Some(path) => Some(path.into()),
-                        None => None,
-                    },
+                    create_link: device.create_link,
+                    name: device.name,
                     repeat_mode: device.repeat_mode,
                 };
                 output_devices.push(output_device);

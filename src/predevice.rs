@@ -53,6 +53,8 @@ pub struct PreOutputDevice {
     pub domain: Domain,
     /// If Some, the user has requested a symlink to the device to be created at the given path.
     pub create_link: Option<PathBuf>,
+    /// The output device will be given this name.
+    pub name: String,
     /// Determined by "repeat" or "norepeat" flags on output devices.
     pub repeat_mode: RepeatMode,
 }
