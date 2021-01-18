@@ -766,7 +766,7 @@ There are some questions left surrounding the design of the `auto` mode, so it i
 The basic syntax for the `--output` argument is:
 
 ```
-    --output [EVENTS...] [create-link=PATH] [repeat[=enable|disable|passive]]
+    --output [EVENTS...] [create-link=PATH] [name=NAME] [repeat[=enable|disable|passive]]
 ```
 
 The `--output` argument creates a virtual event device and sends events to it. If the `--output` argument is specified multiple times, a different virtual device will be created for each argument.
@@ -800,6 +800,16 @@ It is customary for links to event devices to reside in `/dev/input/by-id/`, but
 Evsieve will create the link when it starts, and try to remove the link when it exits. Note that there are circumstances under which evsieve may be unable to clean up the link it created, such as when evsieve is SIGKILL'd or in case of unexpected power loss. In such cases you may end up with a dangling symlink on your filesystem.
 
 In case a symlink already exists at the path you provided to `create-link=`, evsieve will overwrite that link. This behaviour has been chosen to not make any scripts involving evsieve mysteriously break after an unexpected power loss.
+
+**Names**
+
+A name for the device can be specified using the `name=` clause, e.g.:
+
+```
+    --output name="My keyboard"
+```
+
+If no name is specified, then `Evsieve Virtual Device` is chosen by default. The device name is usually of little consequence, but some third-party tools may care about it. For example, the `evtest` utility is able to display the device name.
 
 **Repeats**
 
