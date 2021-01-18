@@ -14,7 +14,7 @@ Examples of things that evsieve can achieve that are useful for evdev-passthroug
 * Run scripts based on hotkeys even if your keyboard is passed through to the guest;
 * Remap another key to lctrl+rctrl, so you can use another key to attach/detach your keyboard to your VM;
 * Split the events over multiple virtual devices, possibly passing some of those devices to different VMs or keeping one of them on the host;
-* Remap keys on your keyboard in a way that even the peskiest [AutoHotKey](https://www.autohotkey.com/)-resistant program or IME can't evade.
+* Remap keys on your keyboard on such a low level that even the guest OS can't tell the difference between real and mapped keys.
 
 Evsieve is intended to make simple manipulations easy. It is **not** a tool for keyboard macro's or complex event manipulation. In case you want to do manipulations that are beyond the scope of evsieve, we recommend using the [Python-evdev](https://python-evdev.readthedocs.io/en/latest/) library instead.
 
