@@ -143,7 +143,7 @@ impl Toggle {
         match self.mode {
             ToggleMode::Passive => self.as_map(state),
             ToggleMode::Consistent => {
-                match state[self.state_index].memory.get(&(event.ev_type, event.code)) {
+                match state[self.state_index].memory.get(&(event.ev_type, event.code, event.domain)) {
                     Some(&index) => &self.maps[index],
                     None => self.as_map(state),
                 }
@@ -161,10 +161,10 @@ impl Toggle {
         if self.mode == ToggleMode::Consistent && event.ev_type.is_key() {
             let active_value = state[self.state_index].value();
             let memory = &mut state[self.state_index].memory;
-            let event_id = (event.ev_type, event.code);
+            let event_channel = (event.ev_type, event.code, event.domain);
             match event.value {
-                0 => { memory.remove(&event_id); },
-                _ => { memory.entry(event_id).or_insert(active_value); },
+                0 => { memory.remove(&event_channel); },
+                _ => { memory.entry(event_channel).or_insert(active_value); },
             }
         }
     }
