@@ -31,7 +31,7 @@ def run_unittest(
         }
         input_device = evdev.UInput(capabilities)
         if os.path.exists(path) or os.path.islink(path):
-            raise Exception(f"Cannot carry out the benchmark: required path {path} is already occupied.")
+            raise Exception(f"Cannot carry out the unittest: required path {path} is already occupied.")
         os.symlink(input_device.device, path)
         input_devices[input_device] = events
 
