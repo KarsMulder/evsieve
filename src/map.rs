@@ -94,12 +94,9 @@ pub enum ToggleMode {
 }
 
 /// Represents a --toggle argument.
-/// 
-/// Internally, a Toggle is treated as if it is a set of maps of which only one is active
-/// at anygiven moment. This means that "--toggle key:a @foo @bar" is treated as the set of
-/// the maps "--map key:a @foo" and "--map key:a @bar".
 pub struct Toggle {
-    maps: Vec<Map>,
+    input_key: Key,
+    output_keys: Vec<Key>,
     pub mode: ToggleMode,
     pub state_index: ToggleIndex,
 }
@@ -123,42 +120,38 @@ impl Toggle {
                 state.create_toggle_with_size(num_output)?
             },
         };
-        let maps = output_keys.into_iter().map(
-            |output_key| Map::new(input_key.clone(), vec![output_key])
-        ).collect();
         
-        Ok(Toggle { maps, mode, state_index })
+        Ok(Toggle { input_key, output_keys, mode, state_index })
     }
 
-    /// Returns the default map as which this toggle currently act.
-    /// Consistent toggles may act as a different map for specific events; use
-    /// as_map_for_event() instead.
-    fn as_map(&self, state: &State) -> &Map {
-        &self.maps[state[self.state_index].value()]
+    /// Returns the active output key. Specific events may use a different active output key
+    /// than this one. Use active_output_key_for_event() instead.
+    fn active_output_key(&self, state: &State) -> &Key {
+        &self.output_keys[state[self.state_index].value()]
     }
 
-    /// Consistent returns the currently active map for a specific event.
-    /// Identical to as_map() for passive maps.
-    fn as_map_for_event(&self, event: Event, state: &State) -> &Map {
+    /// Returns the currently active key for a specific event.
+    /// Identical to active_output_key() for passive maps.
+    fn active_output_key_for_event(&self, event: Event, state: &State) -> &Key {
         match self.mode {
-            ToggleMode::Passive => self.as_map(state),
+            ToggleMode::Passive => self.active_output_key(state),
             ToggleMode::Consistent => {
                 match state[self.state_index].memory.get(&(event.ev_type, event.code, event.domain)) {
-                    Some(&index) => &self.maps[index],
-                    None => self.as_map(state),
+                    Some(&index) => &self.output_keys[index],
+                    None => self.active_output_key(state),
                 }
             }
         }
     }
 
-    /// If this is a consistent map, keeps track of which EventIds were last routed where,
+    /// If this is a consistent map, keeps track of which events were last routed where,
     /// to ensure that a key_up event is sent to the same target as a key_down event even
     /// if the active map was toggled in the meantime.
     /// 
-    /// This should be called _after_ as_map_for_event(), because otherwise it may erase the
-    /// memory we were left by the previous event.
+    /// This should be called _after_ active_output_key_for_event(), because otherwise it
+    /// may erase the memory we were left by the previous event.
     fn remember(&self, event: Event, state: &mut State) {
-        if self.mode == ToggleMode::Consistent && event.ev_type.is_key() {
+        if self.mode == ToggleMode::Consistent && event.ev_type.is_key() && self.input_key.matches(&event) {
             let active_value = state[self.state_index].value();
             let memory = &mut state[self.state_index].memory;
             let event_channel = (event.ev_type, event.code, event.domain);
@@ -170,9 +163,13 @@ impl Toggle {
     }
 
     fn apply(&self, event: Event, output_events: &mut Vec<Event>, state: &mut State) {
-        let active_map = self.as_map_for_event(event, state);
-        self.remember(event, state);
-        active_map.apply(event, output_events);
+        if self.input_key.matches(&event) {
+            let active_output = self.active_output_key_for_event(event, state);
+            self.remember(event, state);
+            output_events.push(active_output.merge(event));
+        } else {
+            output_events.push(event);
+        }
     }
 
     /// The apply_ functions are analogous to the Map::apply_ equivalents.
@@ -182,15 +179,8 @@ impl Toggle {
         }
     }
 
-    fn apply_cap(&self, cap: Capability, output_caps: &mut Vec<Capability>) {
-        for map in &self.maps {
-            map.apply_cap(cap, output_caps);
-        }
-    }
-
     pub fn apply_to_all_caps(&self, caps: &[Capability], output_caps: &mut Vec<Capability>) {
-        for &cap in caps {
-            self.apply_cap(cap, output_caps);
-        }
+        let self_as_map = Map::new(self.input_key.clone(), self.output_keys.clone());
+        self_as_map.apply_to_all_caps(caps, output_caps);
     }
 }
