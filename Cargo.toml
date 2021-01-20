@@ -1,6 +1,6 @@
 [package]
 name = "evsieve"
-version = "1.0.0"
+version = "1.1.0"
 authors = ["Kars Mulder <devmail@karsmulder.nl>"]
 edition = "2018"
 keywords = ["evdev"]
