@@ -526,6 +526,38 @@ def unittest_namespace():
         expected_output="bar\n",
     )
 
+def unittest_consistency():
+    run_unittest(
+        ["--input", "/dev/input/by-id/unittest-consistency-in", "domain=foo", "grab=force",
+        "--map", "key:x", "key:a@bar",
+        "--toggle", "key:a", "key:b", "key:c",
+        "--hook", "key:z", "toggle",
+        "--output", "@foo", "create-link=/dev/input/by-id/unittest-consistency-out-1",
+        "--output", "@bar", "create-link=/dev/input/by-id/unittest-consistency-out-2"],
+        {
+            "/dev/input/by-id/unittest-consistency-in": [
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_X, 1),
+                (e.EV_KEY, e.KEY_Z, 1),
+                (e.EV_KEY, e.KEY_Z, 0),
+                (e.EV_KEY, e.KEY_X, 0),
+                (e.EV_KEY, e.KEY_A, 0),
+            ],
+        },
+        {
+            "/dev/input/by-id/unittest-consistency-out-1": [
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_Z, 1),
+                (e.EV_KEY, e.KEY_Z, 0),
+                (e.EV_KEY, e.KEY_B, 0),
+            ],
+            "/dev/input/by-id/unittest-consistency-out-2": [
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_B, 0),
+            ],
+        },
+    )
+
 
 unittest_mirror()
 unittest_capslock()
@@ -538,3 +570,4 @@ unittest_toggle()
 unittest_yield()
 unittest_order()
 unittest_namespace()
+unittest_consistency()
