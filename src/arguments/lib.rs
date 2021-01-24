@@ -25,6 +25,11 @@ pub(super) struct ComplexArgGroup {
 }
 
 impl ComplexArgGroup {
+    /// Args must include the name of this ArgGroup, e.g. "--input".
+    ///
+    /// # Panics
+    ///
+    /// Panics when args is empty.
     pub fn parse(args: Vec<String>,
             supported_flags: &[&str],
             supported_clauses: &[&str],
@@ -32,9 +37,7 @@ impl ComplexArgGroup {
             supports_keys: bool) -> Result<ComplexArgGroup, ArgumentError> {
         
         let mut args_iter = args.into_iter();
-        let arg_name = args_iter.next().ok_or_else(|| ArgumentError::new(
-            "Internal error: created an argument group out of no arguments."
-        ))?;
+        let arg_name = args_iter.next().expect("Internal error: created an argument group out of no arguments.");
 
         let mut flags: Vec<String> = Vec::new();
         let mut clauses: Vec<(String, String)> = Vec::new();
@@ -97,7 +100,7 @@ impl ComplexArgGroup {
                 }
             }
 
-            // If we reach this points, the argument is invalid.
+            // If we reach this point, the argument is invalid.
             // Try to diagnose what went wrong to give the most helpful error message possible.
 
             // Check if it is a clause that doesn't have a value provided.
