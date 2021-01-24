@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 use std::os::unix::io::{AsRawFd, RawFd};
-use std::io;
-use crate::error::{InternalError, RuntimeError};
+use crate::error::{InternalError, RuntimeError, SystemError};
 use crate::event::Event;
 use crate::io::input::InputDevice;
 use crate::sysexit;
@@ -33,12 +32,12 @@ pub enum EpollResult {
 }
 
 impl Epoll {
-    pub fn new(files: Vec<InputDevice>) -> Result<Epoll, io::Error> {
+    pub fn new(files: Vec<InputDevice>) -> Result<Epoll, SystemError> {
         let epoll_fd = unsafe {
             libc::epoll_create1(0)
         };
         if epoll_fd < 0 {
-            return Err(io::Error::new(io::ErrorKind::Other, "Failed to create epoll instance."));
+            return Err(SystemError::new("Failed to create epoll instance."));
         }
 
         let mut epoll = Epoll {
@@ -61,7 +60,7 @@ impl Epoll {
 
     /// Unsafe: must not add a file that already belongs to this Epoll, the file must
     /// return a valid raw file descriptor.
-    unsafe fn add_file(&mut self, file: InputDevice) -> Result<(), io::Error> {
+    unsafe fn add_file(&mut self, file: InputDevice) -> Result<(), SystemError> {
         let index = self.get_unique_index();
         let file_fd = file.as_raw_fd();
         self.files.insert(index, file);
@@ -80,7 +79,7 @@ impl Epoll {
         );
 
         if result < 0 {
-            Err(io::Error::new(io::ErrorKind::Other, "Failed to add a device to an epoll instance."))
+            Err(SystemError::new("Failed to add a device to an epoll instance."))
         } else {
             Ok(())
         }
@@ -100,7 +99,7 @@ impl Epoll {
         )};
 
         if result < 0 {
-            Err(io::Error::new(io::ErrorKind::Other, "Failed to remove a device from an epoll instance.").into())
+            Err(SystemError::new("Failed to remove a device from an epoll instance.").into())
         } else {
             Ok(file)
         }

@@ -167,7 +167,7 @@ impl OutputDevice {
             libevdev::libevdev_free(dev);
 
             if res != 0 {
-                return Err(io::Error::new(io::ErrorKind::Other, "Failed to create an UInput device. Does evsieve have enough permissions?").into());
+                return Err(SystemError::new("Failed to create an UInput device. Does evsieve have enough permissions?").into());
             }
 
             Ok(OutputDevice { device: uinput_dev, should_syn: false, symlink: None, allows_repeat: true })
@@ -204,17 +204,17 @@ impl OutputDevice {
         }
     }
 
-    fn set_link(&mut self, path: PathBuf) -> Result<(), io::Error> {
+    fn set_link(&mut self, path: PathBuf) -> Result<(), SystemError> {
         // Try to figure out the path of the uinput device node.
         let my_path_cstr_ptr = unsafe {
             libevdev::libevdev_uinput_get_devnode(self.device)
         };
         if my_path_cstr_ptr == std::ptr::null() {
-            return Err(io::Error::new(io::ErrorKind::Other, "Failed to createa a symlink to an output device: cannot determine the path to the virtual device's device node."))
+            return Err(SystemError::new("Failed to createa a symlink to an output device: cannot determine the path to the virtual device's device node."))
         };
         let my_path_cstr = unsafe { std::ffi::CStr::from_ptr(my_path_cstr_ptr) };
         let my_path_str = my_path_cstr.to_str().map_err(|_|
-            io::Error::new(io::ErrorKind::Other, "Failed to createa a symlink to an output device: the path to the virtual device node is not valid UTF-8.")
+            SystemError::new("Failed to createa a symlink to an output device: the path to the virtual device node is not valid UTF-8.")
         )?;
         let my_path = Path::new(my_path_str).to_owned();
 
@@ -256,7 +256,7 @@ impl Symlink {
                 fs::remove_file(&dest)?;
             } else {
                 return Err(io::Error::new(io::ErrorKind::AlreadyExists,
-                    format!("Cannot create a symlink at {}: path already exists.", dest.to_string_lossy())));
+                    format!("Cannot create a symlink at \"{}\": path already exists.", dest.to_string_lossy())));
             }
         }
 

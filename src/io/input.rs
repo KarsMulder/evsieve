@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use std::io;
 use std::fs::{File, OpenOptions};
 use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::io::{AsRawFd, RawFd};
@@ -95,7 +94,7 @@ pub struct InputDevice {
 }
 
 impl InputDevice {
-    fn open(pre_device: PreInputDevice) -> Result<InputDevice, io::Error> {
+    fn open(pre_device: PreInputDevice) -> Result<InputDevice, SystemError> {
         let path = pre_device.path;
         let domain = pre_device.domain;
 
@@ -111,7 +110,7 @@ impl InputDevice {
             libevdev::libevdev_new_from_fd(file.as_raw_fd(), &mut evdev)
         };
         if res < 0 {
-            return Err(io::Error::new(io::ErrorKind::Other,
+            return Err(SystemError::new(
                 format!("Failed to open a libevdev instance: {}", path.to_string_lossy())
             ));
         }
@@ -132,7 +131,7 @@ impl InputDevice {
         self.domain
     }
 
-    fn read_raw(&mut self) -> Result<Vec<(EventId, EventValue)>, io::Error> {
+    fn read_raw(&mut self) -> Result<Vec<(EventId, EventValue)>, SystemError> {
         let mut event: libevdev::input_event = unsafe { std::mem::zeroed() };
         let mut should_sync = false;
         let mut events: Vec<(EventId, EventValue)> = Vec::new();
@@ -157,7 +156,7 @@ impl InputDevice {
                     should_sync = true;
                 },
                 EAGAIN => break,
-                _ => return Err(io::Error::new(io::ErrorKind::Other,
+                _ => return Err(SystemError::new(
                     "An unknown error occured while reading from an event device."
                 )),
             }
@@ -168,7 +167,7 @@ impl InputDevice {
 
     /// Reads the raw events from the device and attached additional information such as the
     /// domain of this device and whatever value this event had the last time it was seen.
-    pub fn poll(&mut self) -> Result<Vec<Event>, io::Error> {
+    pub fn poll(&mut self) -> Result<Vec<Event>, SystemError> {
         let mut result: Vec<Event> = Vec::new();
         for ((ev_type, code), value) in self.read_raw()? {
             let previous_value_mut: &mut EventValue = self.state.entry((ev_type, code)).or_insert(0);
@@ -183,7 +182,7 @@ impl InputDevice {
         Ok(result)
     }
 
-    fn grab_if_desired(&mut self) -> Result<(), io::Error> {
+    fn grab_if_desired(&mut self) -> Result<(), SystemError> {
         if self.grabbed {
             return Ok(());
         }
@@ -202,12 +201,12 @@ impl InputDevice {
         }
     }
 
-    fn grab(&mut self) -> Result<(), io::Error> {
+    fn grab(&mut self) -> Result<(), SystemError> {
         let res = unsafe {
             libevdev::libevdev_grab(self.evdev, libevdev::libevdev_grab_mode_LIBEVDEV_GRAB)
         };
         if res < 0 {
-            Err(io::Error::new(io::ErrorKind::Other,
+            Err(SystemError::new(
                 format!("Failed to grab event device: {}", self.path.to_string_lossy()
             )))
         } else {
@@ -216,12 +215,12 @@ impl InputDevice {
         }
     }
 
-    fn ungrab(&mut self) -> Result<(), io::Error> {
+    fn ungrab(&mut self) -> Result<(), SystemError> {
         let res = unsafe {
             libevdev::libevdev_grab(self.evdev, libevdev::libevdev_grab_mode_LIBEVDEV_GRAB)
         };
         if res < 0 {
-            Err(io::Error::new(io::ErrorKind::Other,
+            Err(SystemError::new(
                 format!("Failed to ungrab event device: {}", self.path.to_string_lossy()
             )))
         } else {
