@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use crate::error::ArgumentError;
+use crate::error::{ArgumentError, RuntimeError};
 use crate::arguments::lib::ComplexArgGroup;
 use crate::key::{Key, KeyParser};
 use crate::event::Namespace;
@@ -15,7 +15,7 @@ pub(super) struct ToggleArg {
 }
 
 impl ToggleArg {
-	pub fn parse(args: Vec<String>) -> Result<ToggleArg, ArgumentError> {
+	pub fn parse(args: Vec<String>) -> Result<ToggleArg, RuntimeError> {
         let arg_group = ComplexArgGroup::parse(args,
             &[],
             &["id", "mode"],
@@ -30,13 +30,13 @@ impl ToggleArg {
                 "passive" => ToggleMode::Passive,
                 _ => return Err(ArgumentError::new(
                     format!("Invalid toggle mode specified: {}", mode_str)
-                ))
+                ).into())
             }
         };
 
         let keys = arg_group.require_keys()?;
         if keys.len() < 2 {
-            return Err(ArgumentError::new("A --toggle argument requires an input key and at least one output key."));
+            return Err(ArgumentError::new("A --toggle argument requires an input key and at least one output key.").into());
         }
 
         let input_key = KeyParser {
@@ -56,7 +56,7 @@ impl ToggleArg {
         let id = arg_group.get_unique_clause("id")?;
         if let Some(id) = &id {
             if id.contains(':') {
-                return Err(ArgumentError::new(format!("A toggle's id cannot contain any colons. Offending id: {}", id)));
+                return Err(ArgumentError::new(format!("A toggle's id cannot contain any colons. Offending id: {}", id)).into());
             }
         }
         

@@ -3,7 +3,7 @@
 use crate::domain;
 use crate::domain::Domain;
 use crate::predevice::GrabMode;
-use crate::error::ArgumentError;
+use crate::error::{ArgumentError, RuntimeError};
 use crate::arguments::lib::ComplexArgGroup;
 
 /// Represents an --input argument.
@@ -17,7 +17,7 @@ pub(super) struct InputDevice {
 }
 
 impl InputDevice {
-	pub fn parse(args: Vec<String>) -> Result<InputDevice, ArgumentError> {
+	pub fn parse(args: Vec<String>) -> Result<InputDevice, RuntimeError> {
         let arg_group = ComplexArgGroup::parse(args,
             &["grab"],
             &["domain", "grab"],
@@ -32,8 +32,8 @@ impl InputDevice {
                 let first_char: Option<char> = chars.next();
                 let later_chars: String = chars.collect();
                 match first_char {
-                    Some('@') => return Err(ArgumentError::new(format!("There must be no @ in the domain name from \"domain={}\", because \"@{}\" represents a filter meaning \"any event with domain {}\". Try specifying \"domain={}\" instead.", domain_str, later_chars, later_chars, later_chars))),
-                    None => return Err(ArgumentError::new("The domain= clause of an input argument cannot be empty.")),
+                    Some('@') => return Err(ArgumentError::new(format!("There must be no @ in the domain name from \"domain={}\", because \"@{}\" represents a filter meaning \"any event with domain {}\". Try specifying \"domain={}\" instead.", domain_str, later_chars, later_chars, later_chars)).into()),
+                    None => return Err(ArgumentError::new("The domain= clause of an input argument cannot be empty.").into()),
                     _ => (),
                 };
                 Some(domain::resolve(&domain_str)?)
@@ -45,7 +45,7 @@ impl InputDevice {
             Some(value) => match value.as_str() {
                 "auto" => GrabMode::Auto,
                 "force" => GrabMode::Force,
-                _ => return Err(ArgumentError::new("Invalid grab mode specified.".to_owned())),
+                _ => return Err(ArgumentError::new("Invalid grab mode specified.".to_owned()).into()),
             }
         };
 
