@@ -135,7 +135,7 @@ impl fmt::Display for RuntimeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let err_header = match self {
             RuntimeError::ArgumentError(_)  => "An error occured while parsing the arguments:",
-            RuntimeError::InternalError(_)  => "An internal error occured. This is most likely a bug. Error message:",
+            RuntimeError::InternalError(_)  => "An internal error has occurred. This is most likely a bug. Error message:",
             RuntimeError::SystemError(_)    => "System error:",
         };
         let err_message = match &self {
