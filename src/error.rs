@@ -64,21 +64,10 @@ impl From<io::Error> for SystemError {
     }
 }
 
-#[derive(Debug)]
 pub struct InterruptError {}
 impl InterruptError {
     pub fn new() -> InterruptError {
         InterruptError {}
-    }
-}
-impl Context for InterruptError {
-    //TODO
-    fn with_context(self, _context: String) -> Self {
-        self
-    }
-
-    fn context(&self) -> &[String] {
-        &[]
     }
 }
 
@@ -86,8 +75,6 @@ pub enum RuntimeError {
     ArgumentError(ArgumentError),
     InternalError(InternalError),
     SystemError(SystemError),
-    /// The InterruptError signals that our program has been asked to stop using SIGINT or SIGTERM.
-    InterruptError(InterruptError),
 }
 
 impl Context for RuntimeError {
@@ -96,7 +83,6 @@ impl Context for RuntimeError {
             RuntimeError::ArgumentError(error)  => RuntimeError::ArgumentError(error.with_context(context)),
             RuntimeError::InternalError(error)  => RuntimeError::InternalError(error.with_context(context)),
             RuntimeError::SystemError(error)    => RuntimeError::SystemError(error.with_context(context)),
-            RuntimeError::InterruptError(error) => RuntimeError::InterruptError(error.with_context(context)),
         }
     }
 
@@ -105,7 +91,6 @@ impl Context for RuntimeError {
             RuntimeError::ArgumentError(error)  => error.context(),
             RuntimeError::InternalError(error)  => error.context(),
             RuntimeError::SystemError(error)    => error.context(),
-            RuntimeError::InterruptError(error) => error.context(),
         }
     }
 }
@@ -134,15 +119,11 @@ impl fmt::Display for RuntimeError {
             RuntimeError::ArgumentError(_)  => "An error occured while parsing the arguments:",
             RuntimeError::InternalError(_)  => "An internal error occured. This is most likely a bug. Error message:",
             RuntimeError::SystemError(_)    => "System error:",
-            RuntimeError::InterruptError(_) => {
-                return write!(f, "Interrupt received."); //TODO
-            },
         };
         let err_message = match &self {
             RuntimeError::ArgumentError(error)  => format!("{}", error),
             RuntimeError::InternalError(error)  => format!("{}", error),
             RuntimeError::SystemError(error)    => format!("{}", error),
-            RuntimeError::InterruptError(_)     => unimplemented!(),
         };
         format_error_with_context(f, err_header, self.context(), err_message)
     }
@@ -169,11 +150,5 @@ impl From<io::Error> for RuntimeError {
 impl From<SystemError> for RuntimeError {
     fn from(error: SystemError) -> RuntimeError {
         RuntimeError::SystemError(error)
-    }
-}
-
-impl From<InterruptError> for RuntimeError {
-    fn from(error: InterruptError) -> RuntimeError {
-        RuntimeError::InterruptError(error)
     }
 }

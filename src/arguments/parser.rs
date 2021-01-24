@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 use crate::domain;
-use crate::error::{ArgumentError, RuntimeError, InterruptError, Context};
+use crate::error::{ArgumentError, RuntimeError, Context};
 use crate::key::Key;
 use crate::event::Namespace;
 use crate::hook::Hook;
@@ -58,22 +58,27 @@ impl Argument {
     }
 }
 
-fn parse(args: Vec<String>) -> Result<Vec<Argument>, RuntimeError> {
+/// If a --version or --help or something is specified, prints a helpful message.
+/// Returns true if --version or --help was requested, otherwise returns false.
+pub fn check_help_and_version(args: &[String]) -> bool {
     if args.len() == 1 // Only the program name.
             || args.contains(&"-?".to_owned())
             || args.contains(&"-h".to_owned())
             || args.contains(&"--help".to_owned()) {
         println!("{}", USAGE_MSG);
-        // Maybe not the correct error kind, but currently the kind that signifies the program should exit.
-        return Err(InterruptError::new().into());
+        return true;
     }
 
     if args.contains(&"--version".to_owned()) {
         let version = VERSION.unwrap_or("unknown");
         println!("{}", version);
-        return Err(InterruptError::new().into());
+        return true;
     }
-	
+
+    false
+}
+
+fn parse(args: Vec<String>) -> Result<Vec<Argument>, RuntimeError> {
 	// Sort the arguments into groups.
     let mut groups: Vec<Vec<String>> = Vec::new();
     let mut args_iter = args.into_iter().peekable();

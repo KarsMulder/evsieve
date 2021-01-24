@@ -58,7 +58,7 @@ pub mod bindings {
 #[macro_use]
 extern crate lazy_static;
 
-use error::{RuntimeError};
+use error::{InterruptError, RuntimeError};
 
 fn main() {
     let result = run_and_interpret_exit_code();
@@ -68,13 +68,10 @@ fn main() {
 fn run_and_interpret_exit_code() -> i32 {
     let result = match run() {
         Ok(_) => 0,
-        Err(error) => match error {
-            RuntimeError::InterruptError(_) => 0,
-            other => {
-                eprintln!("{}", other);
-                1
-            },
-        },
+        Err(error) => {
+            eprintln!("{}", error);
+            1
+        }
     };
     subprocess::terminate_all();
     result
@@ -82,8 +79,15 @@ fn run_and_interpret_exit_code() -> i32 {
 
 fn run() -> Result<(), RuntimeError> {
     sysexit::init()?;
-    let mut setup = arguments::parser::implement(std::env::args().collect())?;
+    let args: Vec<String> = std::env::args().collect();
+    if arguments::parser::check_help_and_version(&args) {
+        return Ok(());
+    }
+    let mut setup = arguments::parser::implement(args)?;
     loop {
-        stream::run(&mut setup)?;
+        match stream::run(&mut setup) {
+            Ok(_) => {},
+            Err(InterruptError {}) => return Ok(()),
+        }
     }
 }

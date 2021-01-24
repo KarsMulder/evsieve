@@ -8,7 +8,7 @@ use crate::print::EventPrinter;
 use crate::capability::Capability;
 use crate::io::input::InputSystem;
 use crate::io::output::OutputSystem;
-use crate::error::RuntimeError;
+use crate::error::{InterruptError};
 
 pub enum StreamEntry {
     Map(Map),
@@ -30,7 +30,7 @@ impl Setup {
     }
 }
 
-pub fn run(setup: &mut Setup) -> Result<(), RuntimeError> {
+pub fn run(setup: &mut Setup) -> Result<(), InterruptError> {
     let input_events = setup.input.poll()?;
     let mut output_events: Vec<Event> = Vec::with_capacity(input_events.len());
     for event in input_events {
@@ -39,14 +39,14 @@ pub fn run(setup: &mut Setup) -> Result<(), RuntimeError> {
             output_events.clear();
             setup.output.synchronize();
         } else {
-            run_once(event, &mut output_events, &mut setup.stream, &mut setup.state)?;
+            run_once(event, &mut output_events, &mut setup.stream, &mut setup.state);
         }        
     }
 
     Ok(())
 }
 
-pub fn run_once(event_in: Event, events_out: &mut Vec<Event>, stream: &mut [StreamEntry], state: &mut State) -> Result<(), RuntimeError> {
+pub fn run_once(event_in: Event, events_out: &mut Vec<Event>, stream: &mut [StreamEntry], state: &mut State) {
     let mut events: Vec<Event> = vec![event_in];
     let mut buffer: Vec<Event> = Vec::new();
 
@@ -74,7 +74,6 @@ pub fn run_once(event_in: Event, events_out: &mut Vec<Event>, stream: &mut [Stre
     events_out.extend(
         events.into_iter().filter(|event| event.namespace == Namespace::Output)
     );
-    Ok(())
 }
 
 /// A direct analogue for run_once, except it runs through capabilities instead of events.
