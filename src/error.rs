@@ -16,7 +16,7 @@ impl ArgumentError {
 
 impl fmt::Display for ArgumentError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Invalid argument: {}", first_letter_to_lowercase(self.message.clone()))
+        write!(f, "{}", self.message)
     }
 }
 
@@ -68,17 +68,24 @@ impl RuntimeError {
         self.context.insert(0, context.into());
         self
     }
+
+    pub fn is_interrupt(&self) -> bool {
+        match self.kind {
+            RuntimeErrorKind::InterruptError(_) => true,
+            _ => false,
+        }
+    }
 }
 
-trait WithContext<T> {
-    fn with_context(self, context: impl Into<String>) -> Result<T, RuntimeError>;
+pub trait WithContext<T> {
+    fn with_context<S: Into<String>>(self, context: impl FnOnce() -> S) -> Result<T, RuntimeError>;
 }
 
 impl<T, E> WithContext<T> for Result<T, E> where E: Into<RuntimeError> {
-    fn with_context(self, context: impl Into<String>) -> Result<T, RuntimeError> {
+    fn with_context<S: Into<String>>(self, context: impl FnOnce() -> S) -> Result<T, RuntimeError> {
         match self {
             Ok(value) => Ok(value),
-            Err(error) => Err(error.into().with_context(context)),
+            Err(error) => Err(error.into().with_context(context())),
         }
     }
 }
@@ -94,6 +101,26 @@ pub enum RuntimeErrorKind {
 
 impl fmt::Display for RuntimeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match &self.kind {
+            RuntimeErrorKind::ArgumentError(_)  => writeln!(f, "An error occured while parsing the arguments:")?,
+            RuntimeErrorKind::InternalError(_)  => writeln!(f, "An internal error occured. This is most likely a bug. Error message:")?,
+            RuntimeErrorKind::IoError(_)        => writeln!(f, "I/O Error:")?,
+            RuntimeErrorKind::InterruptError(_) => {
+                return writeln!(f, "Interrupt received.")
+            }
+        };
+        let mut indent: usize = 1;
+        for context_line in &self.context {
+            for _ in 0..indent {
+                write!(f, "    ")?;
+            }
+            writeln!(f, "{}", context_line)?;
+            indent += 1;
+        }
+
+        for _ in 0..indent {
+            write!(f, "    ")?;
+        }
         match &self.kind {
             RuntimeErrorKind::ArgumentError(error)  => write!(f, "{}", error),
             RuntimeErrorKind::InternalError(error)  => write!(f, "{}", error),

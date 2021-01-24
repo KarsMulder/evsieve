@@ -1,8 +1,19 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+// Allowed because useless default implementations are dead lines of code.
 #![allow(clippy::new_without_default)]
+
+// Allowed because the key "" is a canonically valid key, and comparing a key to "" is more
+// idiomatic than asking whether a key is empty.
 #![allow(clippy::comparison_to_empty)]
+
+// Allowed because nested ifs allow for more-readable code.
 #![allow(clippy::collapsible_if)]
+
+// Allowed because the matches! macro is not supported in Rust 1.41.1, under which evsieve must compile.
+#![allow(clippy::match_like_matches_macro)]
+
+// Disallowed for code uniformity.
 #![warn(clippy::explicit_iter_loop)]
 
 pub mod event;
@@ -47,7 +58,7 @@ pub mod bindings {
 #[macro_use]
 extern crate lazy_static;
 
-use error::{RuntimeError, RuntimeErrorKind};
+use error::{RuntimeError};
 
 fn main() {
     let result = run_and_interpret_exit_code();
@@ -57,20 +68,11 @@ fn main() {
 fn run_and_interpret_exit_code() -> i32 {
     let result = match run() {
         Ok(_) => 0,
-        Err(error) => match error.kind {
-            RuntimeErrorKind::InterruptError(_) => 0,
-            RuntimeErrorKind::IoError(io_error) => {
-                eprintln!("{}", io_error);
-                1
-            },
-            RuntimeErrorKind::ArgumentError(arg_error) => {
-                eprintln!("{}", arg_error);
-                1
-            },
-            RuntimeErrorKind::InternalError(internal_error) => {
-                eprintln!("{}", internal_error);
-                1
-            }
+        Err(error) => if error.is_interrupt() {
+            0
+        } else {
+            eprintln!("{}", error);
+            1
         },
     };
     subprocess::terminate_all();
