@@ -2,6 +2,9 @@
 
 use crate::utils::split_once;
 use crate::error::ArgumentError;
+use std::path::{Path, PathBuf};
+
+static DEV_ID_DIR: &str = "/dev/input/by-id";
 
 /// A ComplexArgGroup represents a group like "--input /dev/keyboard domain=foo grab",
 /// containing paths like "/dev/keyboard", flags like "grab" and clauses like "domain=foo".
@@ -39,18 +42,6 @@ impl ComplexArgGroup {
         let mut paths: Vec<String> = Vec::new();
     
         for arg in args_iter {
-            // Check whether this argument is a key.
-            if crate::key::resembles_key(&arg) {
-                if supports_keys {
-                    keys.push(arg);
-                    continue;
-                } else {
-                    return Err(ArgumentError::new(format!(
-                        "The {} argument doesn't take any keys: \"{}\"", arg_name, arg
-                    )))
-                }
-            }
-
             // Check whether this argument is a path.
             if is_path(&arg) {
                 if supports_paths {
@@ -63,13 +54,27 @@ impl ComplexArgGroup {
                 }
             }
 
+            // Check whether this argument is a key.
+            if crate::key::resembles_key(&arg) {
+                if supports_keys {
+                    keys.push(arg);
+                    continue;
+                } else {
+                    return Err(ArgumentError::new(format!(
+                        "The {} argument doesn't take any keys: \"{}\"", arg_name, arg
+                    )))
+                }
+            }
+
             // Check whether this argument is a flag or clause.
             let (name, value_opt) = split_once(&arg, "=");
             let name = name.to_string();
+
             // Check if it's a clause.
             if let Some(value) = value_opt {
                 if supported_clauses.contains(&name.as_str()) {
                     clauses.push((name.to_string(), value.to_string()));
+                    continue;
                 } else {
                     return Err(ArgumentError::new(
                         match supported_flags.contains(&name.as_str()) {
@@ -78,24 +83,45 @@ impl ComplexArgGroup {
                         }
                     ));
                 }
+            }
+
             // Check is it's a flag.
-            } else if supported_flags.contains(&name.as_str()) {
+            if supported_flags.contains(&name.as_str()) {
                 if ! flags.contains(&name) {
                     flags.push(name);
+                    continue;
                 } else {
                     return Err(ArgumentError::new(format!(
                         "The {} flag has been provided multiple times.", name
                     )))
                 }
-            // Otherwise, return an error.
-            } else {
-                return Err(ArgumentError::new(
-                    match supported_clauses.contains(&name.as_str()) {
-                        true => format!("The {} argument's {} clause requires some value: \"{}=something\".", arg_name, name, name),
-                        false => format!("The {} argument doesn't take a {} flag.", arg_name, name),
-                    }
-                ))
             }
+
+            // If we reach this points, the argument is invalid.
+            // Try to diagnose what went wrong to give the most helpful error message possible.
+
+            // Check if it is a clause that doesn't have a value provided.
+            if supported_clauses.contains(&name.as_str()) {
+                return Err(ArgumentError::new(format!("The {} argument's {} clause requires some value: \"{}=something\".", arg_name, name, name)));
+            }
+
+            // Check if it is a path in nonabsolute form.
+            if let Some(absolute_path) = resembles_nonabsolute_path(&arg) {
+                if supports_paths {
+                    return Err(ArgumentError::new(format!(
+                        "The \"{}\" flag looks like it is a path. Paths must be provided in absolute form starting with a /. Try providing \"{}\" instead.",
+                        arg, absolute_path.display()
+                    )))
+                } else {
+                    return Err(ArgumentError::new(format!(
+                        "The \"{}\" flag looks like it is a path. The {} argument doesn't take any paths.",
+                        arg, arg_name
+                    )))
+                }
+            }
+
+            // Return a generic error.
+            return Err(ArgumentError::new(format!("The {} argument doesn't take a {} flag.", arg_name, name)));
         }
 
         Ok(ComplexArgGroup {
@@ -177,4 +203,25 @@ impl ComplexArgGroup {
 
 pub(super) fn is_path(path: &str) -> bool {
     path.starts_with('/')
+}
+
+/// Checks if arg seems to be a path that is not provided in absolute form. If it is, returns
+/// the path in absolute form. Otherwise, returns None.
+fn resembles_nonabsolute_path(arg: &str) -> Option<PathBuf> {
+    let current_dir_opt = std::env::current_dir();
+    let starting_points: Vec<&Path> = match current_dir_opt.as_ref() {
+        Ok(current_dir) => vec![Path::new(DEV_ID_DIR), Path::new(current_dir)],
+        Err(_) => vec![Path::new(DEV_ID_DIR)],
+    };
+
+    for starting_point in starting_points {
+        let path_from_starting_point = starting_point.join(arg);
+        if ! path_from_starting_point.exists() {
+            continue;
+        }
+
+        return Some(path_from_starting_point)
+    }
+
+    None
 }
