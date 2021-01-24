@@ -47,7 +47,7 @@ pub mod bindings {
 #[macro_use]
 extern crate lazy_static;
 
-use error::RuntimeError;
+use error::{RuntimeError, RuntimeErrorKind};
 
 fn main() {
     let result = run_and_interpret_exit_code();
@@ -57,17 +57,17 @@ fn main() {
 fn run_and_interpret_exit_code() -> i32 {
     let result = match run() {
         Ok(_) => 0,
-        Err(error) => match error {
-            RuntimeError::InterruptError => 0,
-            RuntimeError::IoError(io_error) => {
+        Err(error) => match error.kind {
+            RuntimeErrorKind::InterruptError(_) => 0,
+            RuntimeErrorKind::IoError(io_error) => {
                 eprintln!("{}", io_error);
                 1
             },
-            RuntimeError::ArgumentError(arg_error) => {
+            RuntimeErrorKind::ArgumentError(arg_error) => {
                 eprintln!("{}", arg_error);
                 1
             },
-            RuntimeError::InternalError(internal_error) => {
+            RuntimeErrorKind::InternalError(internal_error) => {
                 eprintln!("{}", internal_error);
                 1
             }

@@ -13,7 +13,7 @@ use crate::domain::Domain;
 use crate::capability::{Capability, Capabilities, AbsInfo, RepeatInfo};
 use crate::ecodes;
 use crate::predevice::{PreInputDevice, GrabMode};
-use crate::error::RuntimeError;
+use crate::error::{RuntimeError, InterruptError};
 use crate::sysexit;
 
 /// Organises the collection of all input devices to be used by the system.
@@ -54,7 +54,7 @@ impl InputSystem {
                 EpollResult::Event(event) => events.push(event),
                 EpollResult::Interrupt => {
                     if sysexit::should_exit() || ! self.epoll.has_files() {
-                        return Err(RuntimeError::InterruptError);
+                        return Err(InterruptError::new().into());
                     }
                 },
                 // Drop broken devices.

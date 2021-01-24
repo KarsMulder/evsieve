@@ -38,41 +38,92 @@ impl fmt::Display for InternalError {
 }
 
 #[derive(Debug)]
-pub enum RuntimeError {
-    ArgumentError(ArgumentError),
-    InternalError(InternalError),
-    IoError(io::Error),
-    /// The InterruptError signals that our program has been asked to stop using SIGINT or SIGTERM.
-    InterruptError,
+pub struct InterruptError {}
+
+impl InterruptError {
+    pub fn new() -> InterruptError {
+        InterruptError {}
+    }
 }
 
-impl fmt::Display for RuntimeError {
+impl fmt::Display for InterruptError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Interrupt received.")
+    }
+}
+
+pub struct RuntimeError {
+    pub context: Vec<String>,
+    pub kind: RuntimeErrorKind,
+}
+
+impl RuntimeError {
+    pub fn new(kind: RuntimeErrorKind) -> RuntimeError {
+        RuntimeError {
+            kind, context: Vec::new(),
+        }
+    }
+
+    pub fn with_context(mut self, context: impl Into<String>) -> RuntimeError {
+        self.context.insert(0, context.into());
+        self
+    }
+}
+
+trait WithContext<T> {
+    fn with_context(self, context: impl Into<String>) -> Result<T, RuntimeError>;
+}
+
+impl<T, E> WithContext<T> for Result<T, E> where E: Into<RuntimeError> {
+    fn with_context(self, context: impl Into<String>) -> Result<T, RuntimeError> {
         match self {
-            RuntimeError::ArgumentError(error) => write!(f, "{}", error),
-            RuntimeError::InternalError(error) => write!(f, "{}", error),
-            RuntimeError::IoError(error)       => write!(f, "{}", error),
-            RuntimeError::InterruptError       => write!(f, "Interrupt received."),
+            Ok(value) => Ok(value),
+            Err(error) => Err(error.into().with_context(context)),
         }
     }
 }
 
+#[derive(Debug)]
+pub enum RuntimeErrorKind {
+    ArgumentError(ArgumentError),
+    InternalError(InternalError),
+    IoError(io::Error),
+    /// The InterruptError signals that our program has been asked to stop using SIGINT or SIGTERM.
+    InterruptError(InterruptError),
+}
+
+impl fmt::Display for RuntimeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match &self.kind {
+            RuntimeErrorKind::ArgumentError(error)  => write!(f, "{}", error),
+            RuntimeErrorKind::InternalError(error)  => write!(f, "{}", error),
+            RuntimeErrorKind::IoError(error)        => write!(f, "{}", error),
+            RuntimeErrorKind::InterruptError(error) => write!(f, "{}", error),
+        }
+    }
+}
 
 impl From<ArgumentError> for RuntimeError {
     fn from(error: ArgumentError) -> RuntimeError {
-        RuntimeError::ArgumentError(error)
+        RuntimeError::new(RuntimeErrorKind::ArgumentError(error))
     }
 }
 
 impl From<InternalError> for RuntimeError {
     fn from(error: InternalError) -> RuntimeError {
-        RuntimeError::InternalError(error)
+        RuntimeError::new(RuntimeErrorKind::InternalError(error))
     }
 }
 
 impl From<io::Error> for RuntimeError {
     fn from(error: io::Error) -> RuntimeError {
-        RuntimeError::IoError(error)
+        RuntimeError::new(RuntimeErrorKind::IoError(error))
+    }
+}
+
+impl From<InterruptError> for RuntimeError {
+    fn from(error: InterruptError) -> RuntimeError {
+        RuntimeError::new(RuntimeErrorKind::InterruptError(error))
     }
 }
 

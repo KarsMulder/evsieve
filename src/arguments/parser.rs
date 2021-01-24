@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 use crate::domain;
-use crate::error::{ArgumentError, RuntimeError};
+use crate::error::{ArgumentError, RuntimeError, InterruptError};
 use crate::key::Key;
 use crate::event::Namespace;
 use crate::hook::Hook;
@@ -65,13 +65,13 @@ fn parse(args: Vec<String>) -> Result<Vec<Argument>, RuntimeError> {
             || args.contains(&"--help".to_owned()) {
         println!("{}", USAGE_MSG);
         // Maybe not the correct error kind, but currently the kind that signifies the program should exit.
-        return Err(RuntimeError::InterruptError);
+        return Err(InterruptError::new().into());
     }
 
     if args.contains(&"--version".to_owned()) {
         let version = VERSION.unwrap_or("unknown");
         println!("{}", version);
-        return Err(RuntimeError::InterruptError);
+        return Err(InterruptError::new().into());
     }
 	
 	// Sort the arguments into groups.
