@@ -50,7 +50,7 @@ impl InputSystem {
         Ok(InputSystem { epoll, capabilities_vec })
     }
 
-    pub fn poll(&mut self) -> Result<Vec<Event>, RuntimeError> {
+    pub fn poll(&mut self) -> Result<Vec<Event>, InterruptError> {
         // ISSUE: handling broken devices
         let mut events: Vec<Event> = Vec::new();
         for result in self.epoll.poll() {
@@ -58,7 +58,7 @@ impl InputSystem {
                 EpollResult::Event(event) => events.push(event),
                 EpollResult::Interrupt => {
                     if sysexit::should_exit() || ! self.epoll.has_files() {
-                        return Err(InterruptError::new().into());
+                        return Err(InterruptError::new());
                     }
                 },
                 // Drop broken devices.
