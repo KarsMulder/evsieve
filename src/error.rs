@@ -54,13 +54,57 @@ macro_rules! context_error {
     };
 }
 
-context_error!(ArgumentError);
-context_error!(InternalError);
-context_error!(SystemError);
+macro_rules! runtime_errors {
+    ( $( $name:ident ),* ) => {
+        $(
+            context_error!($name);
+        )*
+
+        pub enum RuntimeError {
+            $(
+                $name ( $name ),
+            )*
+        }
+
+        impl Context for RuntimeError {
+            fn with_context(self, context: String) -> RuntimeError {
+                match self {
+                    $(
+                        RuntimeError::$name(error)  => RuntimeError::$name(error.with_context(context)),
+                    )*
+                }
+            }
+
+            fn context(&self) -> &[String] {
+                match self {
+                    $(
+                        RuntimeError::$name(error) => error.context(),
+                    )*
+                }
+            }
+        }
+
+        $(
+            impl From<$name> for RuntimeError {
+                fn from(error: $name) -> RuntimeError {
+                    RuntimeError::$name(error)
+                }
+            }
+        )*
+    };
+}
+
+runtime_errors!(ArgumentError, InternalError, SystemError);
 
 impl From<io::Error> for SystemError {
-    fn from(error: io::Error) -> Self {
+    fn from(error: io::Error) -> SystemError {
         SystemError::new(format!("{}", error))
+    }
+}
+
+impl From<io::Error> for RuntimeError {
+    fn from(error: io::Error) -> RuntimeError {
+        SystemError::from(error).into()
     }
 }
 
@@ -68,30 +112,6 @@ pub struct InterruptError {}
 impl InterruptError {
     pub fn new() -> InterruptError {
         InterruptError {}
-    }
-}
-
-pub enum RuntimeError {
-    ArgumentError(ArgumentError),
-    InternalError(InternalError),
-    SystemError(SystemError),
-}
-
-impl Context for RuntimeError {
-    fn with_context(self, context: String) -> RuntimeError {
-        match self {
-            RuntimeError::ArgumentError(error)  => RuntimeError::ArgumentError(error.with_context(context)),
-            RuntimeError::InternalError(error)  => RuntimeError::InternalError(error.with_context(context)),
-            RuntimeError::SystemError(error)    => RuntimeError::SystemError(error.with_context(context)),
-        }
-    }
-
-    fn context(&self) -> &[String] {
-        match self {
-            RuntimeError::ArgumentError(error)  => error.context(),
-            RuntimeError::InternalError(error)  => error.context(),
-            RuntimeError::SystemError(error)    => error.context(),
-        }
     }
 }
 
@@ -111,8 +131,6 @@ impl<T, E> Context for Result<T, E> where E: Context {
     }
 }
 
-
-
 impl fmt::Display for RuntimeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let err_header = match self {
@@ -129,26 +147,3 @@ impl fmt::Display for RuntimeError {
     }
 }
 
-impl From<ArgumentError> for RuntimeError {
-    fn from(error: ArgumentError) -> RuntimeError {
-        RuntimeError::ArgumentError(error)
-    }
-}
-
-impl From<InternalError> for RuntimeError {
-    fn from(error: InternalError) -> RuntimeError {
-        RuntimeError::InternalError(error)
-    }
-}
-
-impl From<io::Error> for RuntimeError {
-    fn from(error: io::Error) -> RuntimeError {
-        RuntimeError::SystemError(error.into())
-    }
-}
-
-impl From<SystemError> for RuntimeError {
-    fn from(error: SystemError) -> RuntimeError {
-        RuntimeError::SystemError(error)
-    }
-}
