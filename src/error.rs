@@ -104,7 +104,7 @@ impl fmt::Display for RuntimeError {
         match &self.kind {
             RuntimeErrorKind::ArgumentError(_)  => writeln!(f, "An error occured while parsing the arguments:")?,
             RuntimeErrorKind::InternalError(_)  => writeln!(f, "An internal error occured. This is most likely a bug. Error message:")?,
-            RuntimeErrorKind::IoError(_)        => writeln!(f, "I/O Error:")?,
+            RuntimeErrorKind::IoError(_)        => writeln!(f, "System error:")?,
             RuntimeErrorKind::InterruptError(_) => {
                 return writeln!(f, "Interrupt received.")
             }
