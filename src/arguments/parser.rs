@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 use crate::domain;
-use crate::error::{ArgumentError, RuntimeError, InterruptError, WithContext};
+use crate::error::{ArgumentError, RuntimeError, InterruptError, Context};
 use crate::key::Key;
 use crate::event::Namespace;
 use crate::hook::Hook;
@@ -98,7 +98,7 @@ fn parse(args: Vec<String>) -> Result<Vec<Argument>, RuntimeError> {
     }
 
     Ok(groups.into_iter().map(
-        |group| Argument::parse(group.clone()).with_context(|| format!(
+        |group| Argument::parse(group.clone()).with_context(format!(
             "While parsing the arguments \"{}\":", group.join(" ")
         )
     )).collect::<Result<Vec<Argument>, RuntimeError>>()?)

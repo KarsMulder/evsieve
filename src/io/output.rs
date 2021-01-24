@@ -13,7 +13,7 @@ use crate::capability::{Capability, Capabilities};
 use crate::event::Event;
 use crate::domain::Domain;
 use crate::ecodes;
-use crate::error::{InternalError, RuntimeError, WithContext};
+use crate::error::{InternalError, RuntimeError, SystemError, Context};
 use crate::predevice::{PreOutputDevice, RepeatMode};
 
 pub struct OutputSystem {
@@ -52,7 +52,7 @@ impl OutputSystem {
             }
 
             let mut device = OutputDevice::with_name_and_capabilities(pre_device.name.clone(), capabilities)
-                .with_context(|| match pre_device.create_link.clone() {
+                .with_context(match pre_device.create_link.clone() {
                     Some(path) => format!("While creating the output device \"{}\":", path.display()),
                     None => "While creating an output device:".to_string(),
                 })?;
@@ -63,7 +63,9 @@ impl OutputSystem {
                 RepeatMode::Enable   => false,
             });
             if let Some(path) = pre_device.create_link {
-                device.set_link(path.clone()).with_context(|| format!("While creating a symlink at \"{}\":", path.display()))?;
+                device.set_link(path.clone())
+                    .map_err(SystemError::from)
+                    .with_context(format!("While creating a symlink at \"{}\":", path.display()))?;
             };
             
             devices.insert(domain, device);

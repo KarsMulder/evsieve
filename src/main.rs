@@ -68,11 +68,12 @@ fn main() {
 fn run_and_interpret_exit_code() -> i32 {
     let result = match run() {
         Ok(_) => 0,
-        Err(error) => if error.is_interrupt() {
-            0
-        } else {
-            eprintln!("{}", error);
-            1
+        Err(error) => match error {
+            RuntimeError::InterruptError(_) => 0,
+            other => {
+                eprintln!("{}", other);
+                1
+            },
         },
     };
     subprocess::terminate_all();

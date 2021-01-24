@@ -13,7 +13,7 @@ use crate::domain::Domain;
 use crate::capability::{Capability, Capabilities, AbsInfo, RepeatInfo};
 use crate::ecodes;
 use crate::predevice::{PreInputDevice, GrabMode};
-use crate::error::{RuntimeError, InterruptError, WithContext};
+use crate::error::{InterruptError, SystemError, Context};
 use crate::sysexit;
 
 /// Organises the collection of all input devices to be used by the system.
@@ -30,14 +30,15 @@ pub struct InputSystem {
 }
 
 impl InputSystem {
-    pub fn from_pre_input_devices(pre_input_devices: Vec<PreInputDevice>) -> Result<InputSystem, RuntimeError> {
+    pub fn from_pre_input_devices(pre_input_devices: Vec<PreInputDevice>) -> Result<InputSystem, SystemError> {
         // Open all pre-input devices as actual input devices.
         let input_devices = pre_input_devices.into_iter().map(
             |device| {
                 let device_path = device.path.clone();
                 InputDevice::open(device)
-                    .with_context(|| format!("While opening the device \"{}\":", device_path.display()))
-        }).collect::<Result<Vec<InputDevice>, RuntimeError>>()?;
+                    .map_err(SystemError::from)
+                    .with_context(format!("While opening the device \"{}\":", device_path.display()))
+        }).collect::<Result<Vec<InputDevice>, SystemError>>()?;
 
         // Precompute the capabilities of the input devices.
         let mut capabilities_vec: Vec<Capability> = Vec::new();

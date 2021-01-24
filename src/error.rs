@@ -3,160 +3,177 @@
 use std::io;
 use std::fmt;
 
-#[derive(Debug)]
-pub struct ArgumentError {
-    message: String,
+pub trait Context {
+    fn context(&self) -> &[String];
+    fn with_context(self, context: String) -> Self;
 }
 
-impl ArgumentError {
-    pub fn new(message: impl Into<String>) -> ArgumentError {
-        ArgumentError { message: message.into() }
+fn format_error_with_context(f: &mut fmt::Formatter, err_header: impl Into<String>, err_context: &[String], err_msg: impl Into<String>) -> fmt::Result {
+    let mut context_collapsed: Vec<String> = Vec::new();
+    context_collapsed.push(err_header.into());
+    context_collapsed.extend(err_context.iter().cloned());
+    context_collapsed.push(err_msg.into());
+
+    for (indent, context_line) in context_collapsed.into_iter().enumerate() {
+        for _ in 0..indent {
+            write!(f, "    ")?;
+        }
+        writeln!(f, "{}", context_line)?;
     }
+
+    Ok(())
 }
 
-impl fmt::Display for ArgumentError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.message)
-    }
+macro_rules! context_error {
+    ($name:ident) => {
+        #[derive(Debug)]
+        pub struct $name {
+            context: Vec<String>,
+            message: String,
+        }
+        impl $name {
+            pub fn new(message: impl Into<String>) -> Self {
+                Self { message: message.into(), context: Vec::new() }
+            }
+        }
+        impl Context for $name {
+            fn context(&self) -> &[String] {
+                &self.context
+            }
+
+            fn with_context(mut self, context: String) -> Self {
+                self.context.push(context);
+                self
+            }
+        }
+        impl fmt::Display for $name {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                write!(f, "{}", self.message)
+            }
+        }
+    };
 }
 
-#[derive(Debug)]
-pub struct InternalError {
-    message: String,
-}
+context_error!(ArgumentError);
+context_error!(InternalError);
+context_error!(SystemError);
 
-impl InternalError {
-    pub fn new(message: impl Into<String>) -> InternalError {
-        InternalError { message: message.into() }
-    }
-}
-
-impl fmt::Display for InternalError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "An internal error occurred. This is most likely a bug.\nError message: {}", first_letter_to_lowercase(self.message.clone()))
+impl From<io::Error> for SystemError {
+    fn from(error: io::Error) -> Self {
+        SystemError::new(format!("{}", error))
     }
 }
 
 #[derive(Debug)]
 pub struct InterruptError {}
-
 impl InterruptError {
     pub fn new() -> InterruptError {
         InterruptError {}
     }
 }
-
-impl fmt::Display for InterruptError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Interrupt received.")
-    }
-}
-
-pub struct RuntimeError {
-    pub context: Vec<String>,
-    pub kind: RuntimeErrorKind,
-}
-
-impl RuntimeError {
-    pub fn new(kind: RuntimeErrorKind) -> RuntimeError {
-        RuntimeError {
-            kind, context: Vec::new(),
-        }
-    }
-
-    pub fn with_context(mut self, context: impl Into<String>) -> RuntimeError {
-        self.context.insert(0, context.into());
+impl Context for InterruptError {
+    //TODO
+    fn with_context(self, _context: String) -> Self {
         self
     }
 
-    pub fn is_interrupt(&self) -> bool {
-        match self.kind {
-            RuntimeErrorKind::InterruptError(_) => true,
-            _ => false,
-        }
+    fn context(&self) -> &[String] {
+        &[]
     }
 }
 
-pub trait WithContext<T> {
-    fn with_context<S: Into<String>>(self, context: impl FnOnce() -> S) -> Result<T, RuntimeError>;
-}
-
-impl<T, E> WithContext<T> for Result<T, E> where E: Into<RuntimeError> {
-    fn with_context<S: Into<String>>(self, context: impl FnOnce() -> S) -> Result<T, RuntimeError> {
-        match self {
-            Ok(value) => Ok(value),
-            Err(error) => Err(error.into().with_context(context())),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub enum RuntimeErrorKind {
+pub enum RuntimeError {
     ArgumentError(ArgumentError),
     InternalError(InternalError),
-    IoError(io::Error),
+    SystemError(SystemError),
     /// The InterruptError signals that our program has been asked to stop using SIGINT or SIGTERM.
     InterruptError(InterruptError),
 }
 
+impl Context for RuntimeError {
+    fn with_context(self, context: String) -> RuntimeError {
+        match self {
+            RuntimeError::ArgumentError(error)  => RuntimeError::ArgumentError(error.with_context(context)),
+            RuntimeError::InternalError(error)  => RuntimeError::InternalError(error.with_context(context)),
+            RuntimeError::SystemError(error)    => RuntimeError::SystemError(error.with_context(context)),
+            RuntimeError::InterruptError(error) => RuntimeError::InterruptError(error.with_context(context)),
+        }
+    }
+
+    fn context(&self) -> &[String] {
+        match self {
+            RuntimeError::ArgumentError(error)  => error.context(),
+            RuntimeError::InternalError(error)  => error.context(),
+            RuntimeError::SystemError(error)    => error.context(),
+            RuntimeError::InterruptError(error) => error.context(),
+        }
+    }
+}
+
+impl<T, E> Context for Result<T, E> where E: Context {
+    fn with_context(self, context: String) -> Self {
+        match self {
+            Ok(value) => Ok(value),
+            Err(error) => Err(error.with_context(context)),
+        }
+    }
+
+    fn context(&self) -> &[String] {
+        match self {
+            Ok(_) => &[],
+            Err(error) => error.context(),
+        }
+    }
+}
+
+
+
 impl fmt::Display for RuntimeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match &self.kind {
-            RuntimeErrorKind::ArgumentError(_)  => writeln!(f, "An error occured while parsing the arguments:")?,
-            RuntimeErrorKind::InternalError(_)  => writeln!(f, "An internal error occured. This is most likely a bug. Error message:")?,
-            RuntimeErrorKind::IoError(_)        => writeln!(f, "System error:")?,
-            RuntimeErrorKind::InterruptError(_) => {
-                return writeln!(f, "Interrupt received.")
-            }
+        let err_header = match self {
+            RuntimeError::ArgumentError(_)  => "An error occured while parsing the arguments:",
+            RuntimeError::InternalError(_)  => "An internal error occured. This is most likely a bug. Error message:",
+            RuntimeError::SystemError(_)    => "System error:",
+            RuntimeError::InterruptError(_) => {
+                return write!(f, "Interrupt received."); //TODO
+            },
         };
-        let mut indent: usize = 1;
-        for context_line in &self.context {
-            for _ in 0..indent {
-                write!(f, "    ")?;
-            }
-            writeln!(f, "{}", context_line)?;
-            indent += 1;
-        }
-
-        for _ in 0..indent {
-            write!(f, "    ")?;
-        }
-        match &self.kind {
-            RuntimeErrorKind::ArgumentError(error)  => write!(f, "{}", error),
-            RuntimeErrorKind::InternalError(error)  => write!(f, "{}", error),
-            RuntimeErrorKind::IoError(error)        => write!(f, "{}", error),
-            RuntimeErrorKind::InterruptError(error) => write!(f, "{}", error),
-        }
+        let err_message = match &self {
+            RuntimeError::ArgumentError(error)  => format!("{}", error),
+            RuntimeError::InternalError(error)  => format!("{}", error),
+            RuntimeError::SystemError(error)    => format!("{}", error),
+            RuntimeError::InterruptError(_)     => unimplemented!(),
+        };
+        format_error_with_context(f, err_header, self.context(), err_message)
     }
 }
 
 impl From<ArgumentError> for RuntimeError {
     fn from(error: ArgumentError) -> RuntimeError {
-        RuntimeError::new(RuntimeErrorKind::ArgumentError(error))
+        RuntimeError::ArgumentError(error)
     }
 }
 
 impl From<InternalError> for RuntimeError {
     fn from(error: InternalError) -> RuntimeError {
-        RuntimeError::new(RuntimeErrorKind::InternalError(error))
+        RuntimeError::InternalError(error)
     }
 }
 
 impl From<io::Error> for RuntimeError {
     fn from(error: io::Error) -> RuntimeError {
-        RuntimeError::new(RuntimeErrorKind::IoError(error))
+        RuntimeError::SystemError(error.into())
+    }
+}
+
+impl From<SystemError> for RuntimeError {
+    fn from(error: SystemError) -> RuntimeError {
+        RuntimeError::SystemError(error)
     }
 }
 
 impl From<InterruptError> for RuntimeError {
     fn from(error: InterruptError) -> RuntimeError {
-        RuntimeError::new(RuntimeErrorKind::InterruptError(error))
+        RuntimeError::InterruptError(error)
     }
-}
-
-fn first_letter_to_lowercase(mut string: String) -> String {
-    if let Some(first_char) = string.get_mut(0..1) {
-        first_char.make_ascii_lowercase();
-    }
-    string
 }
