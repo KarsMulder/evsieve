@@ -69,7 +69,7 @@ fn run_and_interpret_exit_code() -> i32 {
     let result = match run() {
         Ok(_) => 0,
         Err(error) => {
-            eprintln!("{}", error);
+            eprint!("{}", error);
             1
         }
     };
