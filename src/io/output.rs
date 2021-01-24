@@ -13,7 +13,7 @@ use crate::capability::{Capability, Capabilities};
 use crate::event::Event;
 use crate::domain::Domain;
 use crate::ecodes;
-use crate::error::{RuntimeError, InternalError};
+use crate::error::{InternalError, RuntimeError, WithContext};
 use crate::predevice::{PreOutputDevice, RepeatMode};
 
 pub struct OutputSystem {
@@ -36,6 +36,7 @@ impl OutputSystem {
         let mut devices: HashMap<Domain, OutputDevice> = HashMap::new();
         for pre_device in pre_devices {
             let domain = pre_device.domain;
+
             if devices.contains_key(&domain) {
                 return Err(InternalError::new("Multiple output devices with the same domain have been created.").into());
             }
@@ -50,14 +51,19 @@ impl OutputSystem {
                 eprintln!("Warning: an output device has been specified to which no events can possibly be routed.");
             }
 
-            let mut device = OutputDevice::with_name_and_capabilities(pre_device.name, capabilities)?;
+            let mut device = OutputDevice::with_name_and_capabilities(pre_device.name.clone(), capabilities)
+                .with_context(|| match pre_device.create_link.clone() {
+                    Some(path) => format!("While creating the output device \"{}\":", path.display()),
+                    None => "While creating an output device:".to_string(),
+                })?;
+
             device.allow_repeat(match pre_device.repeat_mode {
                 RepeatMode::Passive  => true,
                 RepeatMode::Disable  => false,
                 RepeatMode::Enable   => false,
             });
             if let Some(path) = pre_device.create_link {
-                device.set_link(path)?;
+                device.set_link(path.clone()).with_context(|| format!("While creating a symlink at \"{}\":", path.display()))?;
             };
             
             devices.insert(domain, device);
@@ -98,7 +104,7 @@ pub struct OutputDevice {
 }
 
 impl OutputDevice {
-    pub fn with_name_and_capabilities(name_str: String, caps: Capabilities) -> Result<OutputDevice, io::Error> {
+    pub fn with_name_and_capabilities(name_str: String, caps: Capabilities) -> Result<OutputDevice, RuntimeError> {
         unsafe {
             let dev = libevdev::libevdev_new();
 
@@ -116,7 +122,7 @@ impl OutputDevice {
                 let res = match ev_type {
                     EventType::ABS => {
                         let abs_info = caps.abs_info.get(&(ev_type, code))
-                            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Internal error: cannot create uinput device: device has absolute axis without associated capabilities."))?;
+                            .ok_or_else(|| InternalError::new("Cannot create uinput device: device has absolute axis without associated capabilities."))?;
                         let libevdev_abs_info: libevdev::input_absinfo = (*abs_info).into();
                         let libevdev_abs_info_ptr = &libevdev_abs_info as *const libevdev::input_absinfo;
                         libevdev::libevdev_enable_event_code(
@@ -159,7 +165,7 @@ impl OutputDevice {
             libevdev::libevdev_free(dev);
 
             if res != 0 {
-                return Err(io::Error::new(io::ErrorKind::Other, "Failed to create an UInput device."));
+                return Err(io::Error::new(io::ErrorKind::Other, "Failed to create an UInput device. Does evsieve have enough permissions?").into());
             }
 
             Ok(OutputDevice { device: uinput_dev, should_syn: false, symlink: None, allows_repeat: true })
