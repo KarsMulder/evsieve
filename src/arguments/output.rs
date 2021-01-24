@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 use crate::predevice::RepeatMode;
-use crate::error::{ArgumentError, RuntimeError};
+use crate::error::ArgumentError;
 use crate::arguments::lib::ComplexArgGroup;
 use crate::key::{Key, KeyParser};
 use crate::event::Namespace;
@@ -17,7 +17,7 @@ pub(super) struct OutputDevice {
 }
 
 impl OutputDevice {
-	pub fn parse(args: Vec<String>) -> Result<OutputDevice, RuntimeError> {
+	pub fn parse(args: Vec<String>) -> Result<OutputDevice, ArgumentError> {
         let arg_group = ComplexArgGroup::parse(args,
             &["repeat"],
             &["create-link", "name", "repeat"],
@@ -31,13 +31,13 @@ impl OutputDevice {
                 "enable" => RepeatMode::Enable,
                 "disable" => RepeatMode::Disable,
                 "passive" => RepeatMode::Passive,
-                _ => return Err(ArgumentError::new(format!("Invalid repeat mode \"{}\".", mode)).into())
+                _ => return Err(ArgumentError::new(format!("Invalid repeat mode \"{}\".", mode)))
             },
         };
 
         let name = arg_group.get_unique_clause("name")?.unwrap_or_else(|| DEFAULT_NAME.to_owned());
         if name.is_empty() {
-            return Err(ArgumentError::new("Output device name cannot be empty.").into());
+            return Err(ArgumentError::new("Output device name cannot be empty."));
         }
 
         // Parse the keys that shall be sent to this output device.

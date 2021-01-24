@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use crate::error::{ArgumentError, RuntimeError};
+use crate::error::ArgumentError;
 use crate::arguments::lib::ComplexArgGroup;
 use crate::key::{Key, KeyParser};
 use crate::event::Namespace;
@@ -13,7 +13,7 @@ pub(super) struct PrintArg {
 }
 
 impl PrintArg {
-	pub fn parse(args: Vec<String>) -> Result<PrintArg, RuntimeError> {
+	pub fn parse(args: Vec<String>) -> Result<PrintArg, ArgumentError> {
         let arg_group = ComplexArgGroup::parse(args,
             &[],
             &["format"],
@@ -32,7 +32,7 @@ impl PrintArg {
             Some(value) => match value.as_str() {
                 "direct" => EventPrintMode::Direct,
                 "default" => EventPrintMode::Detailed,
-                other => return Err(ArgumentError::new(format!("Invalid --print format: {}", other)).into()),
+                other => return Err(ArgumentError::new(format!("Invalid --print format: {}", other))),
             } ,
             None => EventPrintMode::Detailed,
         };

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use crate::error::{InternalError, RuntimeError};
+use crate::error::{ArgumentError, InternalError, RuntimeError};
 use crate::arguments::lib::ComplexArgGroup;
 use crate::key::{Key, KeyParser};
 use crate::event::Namespace;
@@ -62,7 +62,7 @@ pub(super) struct BlockArg {
 }
 
 impl BlockArg {
-	pub fn parse(args: Vec<String>) -> Result<BlockArg, RuntimeError> {
+	pub fn parse(args: Vec<String>) -> Result<BlockArg, ArgumentError> {
         let arg_group = ComplexArgGroup::parse(args,
             &[],
             &[],

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 use crate::utils::split_once;
-use crate::error::{ArgumentError, RuntimeError};
+use crate::error::ArgumentError;
 use std::path::{Path, PathBuf};
 
 static DEV_ID_DIR: &str = "/dev/input/by-id";
@@ -29,7 +29,7 @@ impl ComplexArgGroup {
             supported_flags: &[&str],
             supported_clauses: &[&str],
             supports_paths: bool,
-            supports_keys: bool) -> Result<ComplexArgGroup, RuntimeError> {
+            supports_keys: bool) -> Result<ComplexArgGroup, ArgumentError> {
         
         let mut args_iter = args.into_iter();
         let arg_name = args_iter.next().ok_or_else(|| ArgumentError::new(
@@ -50,7 +50,7 @@ impl ComplexArgGroup {
                 } else {
                     return Err(ArgumentError::new(format!(
                         "The {} argument doesn't take any paths: \"{}\"", arg_name, arg
-                    )).into())
+                    )))
                 }
             }
 
@@ -62,7 +62,7 @@ impl ComplexArgGroup {
                 } else {
                     return Err(ArgumentError::new(format!(
                         "The {} argument doesn't take any keys: \"{}\"", arg_name, arg
-                    )).into())
+                    )))
                 }
             }
 
@@ -81,7 +81,7 @@ impl ComplexArgGroup {
                             true => format!("The {} argument's {} flag doesn't accept a value. Try removing the  \"={}\" part.", arg_name, name, value),
                             false => format!("The {} argument doesn't accept a {} clause: \"{}\"", arg_name, name, arg),
                         }
-                    ).into());
+                    ));
                 }
             }
 
@@ -93,16 +93,16 @@ impl ComplexArgGroup {
                 } else {
                     return Err(ArgumentError::new(format!(
                         "The {} flag has been provided multiple times.", name
-                    )).into())
+                    )))
                 }
             }
 
-            // If we reach this point, the argument is invalid.
+            // If we reach this points, the argument is invalid.
             // Try to diagnose what went wrong to give the most helpful error message possible.
 
             // Check if it is a clause that doesn't have a value provided.
             if supported_clauses.contains(&name.as_str()) {
-                return Err(ArgumentError::new(format!("The {} argument's {} clause requires some value: \"{}=something\".", arg_name, name, name)).into());
+                return Err(ArgumentError::new(format!("The {} argument's {} clause requires some value: \"{}=something\".", arg_name, name, name)));
             }
 
             // Check if it is a path in nonabsolute form.
@@ -111,17 +111,17 @@ impl ComplexArgGroup {
                     return Err(ArgumentError::new(format!(
                         "The \"{}\" flag looks like it is a path. Paths must be provided in absolute form starting with a /. Try providing \"{}\" instead.",
                         arg, absolute_path.display()
-                    )).into())
+                    )))
                 } else {
                     return Err(ArgumentError::new(format!(
                         "The \"{}\" flag looks like it is a path. The {} argument doesn't take any paths.",
                         arg, arg_name
-                    )).into())
+                    )))
                 }
             }
 
             // Return a generic error.
-            return Err(ArgumentError::new(format!("The {} argument doesn't take a {} flag.", arg_name, name)).into());
+            return Err(ArgumentError::new(format!("The {} argument doesn't take a {} flag.", arg_name, name)));
         }
 
         Ok(ComplexArgGroup {

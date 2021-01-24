@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use crate::error::{ArgumentError, RuntimeError};
+use crate::error::ArgumentError;
 use crate::utils;
 use crate::state::{State, ToggleIndex};
 use crate::hook::Effect;
@@ -17,7 +17,7 @@ pub(super) struct HookArg {
 }
 
 impl HookArg {
-	pub fn parse(args: Vec<String>) -> Result<HookArg, RuntimeError> {
+	pub fn parse(args: Vec<String>) -> Result<HookArg, ArgumentError> {
         let arg_group = ComplexArgGroup::parse(args,
             &["toggle"],
             &["exec-shell", "toggle"],
@@ -34,7 +34,7 @@ impl HookArg {
         }.parse_all(&arg_group.keys)?;
 
         if arg_group.keys.is_empty() {
-            Err(ArgumentError::new("A --hook argument requires at least one key.").into())
+            Err(ArgumentError::new("A --hook argument requires at least one key."))
         } else {
             Ok(HookArg {
                 exec_shell: arg_group.get_clauses("exec-shell"),
