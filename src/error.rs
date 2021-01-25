@@ -42,7 +42,7 @@ macro_rules! context_error {
             }
 
             fn with_context(mut self, context: String) -> Self {
-                self.context.push(context);
+                self.context.insert(0, context);
                 self
             }
         }

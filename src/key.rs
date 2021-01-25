@@ -9,6 +9,7 @@ use crate::capability::{Capability, CapMatch};
 use crate::range::Range;
 use crate::ecodes;
 use crate::event::{EventType, EventCode};
+use crate::error::Context;
 
 #[derive(Clone, Debug)]
 pub struct Key {
@@ -167,6 +168,7 @@ pub struct KeyParser<'a> {
 impl<'a> KeyParser<'a> {
     pub fn parse(&self, key_str: &str) -> Result<Key, ArgumentError> {
         interpret_key_with_domain(key_str, &self)
+            .with_context(format!("While parsing the key \"{}\":", key_str))
     }
     pub fn parse_all(&self, key_strs: &[String]) -> Result<Vec<Key>, ArgumentError> {
         key_strs.iter().map(
@@ -228,8 +230,7 @@ fn interpret_key(key_str: &str, parser: &KeyParser) -> Result<Key, ArgumentError
     let event_type_name = parts.next().unwrap();
     let event_type = ecodes::event_type(event_type_name).ok_or_else(||
         ArgumentError::new(format!(
-            "Could not interpret the key \"{}\": unknown event type \"{}\".",
-            key_str, event_type_name
+            "Unknown event type \"{}\".", event_type_name
         ))
     )?;
     if event_type.is_syn() {
@@ -244,8 +245,7 @@ fn interpret_key(key_str: &str, parser: &KeyParser) -> Result<Key, ArgumentError
     };
     let event_code = ecodes::event_code(event_type_name, event_code_name).ok_or_else(||
         ArgumentError::new(format!(
-            "Could not interpret the key \"{}\": unknown event code \"{}\".",
-            key_str, event_code_name
+            "Unknown event code \"{}\".", event_code_name
         ))
     )?;
     key.add_property(KeyProperty::Code(event_code));
@@ -276,7 +276,7 @@ fn interpret_key(key_str: &str, parser: &KeyParser) -> Result<Key, ArgumentError
     if let Some(previous_value_str) = previous_value_str_opt {
         if ! parser.allow_transitions {
             return Err(ArgumentError::new(
-                format!("No transitions are allowed in the key \"{}\".", key_str)
+                "No transitions are allowed for keys in this position."
             ));
         }
 
