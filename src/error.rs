@@ -44,11 +44,6 @@ macro_rules! context_error {
                 self
             }
         }
-        impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                write!(f, "{}", self.message)
-            }
-        }
     };
 }
 
@@ -82,6 +77,16 @@ macro_rules! runtime_errors {
             }
         }
 
+        impl fmt::Display for RuntimeError {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                match &self {
+                    $(
+                        RuntimeError::$name(error) => write!(f, "{}", error),
+                    )*
+                }
+            }
+        }
+
         $(
             impl From<$name> for RuntimeError {
                 fn from(error: $name) -> RuntimeError {
@@ -92,7 +97,22 @@ macro_rules! runtime_errors {
     };
 }
 
+macro_rules! display_error {
+    ($name:ident, $header:expr) => {
+        impl fmt::Display for $name {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                let message_lowercase = first_letter_to_lowercase(self.message.clone());
+                let err_message = format!($header, message_lowercase);
+                format_error_with_context(f, self.context().to_owned(), err_message)
+            }
+        }
+    };
+}
+
 runtime_errors!(ArgumentError, InternalError, SystemError);
+display_error!(ArgumentError, "Invalid argument: {}");
+display_error!(InternalError, "Internal error: {}");
+display_error!(SystemError, "System error: {}");
 
 impl From<io::Error> for SystemError {
     fn from(error: io::Error) -> SystemError {
@@ -126,17 +146,6 @@ impl<T, E> Context for Result<T, E> where E: Context {
             Ok(_) => &[],
             Err(error) => error.context(),
         }
-    }
-}
-
-impl fmt::Display for RuntimeError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let err_message = match &self {
-            RuntimeError::ArgumentError(error)  => format!("Invalid argument: {}", first_letter_to_lowercase(error.message.clone())),
-            RuntimeError::InternalError(error)  => format!("Internal error: {}", first_letter_to_lowercase(error.message.clone())),
-            RuntimeError::SystemError(error)    => format!("System error: {}", first_letter_to_lowercase(error.message.clone())),
-        };
-        format_error_with_context(f, self.context().to_owned(), err_message)
     }
 }
 
