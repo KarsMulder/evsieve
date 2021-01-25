@@ -8,11 +8,9 @@ pub trait Context {
     fn with_context(self, context: String) -> Self;
 }
 
-fn format_error_with_context(f: &mut fmt::Formatter, err_header: impl Into<String>, err_context: &[String], err_msg: impl Into<String>) -> fmt::Result {
-    let mut context_collapsed: Vec<String> = Vec::new();
-    context_collapsed.push(err_header.into());
-    context_collapsed.extend(err_context.iter().cloned());
-    context_collapsed.push(err_msg.into());
+fn format_error_with_context(f: &mut fmt::Formatter, err_context: Vec<String>, err_msg: String) -> fmt::Result {
+    let mut context_collapsed: Vec<String> = err_context;
+    context_collapsed.push(err_msg);
 
     for (indent, context_line) in context_collapsed.into_iter().enumerate() {
         for _ in 0..indent {
@@ -133,17 +131,18 @@ impl<T, E> Context for Result<T, E> where E: Context {
 
 impl fmt::Display for RuntimeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let err_header = match self {
-            RuntimeError::ArgumentError(_)  => "An error occured while parsing the arguments:",
-            RuntimeError::InternalError(_)  => "An internal error has occurred. This is most likely a bug. Error message:",
-            RuntimeError::SystemError(_)    => "System error:",
-        };
         let err_message = match &self {
-            RuntimeError::ArgumentError(error)  => format!("{}", error),
-            RuntimeError::InternalError(error)  => format!("{}", error),
-            RuntimeError::SystemError(error)    => format!("{}", error),
+            RuntimeError::ArgumentError(error)  => format!("Invalid argument: {}", first_letter_to_lowercase(error.message.clone())),
+            RuntimeError::InternalError(error)  => format!("Internal error: {}", first_letter_to_lowercase(error.message.clone())),
+            RuntimeError::SystemError(error)    => format!("System error: {}", first_letter_to_lowercase(error.message.clone())),
         };
-        format_error_with_context(f, err_header, self.context(), err_message)
+        format_error_with_context(f, self.context().to_owned(), err_message)
     }
 }
 
+fn first_letter_to_lowercase(mut string: String) -> String {
+    if let Some(first_char) = string.get_mut(0..1) {
+        first_char.make_ascii_lowercase();
+    }
+    string
+}
