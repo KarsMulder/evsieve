@@ -227,8 +227,8 @@ impl Capabilities {
     /// are inserted to self.ev_types and self.codes.
     fn set_ev_rep(&mut self, repeat_info: RepeatInfo) {
         self.rep_info = Some(repeat_info);
-        for code in EV_REP_CODES {
-            self.codes.remove(code);
+        for &code in EV_REP_CODES {
+            self.codes.insert(code);
         }
     }
 
