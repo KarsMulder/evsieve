@@ -149,10 +149,12 @@ impl InputDevice {
             const SYNC: i32 = libevdev::libevdev_read_status_LIBEVDEV_READ_STATUS_SYNC as i32;
             const EAGAIN: i32 = -libc::EAGAIN;
 
+            let event_type = unsafe { EventType::new(event.type_) };
+
             match res {
-                SUCCESS => events.push(((event.type_.into(), event.code), event.value)),
+                SUCCESS => events.push(((event_type, event.code), event.value)),
                 SYNC => {
-                    events.push(((event.type_.into(), event.code), event.value));
+                    events.push(((event_type, event.code), event.value));
                     should_sync = true;
                 },
                 EAGAIN => break,

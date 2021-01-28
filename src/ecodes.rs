@@ -31,7 +31,7 @@ lazy_static! {
                     None => continue,
                 };
                 
-                result.insert(name, (ev_type as u16).into());
+                result.insert(name, EventType::new(ev_type as u16));
             }
         }
 

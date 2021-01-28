@@ -8,6 +8,8 @@ pub type EventCode = u16;
 pub type EventId = (EventType, EventCode);
 pub type EventValue = i32;
 
+/// Upholds invariant: the wrapped u16 must correspond to a valid event type.
+/// Creating an EventType with a value not known to the kernel is undefined behaviour.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub struct EventType(u16);
 
@@ -31,8 +33,9 @@ impl EventType {
     }
 }
 
-impl From<u16> for EventType {
-    fn from(value: u16) -> EventType {
+impl EventType {
+    /// Unsafe: the value must be a valid event type.
+    pub unsafe fn new(value: u16) -> EventType {
         EventType(value)
     }
 }
