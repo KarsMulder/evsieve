@@ -295,11 +295,17 @@ fn interpret_event_value(value_str: &str, parser: &KeyParser) -> Result<Range, A
     
     let (min_value_str, max_value_str_opt) = utils::split_once(value_str, "~");
     let max_value_str = max_value_str_opt.unwrap_or(min_value_str);
+
+    let min = parse_int_or_wildcard(min_value_str)?;
+    let max = parse_int_or_wildcard(max_value_str)?;
+
+    if let (Some(min_value), Some(max_value)) = (min, max) {
+        if min_value > max_value {
+            return Err(ArgumentError::new("The upper bound of a value range may not be smaller than its lower bound."))
+        }
+    }
 	
-	Ok(Range::new(
-		parse_int_or_wildcard(min_value_str)?,
-		parse_int_or_wildcard(max_value_str)?
-    ))
+	Ok(Range::new(min, max))
 }
 
 /// Returns None for "", an integer for integer strings, and otherwise gives an error.
