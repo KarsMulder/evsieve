@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use crate::event::{EventType, EventCode, EventId};
+use crate::event::{EventType, EventCode};
 use crate::bindings::libevdev;
 use crate::utils::split_once;
 use std::collections::HashMap;
@@ -31,7 +31,7 @@ lazy_static! {
                     None => continue,
                 };
                 
-                result.insert(name, EventType::new(ev_type as u16));
+                unsafe { result.insert(name, EventType::new(ev_type as u16)) };
             }
         }
 
@@ -61,7 +61,9 @@ lazy_static! {
                         Some(name_uppercase) => name_uppercase.to_lowercase(),
                         None => continue,
                     };
-                    result.insert((ev_type_name.to_string(), code_name), code as EventCode);
+                    let event_code = unsafe { EventCode::new(ev_type, code as u16) };
+
+                    result.insert((ev_type_name.to_string(), code_name), event_code);
                 }
             }
         }
@@ -69,34 +71,26 @@ lazy_static! {
         result
     };
 
-    /// A list of all tuples (event_type, event_code) supported.
-    pub static ref EVENT_IDS: Vec<EventId> = {
-        EVENT_CODES.iter().filter_map(|((type_str, _code_str), code_val)| {
-            Some((*EVENT_TYPES.get(type_str)?, *code_val))
-        }).collect()
-    };
-
-    pub static ref EVENT_NAMES: HashMap<EventId, String> = {
+    pub static ref EVENT_NAMES: HashMap<EventCode, String> = {
         let mut result = HashMap::new();
-        for ((type_name, code_name), code) in EVENT_CODES.iter() {
-            let ev_type = EVENT_TYPES.get(type_name).expect("Invalid ecode data compiled.");
+        for ((type_name, code_name), &code) in EVENT_CODES.iter() {
             let name = format!("{}:{}", type_name, code_name);
-            result.insert((*ev_type, *code), name);
+            result.insert(code, name);
         }
         result
     };
 }
 
-pub fn event_name(ev_type: EventType, code: EventCode) -> String {
-    match EVENT_NAMES.get(&(ev_type, code)) {
+pub fn event_name(code: EventCode) -> String {
+    match EVENT_NAMES.get(&code) {
         Some(name) => name.to_owned(),
-        None => format!("{}:{}", u16::from(ev_type), code),
+        None => format!("{}:{}", u16::from(code.ev_type()), code.code()),
     }
 }
 
 // Returns whether this event is an multitouch event.
-pub fn is_abs_mt(ev_type: EventType, code: EventCode) -> bool {
-    ev_type.is_abs() && event_name(ev_type, code).starts_with("abs:mt_")
+pub fn is_abs_mt(code: EventCode) -> bool {
+    code.ev_type().is_abs() && event_name(code).starts_with("abs:mt_")
 }
 
 pub fn event_type(name: &str) -> Option<EventType> {
@@ -112,14 +106,16 @@ pub const EV_SYN: u16 = libevdev::EV_SYN as u16;
 pub const EV_REP: u16 = libevdev::EV_REP as u16;
 pub const EV_KEY: u16 = libevdev::EV_KEY as u16;
 
-pub const REP_DELAY: EventCode = libevdev::REP_DELAY as u16;
-pub const REP_PERIOD: EventCode = libevdev::REP_PERIOD as u16;
+pub const REP_DELAY: u16 = libevdev::REP_DELAY as u16;
+pub const REP_PERIOD: u16 = libevdev::REP_PERIOD as u16;
 
 #[test]
 fn unittest() {
     // Since the is_abs_mt function depends on the user-facing representation we use for events,
     // this test makes sure it doesn't accidentally break if we change out naming scheme.
-    assert!(is_abs_mt(EventType::ABS, 0x35));
-    assert!(!is_abs_mt(EventType::ABS, 0x01));
-    assert!(!is_abs_mt(EventType::KEY, 0x35));
+    unsafe {
+        assert!(is_abs_mt(EventCode::new(EventType::ABS, 0x35)));
+        assert!(!is_abs_mt(EventCode::new(EventType::ABS, 0x01)));
+        assert!(!is_abs_mt(EventCode::new(EventType::KEY, 0x35)));
+    }
 }

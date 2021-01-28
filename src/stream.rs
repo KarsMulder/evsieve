@@ -34,7 +34,7 @@ pub fn run(setup: &mut Setup) -> Result<(), InterruptError> {
     let input_events = setup.input.poll()?;
     let mut output_events: Vec<Event> = Vec::with_capacity(input_events.len());
     for event in input_events {
-        if event.ev_type.is_syn() {
+        if event.ev_type().is_syn() {
             setup.output.route_events(&output_events);
             output_events.clear();
             setup.output.synchronize();

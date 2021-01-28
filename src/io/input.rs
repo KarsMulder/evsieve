@@ -7,7 +7,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::{PathBuf};
 use crate::bindings::libevdev;
 use crate::io::epoll::{Epoll, EpollResult};
-use crate::event::{Event, EventType, EventValue, EventId, Namespace};
+use crate::event::{Event, EventType, EventValue, EventCode, Namespace};
 use crate::domain::Domain;
 use crate::capability::{Capability, Capabilities, AbsInfo, RepeatInfo};
 use crate::ecodes;
@@ -90,7 +90,7 @@ pub struct InputDevice {
     domain: Domain,
 
     /// Maps (type, code) pairs to the last known value of said pair.
-    state: HashMap<EventId, EventValue>,
+    state: HashMap<EventCode, EventValue>,
 }
 
 impl InputDevice {
@@ -131,10 +131,10 @@ impl InputDevice {
         self.domain
     }
 
-    fn read_raw(&mut self) -> Result<Vec<(EventId, EventValue)>, SystemError> {
+    fn read_raw(&mut self) -> Result<Vec<(EventCode, EventValue)>, SystemError> {
         let mut event: libevdev::input_event = unsafe { std::mem::zeroed() };
         let mut should_sync = false;
-        let mut events: Vec<(EventId, EventValue)> = Vec::new();
+        let mut events: Vec<(EventCode, EventValue)> = Vec::new();
 
         loop {
             let flags = match should_sync {
@@ -150,11 +150,12 @@ impl InputDevice {
             const EAGAIN: i32 = -libc::EAGAIN;
 
             let event_type = unsafe { EventType::new(event.type_) };
+            let event_code = unsafe { EventCode::new(event_type, event.code) };
 
             match res {
-                SUCCESS => events.push(((event_type, event.code), event.value)),
+                SUCCESS => events.push((event_code, event.value)),
                 SYNC => {
-                    events.push(((event_type, event.code), event.value));
+                    events.push((event_code, event.value));
                     should_sync = true;
                 },
                 EAGAIN => break,
@@ -171,12 +172,12 @@ impl InputDevice {
     /// domain of this device and whatever value this event had the last time it was seen.
     pub fn poll(&mut self) -> Result<Vec<Event>, SystemError> {
         let mut result: Vec<Event> = Vec::new();
-        for ((ev_type, code), value) in self.read_raw()? {
-            let previous_value_mut: &mut EventValue = self.state.entry((ev_type, code)).or_insert(0);
+        for (code, value) in self.read_raw()? {
+            let previous_value_mut: &mut EventValue = self.state.entry(code).or_insert(0);
             let previous_value: EventValue = *previous_value_mut;
             *previous_value_mut = value;
             result.push(Event::new(
-                ev_type, code, value, previous_value, self.domain, Namespace::Input,
+                code, value, previous_value, self.domain, Namespace::Input,
             ));
         }
 
@@ -193,8 +194,8 @@ impl InputDevice {
             GrabMode::Force => self.grab(),
             GrabMode::Auto => {
                 // Grab if no key is currently pressed.
-                for (event_id, value) in &self.state {
-                    if event_id.0.is_key() && *value > 0 {
+                for (event_code, value) in &self.state {
+                    if event_code.ev_type().is_key() && *value > 0 {
                         return Ok(());
                     }
                 }
@@ -233,27 +234,28 @@ impl InputDevice {
 
 }
 
+/// # Safety
 /// Exhibits undefined behaviour if evdev is not a valid pointer.
 unsafe fn get_capabilities(evdev: *mut libevdev::libevdev) -> Capabilities {
     let event_types = ecodes::EVENT_TYPES.values().cloned();
-    let event_codes = ecodes::EVENT_IDS.iter().cloned();
+    let event_codes = ecodes::EVENT_CODES.values().cloned();
     
     let supported_event_types: HashSet<EventType> = event_types.filter(|&ev_type| {
         libevdev::libevdev_has_event_type(evdev, ev_type.into()) == 1
     }).collect();
 
-    let supported_event_codes: HashSet<EventId> = event_codes
-        .filter(|&(ev_type, _code)| supported_event_types.contains(&ev_type))
-        .filter(|&(ev_type,  code)| {
-            libevdev::libevdev_has_event_code(evdev, ev_type.into(), code as u32) == 1
+    let supported_event_codes: HashSet<EventCode> = event_codes
+        .filter(|&code| supported_event_types.contains(&code.ev_type()))
+        .filter(|&code| {
+            libevdev::libevdev_has_event_code(evdev, code.ev_type().into(), code.code() as u32) == 1
         }).collect();
     
     // Query the abs_info from this device.
-    let mut abs_info: HashMap<EventId, AbsInfo> = HashMap::new();
-    for &(ev_type, code) in &supported_event_codes {
-        if ev_type.is_abs() {
-            let evdev_abs_info: *const libevdev::input_absinfo = libevdev::libevdev_get_abs_info(evdev, code as u32);
-            abs_info.insert((ev_type, code), (*evdev_abs_info).into());
+    let mut abs_info: HashMap<EventCode, AbsInfo> = HashMap::new();
+    for &code in &supported_event_codes {
+        if code.ev_type().is_abs() {
+            let evdev_abs_info: *const libevdev::input_absinfo = libevdev::libevdev_get_abs_info(evdev, code.code() as u32);
+            abs_info.insert(code, (*evdev_abs_info).into());
         }
     }
 
@@ -269,7 +271,6 @@ unsafe fn get_capabilities(evdev: *mut libevdev::libevdev) -> Capabilities {
     };
 
     Capabilities {
-        ev_types: supported_event_types,
         codes: supported_event_codes,
         abs_info,
         rep_info,
@@ -277,23 +278,23 @@ unsafe fn get_capabilities(evdev: *mut libevdev::libevdev) -> Capabilities {
 }
 
 /// Exhibits undefined behaviour if evdev is not a valid pointer or the capabilities are invalid.
-unsafe fn get_device_state(evdev: *mut libevdev::libevdev, capabilities: &Capabilities) -> HashMap<EventId, EventValue> {
-    let mut device_state: HashMap<EventId, EventValue> = HashMap::new();
-    for &(ev_type, code) in &capabilities.codes {
+unsafe fn get_device_state(evdev: *mut libevdev::libevdev, capabilities: &Capabilities) -> HashMap<EventCode, EventValue> {
+    let mut device_state: HashMap<EventCode, EventValue> = HashMap::new();
+    for &code in &capabilities.codes {
         // ISSUE: ABS_MT support
-        if ! ecodes::is_abs_mt(ev_type, code) {
-            let value: i32 = libevdev::libevdev_get_event_value(evdev, ev_type.into(), code as u32);
-            device_state.insert((ev_type, code), value);
+        if ! ecodes::is_abs_mt(code) {
+            let value: i32 = libevdev::libevdev_get_event_value(evdev, code.ev_type().into(), code.code() as u32);
+            device_state.insert(code, value);
         } else {
             // The return value of libevdev_get_event_value() for ABS_MT_* is undefined. Until we
             // get proper ABS_MT support, we'll use an arbitrary placeholder value.
-            let value = match capabilities.abs_info.get(&(ev_type, code)) {
+            let value = match capabilities.abs_info.get(&code) {
                 Some(abs_info) => 
                     EventValue::checked_add(abs_info.min_value, abs_info.max_value)
                         .map(|x| x / 2).unwrap_or(0),
                 None => 0,
             };
-            device_state.insert((ev_type, code), value);
+            device_state.insert(code, value);
         }
         
     }

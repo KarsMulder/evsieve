@@ -8,7 +8,7 @@ use crate::error::ArgumentError;
 use crate::capability::{Capability, CapMatch};
 use crate::range::Range;
 use crate::ecodes;
-use crate::event::{EventType, EventCode};
+use crate::event::EventCode;
 use crate::error::Context;
 
 #[derive(Clone, Debug)]
@@ -91,7 +91,6 @@ impl Key {
 
 #[derive(Clone, Copy, Debug)]
 enum KeyProperty {
-    Evtype(EventType),
     Code(EventCode),
     Domain(Domain),
     Namespace(Namespace),
@@ -103,7 +102,6 @@ impl KeyProperty {
     /// Checkes whether an event matches this KeyProperty.
     pub fn matches(&self, event: &Event) -> bool {
         match *self {
-            KeyProperty::Evtype(value) => event.ev_type == value,
             KeyProperty::Code(value) => event.code == value,
             KeyProperty::Domain(value) => event.domain == value,
             KeyProperty::Namespace(value) => event.namespace == value,
@@ -115,7 +113,6 @@ impl KeyProperty {
     /// Given an Event, will return the closest event that matches this KeyProperty.
     pub fn merge(&self, mut event: Event) -> Event {
         match *self {
-            KeyProperty::Evtype(value) => event.ev_type = value,
             KeyProperty::Code(value) => event.code = value,
             KeyProperty::Domain(value) => event.domain = value,
             KeyProperty::Namespace(value) => event.namespace = value,
@@ -127,7 +124,6 @@ impl KeyProperty {
 
     pub fn matches_cap(&self, cap: &Capability) -> CapMatch {
         match *self {
-            KeyProperty::Evtype(value) => (cap.ev_type == value).into(),
             KeyProperty::Code(value) => (cap.code == value).into(),
             KeyProperty::Domain(value) => (cap.domain == value).into(),
             KeyProperty::Namespace(value) => (cap.namespace == value).into(),
@@ -146,7 +142,6 @@ impl KeyProperty {
 
     pub fn merge_cap(&self, mut cap: Capability) -> Capability {
         match *self {
-            KeyProperty::Evtype(value) => cap.ev_type = value,
             KeyProperty::Code(value) => cap.code = value,
             KeyProperty::Domain(value) => cap.domain = value,
             KeyProperty::Namespace(value) => cap.namespace = value,
@@ -236,7 +231,6 @@ fn interpret_key(key_str: &str, parser: &KeyParser) -> Result<Key, ArgumentError
     if event_type.is_syn() {
         return Err(ArgumentError::new("Cannot use event type \"syn\": it is impossible to manipulate synchronisation events because synchronisation is automatically taken care of by evsieve."));
     }
-    key.add_property(KeyProperty::Evtype(event_type));
 
     // Interpret the event code.
     let event_code_name = match parts.next() {
@@ -251,7 +245,7 @@ fn interpret_key(key_str: &str, parser: &KeyParser) -> Result<Key, ArgumentError
     key.add_property(KeyProperty::Code(event_code));
 
     // ISSUE: ABS_MT support
-    if ecodes::is_abs_mt(event_type, event_code) {
+    if ecodes::is_abs_mt(event_code) {
         utils::warn_once("Warning: it seems you're trying to manipulate ABS_MT events. Keep in mind that evsieve's support for ABS_MT is considered unstable. Evsieve's behaviour with respect to ABS_MT events is subject to change in the future.");
     }
     

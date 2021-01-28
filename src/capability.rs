@@ -1,11 +1,16 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 use std::collections::{HashMap, HashSet};
-use crate::event::{EventType, EventCode, EventId, EventValue, Namespace};
+use crate::event::{EventType, EventCode, EventValue, Namespace};
 use crate::domain::Domain;
 use crate::range::Range;
 use crate::ecodes;
 use crate::bindings::libevdev;
+
+const EV_REP_CODES: &[EventCode] = unsafe {&[
+    EventCode::new(EventType::REP, ecodes::REP_DELAY),
+    EventCode::new(EventType::REP, ecodes::REP_PERIOD),
+]};
 
 /// When we want to know whether a certain capability will trigger a map, we might not
 /// be sure because it depends on detailed event or runtime information. In this case,
@@ -44,12 +49,10 @@ impl From<bool> for CapMatch {
 
 #[derive(Clone)]
 pub struct Capabilities {
-    /// All event types supported by a device.
-    pub ev_types: HashSet<EventType>,
     /// All pairs of (type, code) supported by a device.
-    pub codes: HashSet<EventId>,
+    pub codes: HashSet<EventCode>,
     /// Additional information for the EV_ABS event types.
-    pub abs_info: HashMap<EventId, AbsInfo>,
+    pub abs_info: HashMap<EventCode, AbsInfo>,
     /// Additional information about the repeat events that happen on EV_KEY, associated with EV_REP.
     pub rep_info: Option<RepeatInfo>,
 }
@@ -121,7 +124,6 @@ impl From<libevdev::input_absinfo> for AbsInfo {
 impl Capabilities {
     pub fn new() -> Capabilities {
         Capabilities {
-            ev_types: HashSet::new(),
             codes: HashSet::new(),
             abs_info: HashMap::new(),
             rep_info: None,
@@ -129,14 +131,14 @@ impl Capabilities {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.ev_types.is_empty()
+        self.codes.is_empty()
     }
 
     pub fn to_vec_from_domain_and_namespace(&self, domain: Domain, namespace: Namespace) -> Vec<Capability> {
-        self.codes.iter().filter_map(|&(ev_type, code)| {
-            let abs_info = self.abs_info.get(&(ev_type, code));
+        self.codes.iter().filter_map(|&code| {
+            let abs_info = self.abs_info.get(&code);
             let (value_range, abs_meta) = match abs_info {
-                None => match ev_type {
+                None => match code.ev_type() {
                     EventType::KEY => (Range::new(Some(0), Some(2)), None),
                     _ => (Range::new(None, None), None),
                 },
@@ -149,20 +151,19 @@ impl Capabilities {
             // The EV_REP capability signifies that the kernel has been asked to automatically
             // generate repeat events, not the ability to generate repeat events. As such, it
             // doesn't make sense to propagate EV_REP capabilities.
-            if ev_type.is_rep() {
+            if code.ev_type().is_rep() {
                 None
             } else {
-                Some(Capability { ev_type, code, domain, value_range, abs_meta, namespace })
+                Some(Capability { code, domain, value_range, abs_meta, namespace })
             }
         }).collect()
     }
 
     pub fn add_capability(&mut self, cap: Capability) {
-        self.ev_types.insert(cap.ev_type);
-        self.codes.insert((cap.ev_type, cap.code));
+        self.codes.insert(cap.code);
 
         // For events of type EV_ABS, an accompanying AbsInfo is required.
-        if cap.ev_type.is_abs() {
+        if cap.code.ev_type().is_abs() {
             // It is possible to lack abs_meta on this capability, e.g. if some non-abs event got
             // mapped to an abs-event. In that case, use the sanest default we can think of.
             let meta = match cap.abs_meta {
@@ -173,7 +174,7 @@ impl Capabilities {
             // Check if we already know something about this axis from another source. If so, we
             // should merge this capability with that one. Otherwise, for code simplicity we assume
             // that the current info is the same as that of this new capability.
-            let existing_info = self.abs_info.get(&(cap.ev_type, cap.code));
+            let existing_info = self.abs_info.get(&cap.code);
             let (current_range, current_meta) = match existing_info {
                 Some(info) => (Range::new(Some(info.min_value), Some(info.max_value)), info.meta),
                 None => (cap.value_range, meta),
@@ -192,7 +193,7 @@ impl Capabilities {
             // We might get an unbounded range in case we mapped some non-abs non-key event with
             // an unknown value range.
             if ! new_range.is_bounded() {
-                eprintln!("Warning: could not automatically derive the possible range of the absolute axis {}.", ecodes::event_name(cap.ev_type, cap.code));
+                eprintln!("Warning: could not automatically derive the possible range of the absolute axis {}.", ecodes::event_name(cap.code));
             };
             // i32::MIN and i32::MAX respectively. We use literals instead of constant names to be
             // compatible with rustc version 1.41.1, which is shipped by Debian.
@@ -200,7 +201,7 @@ impl Capabilities {
             let max_value = new_range.max.discrete_or(2147483647);
 
             // Insert or overwrite the existing value.
-            self.abs_info.insert((cap.ev_type, cap.code), AbsInfo {
+            self.abs_info.insert(cap.code, AbsInfo {
                 min_value, max_value, meta: new_meta
             });
         }
@@ -217,24 +218,29 @@ impl Capabilities {
     /// Removes EV_REP cababilities from self.
     pub fn remove_ev_rep(&mut self) {
         self.rep_info = None;
-        self.ev_types.remove(&EventType::REP);
-        self.codes.remove(&(EventType::REP, ecodes::REP_DELAY));
-        self.codes.remove(&(EventType::REP, ecodes::REP_PERIOD));
+        for code in EV_REP_CODES {
+            self.codes.remove(code);
+        }
     }
 
     /// Sets the rep_info variable of self and makes sure that the correct capabilities
     /// are inserted to self.ev_types and self.codes.
     fn set_ev_rep(&mut self, repeat_info: RepeatInfo) {
         self.rep_info = Some(repeat_info);
-        self.ev_types.insert(EventType::REP);
-        self.codes.insert((EventType::REP, ecodes::REP_DELAY));
-        self.codes.insert((EventType::REP, ecodes::REP_PERIOD));
+        for code in EV_REP_CODES {
+            self.codes.remove(code);
+        }
+    }
+
+    pub fn ev_types(&self) -> HashSet<EventType> {
+        self.codes.iter()
+            .map(|code| code.ev_type())
+            .collect()
     }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Capability {
-    pub ev_type: EventType,
     pub code: EventCode,
     pub domain: Domain,
     pub namespace: Namespace,

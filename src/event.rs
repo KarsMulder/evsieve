@@ -4,8 +4,6 @@ use std::fmt;
 use crate::domain::Domain;
 use crate::ecodes;
 
-pub type EventCode = u16;
-pub type EventId = (EventType, EventCode);
 pub type EventValue = i32;
 
 /// Upholds invariant: the wrapped u16 must correspond to a valid event type.
@@ -34,9 +32,39 @@ impl EventType {
 }
 
 impl EventType {
-    /// Unsafe: the value must be a valid event type.
-    pub unsafe fn new(value: u16) -> EventType {
+    /// # Safety
+    /// The value must be a valid event type.
+    pub const unsafe fn new(value: u16) -> EventType {
         EventType(value)
+    }
+}
+
+/// Internally, all event codes have their respective type attached to them. This avoids
+/// logic errors, since some codes make no sense for types other than the one they were
+/// intended for, and various FFI calls may emit undefined behaviour if we provide them
+/// with invalid event types.
+///
+/// Upholds invariant: the code is a valid code for this type.
+/// Creating an EventCode with a nonexistent (type, code) pair is considered undefined behaviour.
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
+pub struct EventCode {
+    ev_type: EventType,
+    code: u16,
+}
+
+impl EventCode {
+    /// # Safety
+    /// The code must be a valid code for this type.
+    pub const unsafe fn new(ev_type: EventType, code: u16) -> EventCode {
+        EventCode { ev_type, code }
+    }
+
+    pub const fn ev_type(self) -> EventType {
+        self.ev_type
+    }
+
+    pub const fn code(self) -> u16 {
+        self.code
     }
 }
 
@@ -54,7 +82,6 @@ impl From<EventType> for u32 {
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub struct Event {
-    pub ev_type: EventType,
     pub code: EventCode,
     pub value: EventValue,
 
@@ -66,25 +93,28 @@ pub struct Event {
 }
 
 impl Event {
-    pub fn new(ev_type: EventType,
-               code: EventCode,
+    pub fn new(code: EventCode,
                value: EventValue,
                previous_value: EventValue,
                domain: Domain,
                namespace: Namespace
     ) -> Event {
-        Event { ev_type, code, value, previous_value, domain, namespace }
+        Event { code, value, previous_value, domain, namespace }
     }
 
     pub fn with_domain(mut self, new_domain: Domain) -> Event {
         self.domain = new_domain;
         self
     }
+
+    pub fn ev_type(self) -> EventType {
+        self.code.ev_type()
+    }
 }
 
 impl fmt::Display for Event {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let name = ecodes::event_name(self.ev_type, self.code);
+        let name = ecodes::event_name(self.code);
         write!(f, "{}:{}", name, self.value)
     }
 }

@@ -38,8 +38,8 @@ impl EventPrinter {
 }
 
 pub fn print_event_detailed(event: Event) -> String {
-    let name = ecodes::event_name(event.ev_type, event.code);
-    let value_str = match event.ev_type {
+    let name = ecodes::event_name(event.code);
+    let value_str = match event.ev_type() {
         EventType::KEY => match event.value {
             0 => "0 (up)".to_string(),
             1 => "1 (down)".to_string(),
@@ -58,7 +58,7 @@ pub fn print_event_detailed(event: Event) -> String {
 }
 
 pub fn print_event_direct(event: Event) -> String {
-    let name = ecodes::event_name(event.ev_type, event.code);
+    let name = ecodes::event_name(event.code);
     if let Some(domain_name) = domain::try_reverse_resolve(event.domain) {
         format!("{}:{}@{}", name, event.value, domain_name)
     } else {

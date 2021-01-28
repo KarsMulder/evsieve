@@ -117,42 +117,42 @@ impl OutputDevice {
 
             libevdev::libevdev_set_name(dev, name);
 
-            for &ev_type in &caps.ev_types {
+            for &ev_type in &caps.ev_types() {
                 libevdev::libevdev_enable_event_type(dev, ev_type.into());
             }
-            for &(ev_type, code) in &caps.codes {
-                let res = match ev_type {
+            for code in &caps.codes {
+                let res = match code.ev_type() {
                     EventType::ABS => {
-                        let abs_info = caps.abs_info.get(&(ev_type, code))
+                        let abs_info = caps.abs_info.get(&code)
                             .ok_or_else(|| InternalError::new("Cannot create uinput device: device has absolute axis without associated capabilities."))?;
                         let libevdev_abs_info: libevdev::input_absinfo = (*abs_info).into();
                         let libevdev_abs_info_ptr = &libevdev_abs_info as *const libevdev::input_absinfo;
                         libevdev::libevdev_enable_event_code(
-                            dev, ev_type.into(), code as u32, libevdev_abs_info_ptr as *const libc::c_void)
+                            dev, code.ev_type().into(), code.code() as u32, libevdev_abs_info_ptr as *const libc::c_void)
                     },
                     EventType::REP => {
                         // Known issue: due to limitations in the uinput kernel module, the REP_DELAY
                         // and REP_PERIOD values are ignored and the kernel defaults will be used instead,
                         // according to the libevdev documentation. Status: won't fix.
                         if let Some(rep_info) = caps.rep_info {
-                            let value: libc::c_int = match code {
+                            let value: libc::c_int = match code.code() {
                                 ecodes::REP_DELAY => rep_info.delay,
                                 ecodes::REP_PERIOD => rep_info.period,
                                 _ => {
-                                    eprintln!("Warning: encountered an unknown capability code under EV_REP: {}.", code);
+                                    eprintln!("Warning: encountered an unknown capability code under EV_REP: {}.", code.code());
                                     continue;
                                 },
                             };
-                            libevdev::libevdev_enable_event_code(dev, ev_type.into(), code as u32, &value as *const libc::c_int as *const libc::c_void)
+                            libevdev::libevdev_enable_event_code(dev, code.ev_type().into(), code.code() as u32, &value as *const libc::c_int as *const libc::c_void)
                         } else {
                             eprintln!("Internal error: an output device claims EV_REP capabilities, but no repeat info is available.");
                             continue;
                         }
                     },
-                    _ => libevdev::libevdev_enable_event_code(dev, ev_type.into(), code as u32, ptr::null_mut()),
+                    _ => libevdev::libevdev_enable_event_code(dev, code.ev_type().into(), code.code() as u32, ptr::null_mut()),
                 };
                 if res < 0 {
-                    eprintln!("Warning: failed to enable event {} on uinput device.", ecodes::event_name(ev_type, code));
+                    eprintln!("Warning: failed to enable event {} on uinput device.", ecodes::event_name(*code));
                 }
             }
 
@@ -186,7 +186,7 @@ impl OutputDevice {
     }
 
     fn write_event(&mut self, event: Event) {
-        self.write(event.ev_type.into(), event.code as u32, event.value as i32);
+        self.write(event.code.ev_type().into(), event.code.code() as u32, event.value as i32);
     }
 
     fn syn_if_required(&mut self) {

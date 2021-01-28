@@ -3,7 +3,7 @@
 use std::ops::{Index,IndexMut};
 use std::collections::HashMap;
 use crate::error::InternalError;
-use crate::event::{EventType, EventCode};
+use crate::event::EventCode;
 use crate::domain::Domain;
 
 /// Represents the state of the stream that can change as events flow through it.
@@ -90,7 +90,7 @@ pub struct ToggleState {
 
     /// If the last value of a specific EventId was not zero, consistent maps will remember
     /// to which index that event was last routed.
-    pub memory: HashMap<(EventType, EventCode, Domain), usize>,
+    pub memory: HashMap<(EventCode, Domain), usize>,
 }
 
 impl ToggleState {
