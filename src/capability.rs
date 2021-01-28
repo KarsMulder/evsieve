@@ -224,7 +224,7 @@ impl Capabilities {
     }
 
     /// Sets the rep_info variable of self and makes sure that the correct capabilities
-    /// are inserted to self.ev_types and self.codes.
+    /// are inserted to self.codes.
     fn set_ev_rep(&mut self, repeat_info: RepeatInfo) {
         self.rep_info = Some(repeat_info);
         for &code in EV_REP_CODES {
