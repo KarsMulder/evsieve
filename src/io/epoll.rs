@@ -163,7 +163,8 @@ impl Epoll {
                 ready_file_indices.push(file_index);
             }
             if event.events & libc::EPOLLERR as u32 != 0 || event.events & libc::EPOLLHUP as u32 != 0 {
-                eprintln!("An event device has been disconnected.");
+                let device_path = self.files[&file_index].path();
+                eprintln!("The input device \"{}\" has been disconnected.", device_path.display());
                 broken_file_indices.push(file_index);
             }
         }

@@ -4,7 +4,7 @@ use std::fs::{File, OpenOptions};
 use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::collections::{HashMap, HashSet};
-use std::path::{PathBuf};
+use std::path::{Path, PathBuf};
 use crate::bindings::libevdev;
 use crate::io::epoll::{Epoll, EpollResult};
 use crate::event::{Event, EventType, EventValue, EventCode, Namespace};
@@ -232,6 +232,9 @@ impl InputDevice {
         }
     }
 
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
 }
 
 /// # Safety
