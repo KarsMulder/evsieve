@@ -29,8 +29,8 @@ Compiling this program requires the Rust toolchain and the libevdev library. To 
 After you've installed the dependencies, you can obtain a copy of the source code and compile the program using:
 
 ```
-wget https://github.com/KarsMulder/evsieve/archive/v1.1.0.tar.gz -O evsieve.tar.gz
-tar -xzf evsieve.tar.gz && cd evsieve-1.1.0
+wget https://github.com/KarsMulder/evsieve/archive/v1.2.0.tar.gz -O evsieve.tar.gz
+tar -xzf evsieve.tar.gz && cd evsieve-1.2.0
 cargo build --release
 ```
 
