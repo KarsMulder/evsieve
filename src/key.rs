@@ -295,7 +295,9 @@ fn interpret_event_value(value_str: &str, parser: &KeyParser) -> Result<Range, A
 
     if let (Some(min_value), Some(max_value)) = (min, max) {
         if min_value > max_value {
-            return Err(ArgumentError::new("The upper bound of a value range may not be smaller than its lower bound."))
+            return Err(ArgumentError::new(format!(
+                "The upper bound of a value range may not be smaller than its lower bound. Did you intend to use the range {}~{} instead?", max_value, min_value
+            )));
         }
     }
 	
