@@ -58,7 +58,7 @@ sudo evsieve --input /dev/input/event* --print
 
 Evsieve is a command-line program designed to read and transform input events emitted by (real) event devices and write them to virtual event devices. It most likely needs to run as root for most features.
 
-Assume you have a keyboard, and a symlink to its event device can be found at `/dev/input/by-id/virtual-keyboard`. A very basic usage of evsieve would be the following:
+Assume you have a keyboard, and a symlink to its event device can be found at `/dev/input/by-id/keyboard`. A very basic usage of evsieve would be the following:
 
 ```
 evsieve --input /dev/input/by-id/keyboard grab --output
