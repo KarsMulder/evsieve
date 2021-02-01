@@ -142,7 +142,7 @@ impl Range {
     }
 
     /// Returns a range if there is a contiguous range that is the union of both of these.
-    /// IF such a range does not exist (e.g. there is empty space between them), returns None.
+    /// If such a range does not exist (e.g. there is empty space between them), returns None.
     pub fn try_union(&self, other: &Range) -> Option<Range> {
         if self.intersect(other) == None &&
            ! self.max.is_acjadent(other.min) &&

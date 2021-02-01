@@ -20,10 +20,7 @@ use crate::sysexit;
 /// Currently just a glorified Epoll. In future implementation, it shall be the InputSystem's
 /// responsibility of making sure that broken devices get reopened.
 pub struct InputSystem {
-    /// In a future rewrite, maybe we shouldn't use the Input devices themselves, but instead
-    /// some kind of blueprint for them? So they can be recreated when they're unexpectedly closed.
     epoll: Epoll,
-
     /// A list of all capabilities any input device might possibly generate.
     capabilities_vec: Vec<Capability>,
 }
@@ -99,10 +96,10 @@ impl InputDevice {
         let domain = pre_device.domain;
 
         // Open the file itself.
-        let mut options = OpenOptions::new();
-        options.read(true);
-        options.custom_flags(libc::O_NONBLOCK);
-        let file = options.open(&path)?;
+        let file = OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_NONBLOCK)
+            .open(&path)?;
 
         // Turn the file into an evdev instance.
         let mut evdev: *mut libevdev::libevdev = std::ptr::null_mut();
