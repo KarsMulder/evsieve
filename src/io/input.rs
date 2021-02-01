@@ -87,7 +87,11 @@ impl InputSystem {
                         }
                     }
                 },
-                Err(blueprint) => still_broken_devices.push(blueprint),
+                Err(blueprint) => {
+                    // TODO: Remove.
+                    eprintln!("Failed to reopen a the device \"{}\".", blueprint.pre_device.path.display());
+                    still_broken_devices.push(blueprint);
+                },
             }
         }
         self.broken_devices = still_broken_devices;
