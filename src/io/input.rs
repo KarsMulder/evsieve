@@ -23,6 +23,8 @@ pub struct InputSystem {
     epoll: Epoll,
     /// A list of all capabilities any input device might possibly generate.
     capabilities_vec: Vec<Capability>,
+    /// A list of all broken input devices that want to be reopened.
+    broken_devices: Vec<InputDeviceBlueprint>,
 }
 
 impl InputSystem {
@@ -44,11 +46,10 @@ impl InputSystem {
         }
 
         let epoll = Epoll::new(input_devices)?;
-        Ok(InputSystem { epoll, capabilities_vec })
+        Ok(InputSystem { epoll, capabilities_vec, broken_devices: Vec::new() })
     }
 
     pub fn poll(&mut self) -> Result<Vec<Event>, InterruptError> {
-        // ISSUE: handling broken devices
         let mut events: Vec<Event> = Vec::new();
         for result in self.epoll.poll() {
             match result {
@@ -58,8 +59,9 @@ impl InputSystem {
                         return Err(InterruptError::new());
                     }
                 },
-                // Drop broken devices.
-                EpollResult::BrokenInputDevice(_) => (),
+                EpollResult::BrokenInputDevice(device) => {
+                    self.broken_devices.push(device.into_blueprint())
+                },
             }
         }
         Ok(events)
