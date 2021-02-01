@@ -63,6 +63,9 @@ impl InputSystem {
                         return Err(InterruptError::new());
                     }
                 },
+                EpollResult::Inotify => {
+                    println!("Inotify received."); //TODO
+                },
                 EpollResult::BrokenInputDevice(device) => {
                     self.broken_devices.push(device.into_blueprint())
                 },

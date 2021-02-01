@@ -4,6 +4,7 @@ use std::os::unix::io::{AsRawFd, RawFd};
 use crate::error::{InternalError, RuntimeError, SystemError};
 use crate::event::Event;
 use crate::io::input::InputDevice;
+use crate::io::persist::Inotify;
 use crate::sysexit;
 use std::collections::HashMap;
 
@@ -22,13 +23,20 @@ pub struct Epoll {
 
 pub enum Pollable {
     InputDevice(InputDevice),
+    Inotify(Inotify),
 }
 
 impl Pollable {
-    pub fn poll(&mut self) -> Result<Vec<Event>, SystemError> {
-        match self {
-            Pollable::InputDevice(device) => device.poll(),
-        }
+    pub fn poll(&mut self) -> Result<Vec<EpollResult>, SystemError> {
+        Ok(match self {
+            Pollable::InputDevice(device) => {
+                device.poll()?.into_iter().map(EpollResult::Event).collect()
+            },
+            Pollable::Inotify(inotify) => {
+                inotify.poll();
+                vec![EpollResult::Inotify]
+            }
+        })
     }
 }
 
@@ -36,6 +44,7 @@ impl AsRawFd for Pollable {
     fn as_raw_fd(&self) -> RawFd {
         match self {
             Pollable::InputDevice(device) => device.as_raw_fd(),
+            Pollable::Inotify(device) => device.as_raw_fd(),
         }
     }
 }
@@ -51,6 +60,8 @@ pub enum EpollResult {
     Event(Event),
     /// A message has been received from a thread or interrupt.
     Interrupt,
+    /// The Inotify told us that an interesting file or directory has changed.
+    Inotify,
     /// Tells us that one of the input devices we're receiving events from has ceased working
     /// for some reason, most likely that reason being that the device has been physically
     /// disconnected from the computer.
@@ -188,14 +199,12 @@ impl Epoll {
             }
         }
 
-        // Retrieve all events from ready devices.
+        // Retrieve all results from ready devices.
         let mut polled_results: Vec<EpollResult> = Vec::new();
         for index in ready_file_indices {
             if let Some(file) = self.files.get_mut(&index) {
                 match file.poll() {
-                    Ok(events) => polled_results.extend(
-                        events.into_iter().map(EpollResult::Event)
-                    ),
+                    Ok(results) => polled_results.extend(results),
                     Err(error) => {
                         eprintln!("{}", error);
                         if ! broken_file_indices.contains(&index) {
