@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use crate::error::{InternalError, RuntimeError, SystemError};
+use crate::error::SystemError;
 use crate::event::Event;
 use crate::io::input::InputDevice;
 use crate::io::persist::Inotify;
 use crate::sysexit;
-use crate::error::Context;
 use std::collections::HashMap;
 use std::os::unix::io::{AsRawFd, RawFd};
 
@@ -128,10 +127,10 @@ impl Epoll {
         }
     }
 
-    fn remove_file_by_index(&mut self, index: u64) -> Result<Pollable, RuntimeError> {
+    fn remove_file_by_index(&mut self, index: u64) -> Pollable {
         let file = match self.files.remove(&index) {
             Some(file) => file,
-            None => return Err(InternalError::new("Attempted to remove a device from an epoll that's not registered with it.").into()),
+            None => panic!("Internal error: attempted to remove a device from an epoll that's not registered with it."),
         };
 
         let result = unsafe { libc::epoll_ctl(
@@ -142,10 +141,18 @@ impl Epoll {
         )};
 
         if result < 0 {
-            Err(SystemError::new("Failed to remove a device from an epoll instance.").into())
-        } else {
-            Ok(file)
+            match std::io::Error::last_os_error().raw_os_error()
+                    .expect("An unknown error occurred while removing a file from an epoll.") {
+                // This file was not registered by this epoll.
+                libc::ENOENT => eprintln!("Internal error: attempted to remove a device from an epoll that's not registered with it."),
+                // There was not enough memory to carry out this operation.
+                libc::ENOMEM => panic!("Out of kernel memory."),
+                // The other error codes should never happen or indicate fundamentally broken invariants.
+                _ => panic!("Failed to remove a file from an epoll: {}", std::io::Error::last_os_error()),
+            }
         }
+
+        file
     }
 
     /// Tries to read all events from all ready devices. Returns a vector containing all events read.
@@ -230,14 +237,8 @@ impl Epoll {
         polled_results.extend(
             broken_file_indices.into_iter()
             // Turn the broken indices into files.
-            .filter_map(
-                |index| match self.remove_file_by_index(index) {
-                    Ok(file) => Some(file),
-                    Err(error) => {
-                        eprintln!("{}", error);
-                        None
-                    },
-                }
+            .map(
+                |index| self.remove_file_by_index(index)
             )
             // Turn the broken files into results.
             .map(|pollable| {
@@ -274,9 +275,8 @@ impl Epoll {
         )
     }
 
-    /// Tries to remove all inotify instances from this epoll.
-    /// Prints an error on failure, but does not return an error.
-    pub fn try_clear_inotify(&mut self) {
+    /// Removes all inotify instances from this epoll.
+    pub fn clear_inotify(&mut self) {
         let mut indices_to_clear: Vec<u64> = Vec::new();
         for (index, file) in &self.files {
             if let Pollable::Inotify(_) = file {
@@ -284,9 +284,7 @@ impl Epoll {
             }
         }
         for index in indices_to_clear {
-            self.remove_file_by_index(index)
-                .with_context("While trying to remove inotify from epoll:")
-                .print_err();
+            self.remove_file_by_index(index);
         }
     }
 

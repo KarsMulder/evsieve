@@ -130,7 +130,7 @@ impl InputSystem {
 
         // If no broken devices are left, then we can clear the inotify.
         if self.broken_devices.is_empty() {
-            self.epoll.try_clear_inotify();
+            self.epoll.clear_inotify();
         }
     }
 }
