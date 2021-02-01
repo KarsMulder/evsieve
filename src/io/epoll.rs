@@ -96,11 +96,15 @@ impl Epoll {
     }
 
     /// # Safety
-    /// Must not add a file that already belongs to this Epoll, the file must
-    /// return a valid raw file descriptor.
+    /// The file must return a valid raw file descriptor.
     pub unsafe fn add_file(&mut self, file: Pollable) -> Result<(), SystemError> {
         let index = self.get_unique_index();
         let file_fd = file.as_raw_fd();
+
+        // Sanity check: make sure we don't add a file that already belongs to this epoll.
+        if self.files.values().any(|opened_file| opened_file.as_raw_fd() == file_fd) {
+            return Err(SystemError::new("Cannot add a file to an epoll that already belongs to said epoll."));
+        }
         self.files.insert(index, file);
 
         // We set the data to the index of said file, so we know which file is ready for reading.
