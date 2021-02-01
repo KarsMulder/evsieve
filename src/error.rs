@@ -2,24 +2,29 @@
 
 use std::io;
 use std::fmt;
+use std::fmt::Write;
 
 pub trait Context {
     fn context(&self) -> &[String];
-    fn with_context(self, context: String) -> Self;
+    fn with_context<T: Into<String>>(self, context: T) -> Self;
+    fn print_err(self);
 }
 
 fn format_error_with_context(f: &mut fmt::Formatter, err_context: Vec<String>, err_msg: String) -> fmt::Result {
     let mut context_collapsed: Vec<String> = err_context;
     context_collapsed.push(err_msg);
+    let mut output: String = String::new();
 
     for (indent, context_line) in context_collapsed.into_iter().enumerate() {
         for _ in 0..indent {
-            write!(f, "    ")?;
+            write!(output, "    ")?;
         }
-        writeln!(f, "{}", context_line)?;
+        writeln!(output, "{}", context_line)?;
     }
 
-    Ok(())
+    // Remove the trailing newline.
+    output.pop();
+    write!(f, "{}", output)
 }
 
 macro_rules! context_error {
@@ -39,9 +44,13 @@ macro_rules! context_error {
                 &self.context
             }
 
-            fn with_context(mut self, context: String) -> Self {
-                self.context.insert(0, context);
+            fn with_context<T: Into<String>>(mut self, context: T) -> Self {
+                self.context.insert(0, context.into());
                 self
+            }
+
+            fn print_err(self) {
+                eprintln!("{}", self);
             }
         }
     };
@@ -60,10 +69,10 @@ macro_rules! runtime_errors {
         }
 
         impl Context for RuntimeError {
-            fn with_context(self, context: String) -> RuntimeError {
+            fn with_context<T: Into<String>>(self, context: T) -> RuntimeError {
                 match self {
                     $(
-                        RuntimeError::$name(error)  => RuntimeError::$name(error.with_context(context)),
+                        RuntimeError::$name(error) => RuntimeError::$name(error.with_context(context.into())),
                     )*
                 }
             }
@@ -72,6 +81,14 @@ macro_rules! runtime_errors {
                 match self {
                     $(
                         RuntimeError::$name(error) => error.context(),
+                    )*
+                }
+            }
+
+            fn print_err(self) {
+                match self {
+                    $(
+                        RuntimeError::$name(error) => error.print_err(),
                     )*
                 }
             }
@@ -134,10 +151,10 @@ impl InterruptError {
 }
 
 impl<T, E> Context for Result<T, E> where E: Context {
-    fn with_context(self, context: String) -> Self {
+    fn with_context<S: Into<String>>(self, context: S) -> Self {
         match self {
             Ok(value) => Ok(value),
-            Err(error) => Err(error.with_context(context)),
+            Err(error) => Err(error.with_context(context.into())),
         }
     }
 
@@ -145,6 +162,12 @@ impl<T, E> Context for Result<T, E> where E: Context {
         match self {
             Ok(_) => &[],
             Err(error) => error.context(),
+        }
+    }
+
+    fn print_err(self) {
+        if let Err(error) = self {
+            error.print_err();
         }
     }
 }

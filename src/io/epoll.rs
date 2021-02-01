@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use std::os::unix::io::{AsRawFd, RawFd};
 use crate::error::{InternalError, RuntimeError, SystemError};
 use crate::event::Event;
 use crate::io::input::InputDevice;
 use crate::io::persist::Inotify;
 use crate::sysexit;
+use crate::error::Context;
 use std::collections::HashMap;
+use std::os::unix::io::{AsRawFd, RawFd};
 
 /// The epoll is responsible for detecting which input devices have events available.
 /// The evsieve program spends most of its time waiting on Epoll::poll, which waits until
@@ -271,6 +272,22 @@ impl Epoll {
                 _ => false,
             }
         )
+    }
+
+    /// Tries to remove all inotify instances from this epoll.
+    /// Prints an error on failure, but does not return an error.
+    pub fn try_clear_inotify(&mut self) {
+        let mut indices_to_clear: Vec<u64> = Vec::new();
+        for (index, file) in &self.files {
+            if let Pollable::Inotify(_) = file {
+                indices_to_clear.push(*index);
+            }
+        }
+        for index in indices_to_clear {
+            self.remove_file_by_index(index)
+                .with_context("While trying to remove inotify from epoll:")
+                .print_err();
+        }
     }
 
     /// Returns whether currently any files are opened under this epoll.

@@ -65,12 +65,12 @@ impl InputSystem {
                     }
                 },
                 EpollResult::Inotify => {
-                    self.try_reopen_broken_devices();
+                    self.handle_broken_devices();
                 },
                 EpollResult::BrokenInputDevice(device) => {
                     self.broken_devices.push(device.into_blueprint());
                     self.request_inotify();
-                    self.try_reopen_broken_devices();
+                    self.handle_broken_devices();
                 },
             }
         }
@@ -90,22 +90,22 @@ impl InputSystem {
         // Listen to changes to the input devices directory so we know when to try reopening broken devices.
         let result = match Inotify::for_input_dirs() {
             Ok(inotify) => unsafe { 
-                self.epoll.add_file(inotify.into()).with_context("While adding an inotify to an epoll:".into())
+                self.epoll.add_file(inotify.into()).with_context("While adding an inotify to an epoll:")
             },
-            Err(error) => Err(error).with_context("While creating an inotify instance:".into()),
+            Err(error) => Err(error).with_context("While creating an inotify instance:"),
         };
 
         // Inform the user in case of error.
         match result {
             Ok(_) => {},
             Err(error) => {
-                // TODO: make this eprintln.
-                eprint!("Error: could not create an inotify instance. As consequence, disconnected devices cannot be reopened. Error message:\n{}", error);
+                eprintln!("Error: could not create an inotify instance. As consequence, disconnected devices cannot be reopened. Error message:\n{}", error);
             },
         }
     }
 
-    pub fn try_reopen_broken_devices(&mut self) {
+    pub fn handle_broken_devices(&mut self) {
+        // Try to reopen all broken devices.
         let mut still_broken_devices: Vec<InputDeviceBlueprint> = Vec::new();
         for device in self.broken_devices.drain(..) {
             match device.try_open() {
@@ -127,6 +127,11 @@ impl InputSystem {
             }
         }
         self.broken_devices = still_broken_devices;
+
+        // If no broken devices are left, then we can clear the inotify.
+        if self.broken_devices.is_empty() {
+            self.epoll.try_clear_inotify();
+        }
     }
 }
 
