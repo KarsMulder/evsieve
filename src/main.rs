@@ -38,6 +38,7 @@ pub mod io {
     pub mod epoll;
     pub mod output;
     pub mod loopback;
+    pub mod persist;
 }
 
 pub mod arguments {

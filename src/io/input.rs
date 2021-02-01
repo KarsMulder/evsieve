@@ -7,6 +7,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use crate::bindings::libevdev;
 use crate::io::epoll::{Epoll, EpollResult};
+use crate::io::persist::InputDeviceBlueprint;
 use crate::event::{Event, EventType, EventValue, EventCode, Namespace};
 use crate::domain::Domain;
 use crate::capability::{Capability, Capabilities, AbsInfo, RepeatInfo};
@@ -119,7 +120,7 @@ pub struct InputDevice {
 }
 
 impl InputDevice {
-    fn open(pre_device: PreInputDevice) -> Result<InputDevice, SystemError> {
+    pub fn open(pre_device: PreInputDevice) -> Result<InputDevice, SystemError> {
         let path = pre_device.path;
         let domain = pre_device.domain;
 
@@ -261,6 +262,10 @@ impl InputDevice {
         &self.path
     }
 
+    pub fn capabilities(&self) -> &Capabilities {
+        &self.capabilities
+    }
+
     // Closes the device and returns a blueprint from which it can be reopened.
     pub fn into_blueprint(self) -> InputDeviceBlueprint {
         InputDeviceBlueprint {
@@ -359,30 +364,5 @@ impl Drop for InputDevice {
             // self.file gets dropped.
             libevdev::libevdev_free(self.evdev);
         }
-    }
-}
-
-pub struct InputDeviceBlueprint {
-    pre_device: PreInputDevice,
-    capabilities: Capabilities,
-}
-
-impl InputDeviceBlueprint {
-    /// Tries to reopen the device from which this blueprint was generated.
-    /// On success, returns the device. On failure, returns Err(self).
-    pub fn try_open(self) -> Result<InputDevice, InputDeviceBlueprint> {
-        if ! self.pre_device.path.exists() {
-            return Err(self);
-        }
-        let input_device = match InputDevice::open(self.pre_device.clone()) {
-            Ok(device) => device,
-            Err(_) => return Err(self),
-        };
-        if input_device.capabilities != self.capabilities {
-            // TODO: do not retry if this happens.
-            eprintln!("Error: cannot reopen input device {}: this device's capabilities are different from the original device that disconnected.", self.pre_device.path.display());
-            return Err(self);
-        }
-        Ok(input_device)
     }
 }
