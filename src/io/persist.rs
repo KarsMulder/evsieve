@@ -6,7 +6,6 @@ use crate::capability::Capabilities;
 use crate::error::SystemError;
 use std::collections::HashMap;
 use std::os::unix::io::{AsRawFd, RawFd};
-use std::os::unix::ffi::OsStrExt;
 use std::path::PathBuf;
 
 
@@ -50,11 +49,13 @@ impl Inotify {
     }
 
     pub fn add_watch(&mut self, path: PathBuf) -> Result<(), SystemError> {
+        // TODO: do something about this conversion monstrosity.
+        let cstr = std::ffi::CString::new(path.as_os_str().to_str().unwrap()).unwrap();
         let watch = unsafe {
             libc::inotify_add_watch(
                 self.fd,
-                path.as_os_str().as_bytes().as_ptr() as *const i8,
-                libc::IN_CREATE | libc::IN_MOVED_TO
+                cstr.as_ptr(),
+                libc::IN_CREATE | libc::IN_MOVED_TO | libc::IN_ONLYDIR
             )
         };
         if watch < 0 {

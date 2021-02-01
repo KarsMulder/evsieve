@@ -55,6 +55,12 @@ impl From<InputDevice> for Pollable {
     }
 }
 
+impl From<Inotify> for Pollable {
+    fn from(inotify: Inotify) -> Pollable {
+        Pollable::Inotify(inotify)
+    }
+}
+
 pub enum EpollResult {
     /// An event has been received.
     Event(Event),

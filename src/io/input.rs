@@ -50,6 +50,12 @@ impl InputSystem {
         for device in input_devices {
             unsafe { epoll.add_file(device.into())? };
         }
+
+        let mut inotify = crate::io::persist::Inotify::new()?;
+        inotify.add_watch("/dev/input".into())?;
+        inotify.add_watch("/dev/input/by-id".into())?;
+        unsafe { epoll.add_file(inotify.into())? };
+
         Ok(InputSystem { epoll, capabilities_vec, broken_devices: Vec::new() })
     }
 
@@ -64,7 +70,7 @@ impl InputSystem {
                     }
                 },
                 EpollResult::Inotify => {
-                    println!("Inotify received."); //TODO
+                    self.try_reopen_broken_devices();
                 },
                 EpollResult::BrokenInputDevice(device) => {
                     self.broken_devices.push(device.into_blueprint())
