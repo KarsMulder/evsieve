@@ -70,6 +70,28 @@ impl InputSystem {
     pub fn get_capabilities(&self) -> &[Capability] {
         &self.capabilities_vec
     }
+
+    pub fn try_reopen_broken_devices(&mut self) {
+        let mut still_broken_devices: Vec<InputDeviceBlueprint> = Vec::new();
+        for device in self.broken_devices.drain(..) {
+            match device.try_open() {
+                Ok(device) => {
+                    // TODO: get rid of unsafe
+                    let device_path = device.path.clone();
+                    let add_file_res = unsafe { self.epoll.add_file(device) };
+                    match add_file_res {
+                        Ok(()) => eprintln!("The input device \"{}\" has been reopened.", device_path.display()),
+                        Err(error) => {
+                            let error = error.with_context(format!("While attempting to re-add \"{}\" to the internal epoll:", device_path.display()));
+                            eprintln!("{}", error);
+                        }
+                    }
+                },
+                Err(blueprint) => still_broken_devices.push(blueprint),
+            }
+        }
+        self.broken_devices = still_broken_devices;
+    }
 }
 
 pub struct InputDevice {

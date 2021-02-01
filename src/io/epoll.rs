@@ -58,9 +58,10 @@ impl Epoll {
         self.counter
     }
 
-    /// Unsafe: must not add a file that already belongs to this Epoll, the file must
+    /// # Safety
+    /// Must not add a file that already belongs to this Epoll, the file must
     /// return a valid raw file descriptor.
-    unsafe fn add_file(&mut self, file: InputDevice) -> Result<(), SystemError> {
+    pub unsafe fn add_file(&mut self, file: InputDevice) -> Result<(), SystemError> {
         let index = self.get_unique_index();
         let file_fd = file.as_raw_fd();
         self.files.insert(index, file);
