@@ -47,7 +47,7 @@ impl From<bool> for CapMatch {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Capabilities {
     /// All pairs of (type, code) supported by a device.
     pub codes: HashSet<EventCode>,

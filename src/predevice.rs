@@ -29,6 +29,7 @@ impl GrabMode {
     }
 }
 
+#[derive(Clone)]
 pub struct PreInputDevice {
     /// The path to this device.
     pub path: PathBuf,

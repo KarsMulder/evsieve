@@ -232,6 +232,18 @@ impl InputDevice {
     pub fn path(&self) -> &Path {
         &self.path
     }
+
+    // Closes the device and returns a blueprint from which it can be reopened.
+    pub fn into_blueprint(self) -> InputDeviceBlueprint {
+        InputDeviceBlueprint {
+            capabilities: self.capabilities.clone(),
+            pre_device: PreInputDevice {
+                path: self.path.clone(),
+                grab_mode: self.grab_mode,
+                domain: self.domain,
+            }
+        }
+    }
 }
 
 /// # Safety
@@ -319,5 +331,30 @@ impl Drop for InputDevice {
             // self.file gets dropped.
             libevdev::libevdev_free(self.evdev);
         }
+    }
+}
+
+pub struct InputDeviceBlueprint {
+    pre_device: PreInputDevice,
+    capabilities: Capabilities,
+}
+
+impl InputDeviceBlueprint {
+    /// Tries to reopen the device from which this blueprint was generated.
+    /// On success, returns the device. On failure, returns Err(self).
+    pub fn try_open(self) -> Result<InputDevice, InputDeviceBlueprint> {
+        if ! self.pre_device.path.exists() {
+            return Err(self);
+        }
+        let input_device = match InputDevice::open(self.pre_device.clone()) {
+            Ok(device) => device,
+            Err(_) => return Err(self),
+        };
+        if input_device.capabilities != self.capabilities {
+            // TODO: do not retry if this happens.
+            eprintln!("Error: cannot reopen input device {}: this device's capabilities are different from the original device that disconnected.", self.pre_device.path.display());
+            return Err(self);
+        }
+        Ok(input_device)
     }
 }
