@@ -46,7 +46,10 @@ impl InputSystem {
             capabilities_vec.append(&mut device_capabilities_vec);
         }
 
-        let epoll = Epoll::new(input_devices)?;
+        let mut epoll = Epoll::new()?;
+        for device in input_devices {
+            unsafe { epoll.add_file(device.into())? };
+        }
         Ok(InputSystem { epoll, capabilities_vec, broken_devices: Vec::new() })
     }
 
@@ -79,7 +82,7 @@ impl InputSystem {
                 Ok(device) => {
                     // TODO: get rid of unsafe
                     let device_path = device.path.clone();
-                    let add_file_res = unsafe { self.epoll.add_file(device) };
+                    let add_file_res = unsafe { self.epoll.add_file(device.into()) };
                     match add_file_res {
                         Ok(()) => eprintln!("The input device \"{}\" has been reopened.", device_path.display()),
                         Err(error) => {

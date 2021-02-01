@@ -15,9 +15,35 @@ use std::collections::HashMap;
 /// it will be removed from the Epoll and returned as an EpollResult.
 pub struct Epoll {
     fd: RawFd,
-    files: HashMap<u64, InputDevice>,
+    files: HashMap<u64, Pollable>,
     /// A counter, so every file registered can get an unique index in the files map.
     counter: u64,
+}
+
+pub enum Pollable {
+    InputDevice(InputDevice),
+}
+
+impl Pollable {
+    pub fn poll(&mut self) -> Result<Vec<Event>, SystemError> {
+        match self {
+            Pollable::InputDevice(device) => device.poll(),
+        }
+    }
+}
+
+impl AsRawFd for Pollable {
+    fn as_raw_fd(&self) -> RawFd {
+        match self {
+            Pollable::InputDevice(device) => device.as_raw_fd(),
+        }
+    }
+}
+
+impl From<InputDevice> for Pollable {
+    fn from(device: InputDevice) -> Pollable {
+        Pollable::InputDevice(device)
+    }
 }
 
 pub enum EpollResult {
@@ -32,7 +58,7 @@ pub enum EpollResult {
 }
 
 impl Epoll {
-    pub fn new(files: Vec<InputDevice>) -> Result<Epoll, SystemError> {
+    pub fn new() -> Result<Epoll, SystemError> {
         let epoll_fd = unsafe {
             libc::epoll_create1(0)
         };
@@ -40,17 +66,11 @@ impl Epoll {
             return Err(SystemError::new("Failed to create epoll instance."));
         }
 
-        let mut epoll = Epoll {
+        Ok(Epoll {
             fd: epoll_fd,
             files: HashMap::new(),
             counter: 0,
-        };
-
-        for file in files {
-            unsafe { epoll.add_file(file)? };
-        }
-
-        Ok(epoll)
+        })
     }
 
     fn get_unique_index(&mut self) -> u64 {
@@ -61,7 +81,7 @@ impl Epoll {
     /// # Safety
     /// Must not add a file that already belongs to this Epoll, the file must
     /// return a valid raw file descriptor.
-    pub unsafe fn add_file(&mut self, file: InputDevice) -> Result<(), SystemError> {
+    pub unsafe fn add_file(&mut self, file: Pollable) -> Result<(), SystemError> {
         let index = self.get_unique_index();
         let file_fd = file.as_raw_fd();
         self.files.insert(index, file);
@@ -86,7 +106,7 @@ impl Epoll {
         }
     }
 
-    fn remove_file_by_index(&mut self, index: u64) -> Result<InputDevice, RuntimeError> {
+    fn remove_file_by_index(&mut self, index: u64) -> Result<Pollable, RuntimeError> {
         let file = match self.files.remove(&index) {
             Some(file) => file,
             None => return Err(InternalError::new("Attempted to remove a device from an epoll that's not registered with it.").into()),
@@ -164,8 +184,6 @@ impl Epoll {
                 ready_file_indices.push(file_index);
             }
             if event.events & libc::EPOLLERR as u32 != 0 || event.events & libc::EPOLLHUP as u32 != 0 {
-                let device_path = self.files[&file_index].path();
-                eprintln!("The input device \"{}\" has been disconnected.", device_path.display());
                 broken_file_indices.push(file_index);
             }
         }
@@ -202,16 +220,28 @@ impl Epoll {
                 }
             )
             // Turn the broken files into results.
-            .map(|device| EpollResult::BrokenInputDevice(Box::new(device)))
+            .map(|pollable| {
+                if let Pollable::InputDevice(device) = pollable {
+                    let device_path = device.path();
+                    eprintln!("The input device \"{}\" has been disconnected.", device_path.display());
+                    EpollResult::BrokenInputDevice(Box::new(device))
+                } else {
+                    // TODO: can we recover from this?
+                    panic!("Fatal error: an internal file descriptor broke.");
+                }
+            })
         );
 
         polled_results
     }
 
-    pub fn get_input_devices_mut(&mut self) -> impl Iterator<Item=&mut InputDevice> {
+    pub fn get_input_devices_mut(&mut self) -> impl Iterator<Item=&mut Pollable> {
         self.files.iter_mut().map(
             |(_index, file)| file
-        )
+        ).filter(|file| match file {
+            Pollable::InputDevice(_device) => true,
+            _ => false,
+        })
     }
 
     /// Returns whether currently any files are opened under this epoll.
