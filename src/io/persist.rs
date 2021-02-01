@@ -6,8 +6,6 @@ use crate::capability::Capabilities;
 use crate::error::SystemError;
 use std::collections::HashMap;
 use std::os::unix::io::{AsRawFd, RawFd};
-use std::path::PathBuf;
-
 
 pub struct InputDeviceBlueprint {
     pub pre_device: PreInputDevice,
@@ -36,7 +34,7 @@ impl InputDeviceBlueprint {
 
 pub struct Inotify {
     fd: RawFd,
-    watches: HashMap<i32, PathBuf>,
+    watches: HashMap<i32, String>,
 }
 
 impl Inotify {
@@ -48,18 +46,29 @@ impl Inotify {
         Ok(Inotify { fd, watches: HashMap::new() })
     }
 
-    pub fn add_watch(&mut self, path: PathBuf) -> Result<(), SystemError> {
-        // TODO: do something about this conversion monstrosity.
-        let cstr = std::ffi::CString::new(path.as_os_str().to_str().unwrap()).unwrap();
+    /// Returns an inotify that watches all interesting input directories.
+    pub fn for_input_dirs() -> Result<Inotify, SystemError> {
+        let mut inotify = Inotify::new()?;
+        inotify.add_watch("/dev/input".into())?;
+        inotify.add_watch("/dev/input/by-id".into())?;
+        Ok(inotify)
+    }
+
+    pub fn add_watch(&mut self, path: String) -> Result<(), SystemError> {
+        let cstr = match std::ffi::CString::new(path.clone()) {
+            Ok(value) => value,
+            Err(_) => return Err(SystemError::new("Could not convert a string to a CString."))
+        };
+
         let watch = unsafe {
             libc::inotify_add_watch(
                 self.fd,
                 cstr.as_ptr(),
-                libc::IN_CREATE | libc::IN_MOVED_TO | libc::IN_ONLYDIR
+                libc::IN_CREATE | libc::IN_MOVED_TO
             )
         };
         if watch < 0 {
-            return Err(SystemError::new(format!("Failed to add \"{}\" to an inotify instance.", path.display())));
+            return Err(SystemError::new(format!("Failed to add \"{}\" to an inotify instance.", path)));
         }
         self.watches.insert(watch, path);
         Ok(())
@@ -75,7 +84,7 @@ impl Inotify {
             libc::read(self.fd, buffer.as_mut_ptr() as *mut libc::c_void, BUFFER_SIZE)
         };
         if res < 0 {
-            eprintln!("Failed to read from an Inotify instance.");
+            eprintln!("Error: failed to read from an Inotify instance.");
         }
     }
 }

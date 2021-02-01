@@ -7,7 +7,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use crate::bindings::libevdev;
 use crate::io::epoll::{Epoll, EpollResult};
-use crate::io::persist::InputDeviceBlueprint;
+use crate::io::persist::{Inotify, InputDeviceBlueprint};
 use crate::event::{Event, EventType, EventValue, EventCode, Namespace};
 use crate::domain::Domain;
 use crate::capability::{Capability, Capabilities, AbsInfo, RepeatInfo};
@@ -50,12 +50,7 @@ impl InputSystem {
         for device in input_devices {
             unsafe { epoll.add_file(device.into())? };
         }
-
-        let mut inotify = crate::io::persist::Inotify::new()?;
-        inotify.add_watch("/dev/input".into())?;
-        inotify.add_watch("/dev/input/by-id".into())?;
-        unsafe { epoll.add_file(inotify.into())? };
-
+        
         Ok(InputSystem { epoll, capabilities_vec, broken_devices: Vec::new() })
     }
 
@@ -73,7 +68,8 @@ impl InputSystem {
                     self.try_reopen_broken_devices();
                 },
                 EpollResult::BrokenInputDevice(device) => {
-                    self.broken_devices.push(device.into_blueprint())
+                    self.broken_devices.push(device.into_blueprint());
+                    self.request_inotify();
                 },
             }
         }
@@ -82,6 +78,29 @@ impl InputSystem {
 
     pub fn get_capabilities(&self) -> &[Capability] {
         &self.capabilities_vec
+    }
+
+    /// If the underlying epoll does not have an Inotify instance, try to add it.
+    pub fn request_inotify(&mut self) {
+        if self.epoll.has_inotify() {
+            return;
+        }
+
+        // Listen to changes to the input devices directory so we know when to try reopening broken devices.
+        let result = match Inotify::for_input_dirs() {
+            Ok(inotify) => unsafe { 
+                self.epoll.add_file(inotify.into()).with_context("While adding an Inotify to an Epoll:".into())
+            },
+            Err(error) => Err(error).with_context("While creating an Inotify instance:".into()),
+        };
+
+        // Inform the user in case of error.
+        match result {
+            Ok(_) => {},
+            Err(error) => {
+                eprintln!("Error: could not create an Inotify instance. As consequence, disconnected devices cannot be reopened. Error message:\n{}", error);
+            },
+        }
     }
 
     pub fn try_reopen_broken_devices(&mut self) {
@@ -93,7 +112,7 @@ impl InputSystem {
                     let device_path = device.path.clone();
                     let add_file_res = unsafe { self.epoll.add_file(device.into()) };
                     match add_file_res {
-                        Ok(()) => eprintln!("The input device \"{}\" has been reopened.", device_path.display()),
+                        Ok(()) => eprintln!("The input device \"{}\" has been reconnected.", device_path.display()),
                         Err(error) => {
                             let error = error.with_context(format!("While attempting to re-add \"{}\" to the internal epoll:", device_path.display()));
                             eprintln!("{}", error);
@@ -101,8 +120,6 @@ impl InputSystem {
                     }
                 },
                 Err(blueprint) => {
-                    // TODO: Remove.
-                    eprintln!("Failed to reopen a the device \"{}\".", blueprint.pre_device.path.display());
                     still_broken_devices.push(blueprint);
                 },
             }

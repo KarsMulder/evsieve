@@ -259,6 +259,16 @@ impl Epoll {
         })
     }
 
+    /// Returns true if this epoll is polling at least one Inotify.
+    pub fn has_inotify(&self) -> bool {
+        self.files.values().any(
+            |file| match file {
+                Pollable::Inotify(_) => true,
+                _ => false,
+            }
+        )
+    }
+
     /// Returns whether currently any files are opened under this epoll.
     pub fn has_files(&self) -> bool {
         ! self.files.is_empty()
