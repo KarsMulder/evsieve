@@ -70,6 +70,7 @@ impl InputSystem {
                 EpollResult::BrokenInputDevice(device) => {
                     self.broken_devices.push(device.into_blueprint());
                     self.request_inotify();
+                    self.try_reopen_broken_devices();
                 },
             }
         }
@@ -89,16 +90,17 @@ impl InputSystem {
         // Listen to changes to the input devices directory so we know when to try reopening broken devices.
         let result = match Inotify::for_input_dirs() {
             Ok(inotify) => unsafe { 
-                self.epoll.add_file(inotify.into()).with_context("While adding an Inotify to an Epoll:".into())
+                self.epoll.add_file(inotify.into()).with_context("While adding an inotify to an epoll:".into())
             },
-            Err(error) => Err(error).with_context("While creating an Inotify instance:".into()),
+            Err(error) => Err(error).with_context("While creating an inotify instance:".into()),
         };
 
         // Inform the user in case of error.
         match result {
             Ok(_) => {},
             Err(error) => {
-                eprintln!("Error: could not create an Inotify instance. As consequence, disconnected devices cannot be reopened. Error message:\n{}", error);
+                // TODO: make this eprintln.
+                eprint!("Error: could not create an inotify instance. As consequence, disconnected devices cannot be reopened. Error message:\n{}", error);
             },
         }
     }

@@ -84,7 +84,7 @@ impl Inotify {
             libc::read(self.fd, buffer.as_mut_ptr() as *mut libc::c_void, BUFFER_SIZE)
         };
         if res < 0 {
-            eprintln!("Error: failed to read from an Inotify instance.");
+            eprintln!("Error: failed to read from an inotify instance.");
         }
     }
 }
