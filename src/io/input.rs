@@ -14,8 +14,8 @@ use crate::capability::{Capability, Capabilities, AbsInfo, RepeatInfo};
 use crate::ecodes;
 use crate::predevice::{PreInputDevice, GrabMode};
 use crate::error::{InterruptError, SystemError, Context};
-
-use super::epoll::{EpollResult, Pollable};
+use crate::io::epoll::Pollable;
+use crate::io::persist::BlueprintOpener;
 
 /// Organises the collection of all input devices to be used by the system.
 /// 
@@ -25,8 +25,6 @@ pub struct InputSystem {
     epoll: Epoll,
     /// A list of all capabilities any input device might possibly generate.
     capabilities_vec: Vec<Capability>,
-    /// A list of all broken input devices that want to be reopened.
-    broken_devices: Vec<InputDeviceBlueprint>,
 }
 
 impl InputSystem {
@@ -52,7 +50,7 @@ impl InputSystem {
             unsafe { epoll.add_file(Box::new(device))? };
         }
         
-        Ok(InputSystem { epoll, capabilities_vec, broken_devices: Vec::new() })
+        Ok(InputSystem { epoll, capabilities_vec })
     }
 
     pub fn poll(&mut self) -> Result<Vec<Event>, InterruptError> {
@@ -232,7 +230,7 @@ impl InputDevice {
     }
 
     // Closes the device and returns a blueprint from which it can be reopened.
-    pub fn into_blueprint(self) -> InputDeviceBlueprint {
+    pub fn to_blueprint(&self) -> InputDeviceBlueprint {
         InputDeviceBlueprint {
             capabilities: self.capabilities.clone(),
             pre_device: PreInputDevice {
@@ -312,10 +310,18 @@ unsafe fn get_device_state(evdev: *mut libevdev::libevdev, capabilities: &Capabi
 }
 
 impl Pollable for InputDevice {
-    fn poll(&mut self) -> EpollResult {
-        match self._poll() {
-            Ok(events) => EpollResult::Events(events),
-            Err(error) => EpollResult::Break(error),
+    fn poll(&mut self) -> Result<Vec<Event>, SystemError> {
+        self._poll() //TODO
+    }
+
+    fn reduce(self: Box<Self>) -> Result<Box<dyn Pollable>, SystemError> {
+        eprintln!("The input device {} has been disconnected.", self.path.display()); // TODO: should this be moved?
+        let blueprint = self.to_blueprint();
+        match BlueprintOpener::new(blueprint) {
+            Ok(opener) => Ok(Box::new(opener)),
+            Err(error) => Err(
+                error.with_context("While trying to watch the reconnection of an input device:")
+            ),
         }
     }
 }

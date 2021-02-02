@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+use crate::event::Event;
 use crate::io::input::InputDevice;
 use crate::predevice::PreInputDevice;
 use crate::capability::Capabilities;
 use crate::error::SystemError;
+use crate::io::epoll::{Pollable};
+use crate::error::Context;
 use std::collections::HashMap;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::PathBuf;
@@ -70,7 +73,8 @@ impl Inotify {
             )
         };
         if watch < 0 {
-            return Err(SystemError::new(format!("Failed to add \"{}\" to an inotify instance.", path)));
+            return Err(SystemError::from(std::io::Error::last_os_error()))
+                .with_context(format!("Failed to add \"{}\" to an inotify instance:", path))
         }
         self.watches.insert(path, watch);
         Ok(())
@@ -141,19 +145,18 @@ impl Drop for Inotify {
 pub struct BlueprintOpener {
     blueprint: InputDeviceBlueprint,
     inotify: Inotify,
+
+    /// In case the device is successfully opened, store it here until it can be handled over to
+    /// the epoll.
+    cached_device: Option<Box<InputDevice>>,
 }
 
 impl BlueprintOpener {
     pub fn new(blueprint: InputDeviceBlueprint) -> Result<BlueprintOpener, SystemError> {
         let inotify = Inotify::new()?;
-        let mut opener = BlueprintOpener { blueprint, inotify };
+        let mut opener = BlueprintOpener { blueprint, inotify, cached_device: None };
         opener.update_watched_paths()?;
         Ok(opener)
-    }
-
-    pub fn poll(&mut self) -> Result<Option<InputDevice>, SystemError> {
-        self.inotify.poll();
-        self.try_open()
     }
 
     pub fn try_open(&mut self) -> Result<Option<InputDevice>, SystemError> {
@@ -170,6 +173,7 @@ impl BlueprintOpener {
         let mut current_path: PathBuf = self.blueprint.pre_device.path.clone();
         let mut traversed_paths: Vec<PathBuf> = vec![current_path.clone()];
         while let Ok(next_path_rel) = current_path.read_link() {
+            current_path.pop();
             current_path = current_path.join(next_path_rel);
             traversed_paths.push(current_path.clone());
             // TODO: avoid possible infinite loop.
@@ -193,5 +197,31 @@ impl BlueprintOpener {
 impl AsRawFd for BlueprintOpener {
     fn as_raw_fd(&self) -> RawFd {
         self.inotify.as_raw_fd()
+    }
+}
+
+impl Pollable for BlueprintOpener {
+    fn poll(&mut self) -> Result<Vec<Event>, SystemError> {
+        self.inotify.poll();
+        match self.try_open() {
+            Ok(Some(device)) => {
+                self.cached_device = Some(Box::new(device));
+                Err(SystemError::new("")) // TODO
+            },
+            Ok(None) => Ok(Vec::new()),
+            Err(error) => Err(error),
+        }
+    }
+
+    fn reduce(self: Box<Self>) -> Result<Box<dyn Pollable>, SystemError> {
+        match self.cached_device {
+            Some(device) => {
+                eprintln!("The input device {} has been reopened.", device.path().display());
+                Ok(device)
+            },
+            None => Err(SystemError::new(format!(
+                "Unable to reopen the input device {}.", self.blueprint.pre_device.path.display()
+            ))),
+        }
     }
 }

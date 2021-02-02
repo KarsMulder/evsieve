@@ -21,16 +21,9 @@ pub struct Epoll {
 }
 
 pub trait Pollable : AsRawFd {
-    fn poll(&mut self) -> EpollResult;
-}
-
-pub enum EpollResult {
-    /// Events have been polled from this device.
-    Events(Vec<Event>),
-    /// This device is irrepairably broken. Carry on without it.
-    Break(SystemError),
-    /// This device should be removed and replaced with another.
-    Replace(Box<dyn Pollable>),
+    fn poll(&mut self) -> Result<Vec<Event>, SystemError>;
+    // TODO document
+    fn reduce(self: Box<Self>) -> Result<Box<dyn Pollable>, SystemError>;
 }
 
 impl Epoll {
@@ -181,9 +174,8 @@ impl Epoll {
         for index in ready_file_indices {
             if let Some(file) = self.files.get_mut(&index) {
                 match file.poll() {
-                    EpollResult::Events(results) => polled_results.extend(results),
-                    EpollResult::Replace(_) => unimplemented!(),
-                    EpollResult::Break(error) => {
+                    Ok(results) => polled_results.extend(results),
+                    Err(error) => {
                         error.print_err();
                         if ! broken_file_indices.contains(&index) {
                             broken_file_indices.push(index);
@@ -195,7 +187,11 @@ impl Epoll {
 
         // Remove the broken devices from self.
         for index in broken_file_indices {
-            self.remove_file_by_index(index);
+            let broken_file = self.remove_file_by_index(index);
+            match broken_file.reduce() {
+                Ok(file) => unsafe { self.add_file(file) }.print_err(),
+                Err(error) => error.print_err(),
+            }
         }
 
         Ok(polled_results)
