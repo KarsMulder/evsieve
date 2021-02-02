@@ -169,6 +169,8 @@ impl BlueprintOpener {
     }
 
     pub fn update_watched_paths(&mut self) -> Result<(), SystemError> {
+        const MAX_SYMLINKS: usize = 20;
+
         // Walk down the chain of symlinks starting at current_path.
         let mut current_path: PathBuf = self.blueprint.pre_device.path.clone();
         let mut traversed_paths: Vec<PathBuf> = vec![current_path.clone()];
@@ -176,7 +178,10 @@ impl BlueprintOpener {
             current_path.pop();
             current_path = current_path.join(next_path_rel);
             traversed_paths.push(current_path.clone());
-            // TODO: avoid possible infinite loop.
+            // The +1 is because the device node is not a symlink.
+            if traversed_paths.len() > MAX_SYMLINKS + 1 {
+                return Err(SystemError::new("Too many symlinks."));
+            }
         }
         
         // Watch every directory containing a symlink.
@@ -201,27 +206,27 @@ impl AsRawFd for BlueprintOpener {
 }
 
 impl Pollable for BlueprintOpener {
-    fn poll(&mut self) -> Result<Vec<Event>, SystemError> {
+    fn poll(&mut self) -> Result<Vec<Event>, Option<SystemError>> {
         self.inotify.poll();
         match self.try_open() {
             Ok(Some(device)) => {
                 self.cached_device = Some(Box::new(device));
-                Err(SystemError::new("")) // TODO
+                Err(None)
             },
             Ok(None) => Ok(Vec::new()),
-            Err(error) => Err(error),
+            Err(error) => Err(Some(error)),
         }
     }
 
-    fn reduce(self: Box<Self>) -> Result<Box<dyn Pollable>, SystemError> {
+    fn reduce(self: Box<Self>) -> Result<Box<dyn Pollable>, Option<SystemError>> {
         match self.cached_device {
             Some(device) => {
                 eprintln!("The input device {} has been reopened.", device.path().display());
                 Ok(device)
             },
-            None => Err(SystemError::new(format!(
+            None => Err(Some(SystemError::new(format!(
                 "Unable to reopen the input device {}.", self.blueprint.pre_device.path.display()
-            ))),
+            )))),
         }
     }
 }

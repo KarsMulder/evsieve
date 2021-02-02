@@ -21,9 +21,23 @@ pub struct Epoll {
 }
 
 pub trait Pollable : AsRawFd {
-    fn poll(&mut self) -> Result<Vec<Event>, SystemError>;
-    // TODO document
-    fn reduce(self: Box<Self>) -> Result<Box<dyn Pollable>, SystemError>;
+    /// Should return a list of events that were polled by this device.
+    ///
+    /// If this function returns Err, then the device is considered broken and shall be
+    /// removed from this epoll and reduced. If it returns Err(Some), then said error shall
+    /// also be printed. Err(None) is considered a request "nothing is wrong, just reduce me"
+    /// and will cause the device to be silently reduced.
+    fn poll(&mut self) -> Result<Vec<Event>, Option<SystemError>>;
+    /// When the device is broken, it will be removed from the epoll, and then have reduce()
+    /// called to see if it can live on in some form. If reduce() returns Ok, then the returned
+    /// device shall be added to the epoll. If it returns Err, then the device is permanently
+    /// removed from the system.
+    ///
+    /// This reduction system is useful for repairing devices: for example, if an input device
+    /// breaks, then it can return another device which will try to reopen the device. That
+    /// other device will then break itself when the original device can be reopened and reduce
+    /// to that device.
+    fn reduce(self: Box<Self>) -> Result<Box<dyn Pollable>, Option<SystemError>>;
 }
 
 impl Epoll {
@@ -175,8 +189,10 @@ impl Epoll {
             if let Some(file) = self.files.get_mut(&index) {
                 match file.poll() {
                     Ok(results) => polled_results.extend(results),
-                    Err(error) => {
-                        error.print_err();
+                    Err(error_opt) => {
+                        if let Some(error) = error_opt {
+                            error.print_err();
+                        }
                         if ! broken_file_indices.contains(&index) {
                             broken_file_indices.push(index);
                         }
@@ -190,7 +206,8 @@ impl Epoll {
             let broken_file = self.remove_file_by_index(index);
             match broken_file.reduce() {
                 Ok(file) => unsafe { self.add_file(file) }.print_err(),
-                Err(error) => error.print_err(),
+                Err(None) => (),
+                Err(Some(error)) => error.print_err(),
             }
         }
 

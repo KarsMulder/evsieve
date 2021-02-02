@@ -310,18 +310,18 @@ unsafe fn get_device_state(evdev: *mut libevdev::libevdev, capabilities: &Capabi
 }
 
 impl Pollable for InputDevice {
-    fn poll(&mut self) -> Result<Vec<Event>, SystemError> {
-        self._poll() //TODO
+    fn poll(&mut self) -> Result<Vec<Event>, Option<SystemError>> {
+        self._poll().map_err(Option::Some)
     }
 
-    fn reduce(self: Box<Self>) -> Result<Box<dyn Pollable>, SystemError> {
+    fn reduce(self: Box<Self>) -> Result<Box<dyn Pollable>, Option<SystemError>> {
         eprintln!("The input device {} has been disconnected.", self.path.display()); // TODO: should this be moved?
         let blueprint = self.to_blueprint();
         match BlueprintOpener::new(blueprint) {
             Ok(opener) => Ok(Box::new(opener)),
-            Err(error) => Err(
+            Err(error) => Err(Some(
                 error.with_context("While trying to watch the reconnection of an input device:")
-            ),
+            )),
         }
     }
 }
