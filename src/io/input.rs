@@ -109,7 +109,7 @@ impl InputSystem {
         let mut still_broken_devices: Vec<InputDeviceBlueprint> = Vec::new();
         for device in self.broken_devices.drain(..) {
             match device.try_open() {
-                Ok(device) => {
+                Ok(Ok(device)) => {
                     // TODO: get rid of unsafe
                     let device_path = device.path.clone();
                     let add_file_res = unsafe { self.epoll.add_file(device.into()) };
@@ -121,9 +121,10 @@ impl InputSystem {
                         }
                     }
                 },
-                Err(blueprint) => {
+                Ok(Err(blueprint)) => {
                     still_broken_devices.push(blueprint);
                 },
+                Err(error) => error.print_err(),
             }
         }
         self.broken_devices = still_broken_devices;
