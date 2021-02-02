@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use crate::error::SystemError;
+use crate::error::{InterruptError, SystemError};
 use crate::event::Event;
-use crate::io::input::InputDevice;
-use crate::io::persist::Inotify;
-use crate::io::persist::BlueprintOpener;
 use crate::sysexit;
 use std::collections::HashMap;
 use std::os::unix::io::{AsRawFd, RawFd};
@@ -17,73 +14,13 @@ use std::os::unix::io::{AsRawFd, RawFd};
 /// it will be removed from the Epoll and returned as an EpollResult.
 pub struct Epoll {
     fd: RawFd,
-    files: HashMap<u64, Pollable>,
+    files: HashMap<u64, Box<dyn Pollable>>,
     /// A counter, so every file registered can get an unique index in the files map.
     counter: u64,
 }
 
-pub enum Pollable {
-    InputDevice(InputDevice),
-    Inotify(Inotify),
-    BlueprintOpener(BlueprintOpener),
-}
-
-impl Pollable {
-    pub fn poll(&mut self) -> Result<Vec<EpollResult>, SystemError> {
-        Ok(match self {
-            Pollable::InputDevice(device) => {
-                device.poll()?.into_iter().map(EpollResult::Event).collect()
-            },
-            Pollable::Inotify(inotify) => {
-                inotify.poll();
-                vec![EpollResult::Inotify]
-            },
-            Pollable::BlueprintOpener(opener) => {
-                if let Some(device) = opener.poll()? {
-                    vec![EpollResult::DeviceOpened(device.into())]
-                } else {
-                    vec![]
-                }
-            },
-        })
-    }
-}
-
-impl AsRawFd for Pollable {
-    fn as_raw_fd(&self) -> RawFd {
-        match self {
-            Pollable::InputDevice(device) => device.as_raw_fd(),
-            Pollable::Inotify(device) => device.as_raw_fd(),
-            Pollable::BlueprintOpener(device) => device.as_raw_fd(),
-        }
-    }
-}
-
-impl From<InputDevice> for Pollable {
-    fn from(device: InputDevice) -> Pollable {
-        Pollable::InputDevice(device)
-    }
-}
-
-impl From<Inotify> for Pollable {
-    fn from(inotify: Inotify) -> Pollable {
-        Pollable::Inotify(inotify)
-    }
-}
-
-pub enum EpollResult {
-    /// An event has been received.
-    Event(Event),
-    /// A message has been received from a thread or interrupt.
-    Interrupt,
-    /// The Inotify told us that an interesting file or directory has changed.
-    Inotify,
-    /// Tells us that one of the input devices we're receiving events from has ceased working
-    /// for some reason, most likely that reason being that the device has been physically
-    /// disconnected from the computer.
-    BrokenInputDevice(Box<InputDevice>),
-    /// A BlueprintOpener has reopened an input device.
-    DeviceOpened(Box<InputDevice>),
+pub trait Pollable : AsRawFd {
+    fn poll(&mut self) -> Result<Vec<Event>, SystemError>;
 }
 
 impl Epoll {
@@ -109,7 +46,7 @@ impl Epoll {
 
     /// # Safety
     /// The file must return a valid raw file descriptor.
-    pub unsafe fn add_file(&mut self, file: Pollable) -> Result<(), SystemError> {
+    pub unsafe fn add_file(&mut self, file: Box<dyn Pollable>) -> Result<(), SystemError> {
         let index = self.get_unique_index();
         let file_fd = file.as_raw_fd();
 
@@ -139,7 +76,7 @@ impl Epoll {
         }
     }
 
-    fn remove_file_by_index(&mut self, index: u64) -> Pollable {
+    fn remove_file_by_index(&mut self, index: u64) -> Box<dyn Pollable> {
         let file = match self.files.remove(&index) {
             Some(file) => file,
             None => panic!("Internal error: attempted to remove a device from an epoll that's not registered with it."),
@@ -169,7 +106,7 @@ impl Epoll {
 
     /// Tries to read all events from all ready devices. Returns a vector containing all events read.
     /// If a device reports an error, said device is removed from self and also returned.
-    pub fn poll(&mut self) -> Vec<EpollResult> {
+    pub fn poll(&mut self) -> Result<Vec<Event>, InterruptError> {
         // The number 8 was chosen arbitrarily.
         let max_events: i32 = std::cmp::min(self.files.len(), 8) as i32;
         let mut events: Vec<libc::epoll_event> = (0 .. max_events).map(|_| libc::epoll_event {
@@ -192,7 +129,7 @@ impl Epoll {
             libc::sigprocmask(libc::SIG_SETMASK, sigmask_mut_ptr, orig_sigmask_mut_ptr);
 
             if sysexit::should_exit() {
-                return vec![EpollResult::Interrupt];
+                return Err(InterruptError::new());
             }
 
             let result = libc::epoll_pwait(
@@ -210,7 +147,7 @@ impl Epoll {
         if result < 0 {
             // Either we got an SIGINT/SIGTERM interrupt or an unexpected error.
             // It's unfortunately difficult to read errno from libc, so for now we assume the former.
-            return vec![EpollResult::Interrupt];
+            return Err(InterruptError::new());
         }
 
         let num_fds = result as usize;
@@ -230,7 +167,7 @@ impl Epoll {
         }
 
         // Retrieve all results from ready devices.
-        let mut polled_results: Vec<EpollResult> = Vec::new();
+        let mut polled_results: Vec<Event> = Vec::new();
         for index in ready_file_indices {
             if let Some(file) = self.files.get_mut(&index) {
                 match file.poll() {
@@ -246,58 +183,18 @@ impl Epoll {
         }
 
         // Remove the broken devices from self and return them.
-        polled_results.extend(
-            broken_file_indices.into_iter()
-            // Turn the broken indices into files.
-            .map(
-                |index| self.remove_file_by_index(index)
-            )
-            // Turn the broken files into results.
-            .map(|pollable| {
-                if let Pollable::InputDevice(device) = pollable {
-                    let device_path = device.path();
-                    eprintln!("The input device \"{}\" has been disconnected.", device_path.display());
-                    EpollResult::BrokenInputDevice(Box::new(device))
-                } else {
-                    // TODO: can we recover from this?
-                    panic!("Fatal error: an internal file descriptor broke.");
-                }
-            })
-        );
-
-        polled_results
-    }
-
-    pub fn get_input_devices_mut(&mut self) -> impl Iterator<Item=&mut Pollable> {
-        self.files.iter_mut().map(
-            |(_index, file)| file
-        ).filter(|file| match file {
-            Pollable::InputDevice(_device) => true,
-            _ => false,
-        })
-    }
-
-    /// Returns true if this epoll is polling at least one Inotify.
-    pub fn has_inotify(&self) -> bool {
-        self.files.values().any(
-            |file| match file {
-                Pollable::Inotify(_) => true,
-                _ => false,
-            }
+        broken_file_indices.into_iter()
+        // Turn the broken indices into files.
+        .map(
+            |index| self.remove_file_by_index(index)
         )
-    }
+        // Turn the broken files into results.
+        .for_each(|pollable| {
+            // TODO: handle proken devices.
+            panic!("Fatal error: an internal file descriptor broke.");
+        });
 
-    /// Removes all inotify instances from this epoll.
-    pub fn clear_inotify(&mut self) {
-        let mut indices_to_clear: Vec<u64> = Vec::new();
-        for (index, file) in &self.files {
-            if let Pollable::Inotify(_) = file {
-                indices_to_clear.push(*index);
-            }
-        }
-        for index in indices_to_clear {
-            self.remove_file_by_index(index);
-        }
+        Ok(polled_results)
     }
 
     /// Returns whether currently any files are opened under this epoll.

@@ -6,15 +6,16 @@ use std::os::unix::io::{AsRawFd, RawFd};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use crate::bindings::libevdev;
-use crate::io::epoll::{Epoll, EpollResult};
-use crate::io::persist::{Inotify, InputDeviceBlueprint};
+use crate::io::epoll::Epoll;
+use crate::io::persist::{InputDeviceBlueprint};
 use crate::event::{Event, EventType, EventValue, EventCode, Namespace};
 use crate::domain::Domain;
 use crate::capability::{Capability, Capabilities, AbsInfo, RepeatInfo};
 use crate::ecodes;
 use crate::predevice::{PreInputDevice, GrabMode};
 use crate::error::{InterruptError, SystemError, Context};
-use crate::sysexit;
+
+use super::epoll::Pollable;
 
 /// Organises the collection of all input devices to be used by the system.
 /// 
@@ -48,95 +49,18 @@ impl InputSystem {
 
         let mut epoll = Epoll::new()?;
         for device in input_devices {
-            unsafe { epoll.add_file(device.into())? };
+            unsafe { epoll.add_file(Box::new(device))? };
         }
         
         Ok(InputSystem { epoll, capabilities_vec, broken_devices: Vec::new() })
     }
 
     pub fn poll(&mut self) -> Result<Vec<Event>, InterruptError> {
-        let mut events: Vec<Event> = Vec::new();
-        for result in self.epoll.poll() {
-            match result {
-                EpollResult::Event(event) => events.push(event),
-                EpollResult::Interrupt => {
-                    if sysexit::should_exit() || ! self.epoll.has_files() {
-                        return Err(InterruptError::new());
-                    }
-                },
-                EpollResult::Inotify => {
-                    self.handle_broken_devices();
-                },
-                EpollResult::BrokenInputDevice(device) => {
-                    self.broken_devices.push(device.into_blueprint());
-                    self.request_inotify();
-                    self.handle_broken_devices();
-                },
-                EpollResult::DeviceOpened(device) => {
-                    eprintln!("The input device {} has been reopened.", device.path().display());
-                    unsafe { self.epoll.add_file((*device).into()).print_err() };
-                }
-            }
-        }
-        Ok(events)
+        self.epoll.poll()
     }
 
     pub fn get_capabilities(&self) -> &[Capability] {
         &self.capabilities_vec
-    }
-
-    /// If the underlying epoll does not have an Inotify instance, try to add it.
-    pub fn request_inotify(&mut self) {
-        if self.epoll.has_inotify() {
-            return;
-        }
-
-        // Listen to changes to the input devices directory so we know when to try reopening broken devices.
-        let result = match Inotify::for_input_dirs() {
-            Ok(inotify) => unsafe { 
-                self.epoll.add_file(inotify.into()).with_context("While adding an inotify to an epoll:")
-            },
-            Err(error) => Err(error).with_context("While creating an inotify instance:"),
-        };
-
-        // Inform the user in case of error.
-        match result {
-            Ok(_) => {},
-            Err(error) => {
-                eprintln!("Error: could not create an inotify instance. As consequence, disconnected devices cannot be reopened. Error message:\n{}", error);
-            },
-        }
-    }
-
-    pub fn handle_broken_devices(&mut self) {
-        // Try to reopen all broken devices.
-        let mut still_broken_devices: Vec<InputDeviceBlueprint> = Vec::new();
-        for mut device in self.broken_devices.drain(..) {
-            match device.try_open() {
-                Ok(Some(device)) => {
-                    // TODO: get rid of unsafe
-                    let device_path = device.path.clone();
-                    let add_file_res = unsafe { self.epoll.add_file(device.into()) };
-                    match add_file_res {
-                        Ok(()) => eprintln!("The input device \"{}\" has been reconnected.", device_path.display()),
-                        Err(error) => {
-                            let error = error.with_context(format!("While attempting to re-add \"{}\" to the internal epoll:", device_path.display()));
-                            eprintln!("{}", error);
-                        }
-                    }
-                },
-                Ok(None) => {
-                    still_broken_devices.push(device);
-                },
-                Err(error) => error.print_err(),
-            }
-        }
-        self.broken_devices = still_broken_devices;
-
-        // If no broken devices are left, then we can clear the inotify.
-        if self.broken_devices.is_empty() {
-            self.epoll.clear_inotify();
-        }
     }
 }
 
@@ -237,7 +161,7 @@ impl InputDevice {
 
     /// Reads the raw events from the device and attached additional information such as the
     /// domain of this device and whatever value this event had the last time it was seen.
-    pub fn poll(&mut self) -> Result<Vec<Event>, SystemError> {
+    fn _poll(&mut self) -> Result<Vec<Event>, SystemError> {
         let mut result: Vec<Event> = Vec::new();
         for (code, value) in self.read_raw()? {
             let previous_value_mut: &mut EventValue = self.state.entry(code).or_insert(0);
@@ -385,6 +309,12 @@ unsafe fn get_device_state(evdev: *mut libevdev::libevdev, capabilities: &Capabi
         
     }
     device_state
+}
+
+impl Pollable for InputDevice {
+    fn poll(&mut self) -> Result<Vec<Event>, SystemError> {
+        self._poll()
+    }
 }
 
 impl AsRawFd for InputDevice {
