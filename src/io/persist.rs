@@ -7,7 +7,6 @@ use crate::error::SystemError;
 use std::collections::HashMap;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::PathBuf;
-use std::thread::current;
 
 pub struct InputDeviceBlueprint {
     pub pre_device: PreInputDevice,
@@ -16,22 +15,22 @@ pub struct InputDeviceBlueprint {
 
 impl InputDeviceBlueprint {
     /// Tries to reopen the device from which this blueprint was generated.
-    /// On success, returns the device. On failure, returns Ok(Err(self)). In case of a grave
+    /// On success, returns the device. On failure, returns Ok(None). In case of a grave
     /// error that signals reopening should not be retried, returns Err(SystemError).
-    pub fn try_open(self) -> Result<Result<InputDevice, InputDeviceBlueprint>, SystemError> {
+    pub fn try_open(&mut self) -> Result<Option<InputDevice>, SystemError> {
         if ! self.pre_device.path.exists() {
-            return Ok(Err(self));
+            return Ok(None);
         }
         let input_device = match InputDevice::open(self.pre_device.clone()) {
             Ok(device) => device,
-            Err(_) => return Ok(Err(self)),
+            Err(_) => return Ok(None),
         };
         if *input_device.capabilities() != self.capabilities {
             return Err(SystemError::new(
                 format!("Cannot reopen input device \"{}\": this device's capabilities are different from the original device that disconnected.", self.pre_device.path.display())
             ));
         }
-        Ok(Ok(input_device))
+        Ok(Some(input_device))
     }
 }
 
@@ -139,20 +138,36 @@ impl Drop for Inotify {
 
 /// The BlueprintOpener is responsible for watching for filesystem events on all relevant directories
 /// that are relevant for determining whether an input device can be reopened. 
-struct BlueprintOpener {
+pub struct BlueprintOpener {
     blueprint: InputDeviceBlueprint,
     inotify: Inotify,
 }
 
 impl BlueprintOpener {
-    pub fn try_open(mut self) -> Result<Result<InputDevice, BlueprintOpener>, SystemError> {
-        let mut current_path: PathBuf = self.blueprint.pre_device.path.clone();
-        self.blueprint = match self.blueprint.try_open()? {
-            Ok(device) => return Ok(Ok(device)),
-            Err(blueprint) => blueprint,
-        };
+    pub fn new(blueprint: InputDeviceBlueprint) -> Result<BlueprintOpener, SystemError> {
+        let inotify = Inotify::new()?;
+        let mut opener = BlueprintOpener { blueprint, inotify };
+        opener.update_watched_paths()?;
+        Ok(opener)
+    }
 
+    pub fn poll(&mut self) -> Result<Option<InputDevice>, SystemError> {
+        self.inotify.poll();
+        self.try_open()
+    }
+
+    pub fn try_open(&mut self) -> Result<Option<InputDevice>, SystemError> {
+        if let Some(device) = self.blueprint.try_open()? {
+            return Ok(Some(device));
+        };
+        // TODO: possible race condition: what if the filesystem changed before the watches were added?
+        self.update_watched_paths()?;
+        Ok(None)
+    }
+
+    pub fn update_watched_paths(&mut self) -> Result<(), SystemError> {
         // Walk down the chain of symlinks starting at current_path.
+        let mut current_path: PathBuf = self.blueprint.pre_device.path.clone();
         let mut traversed_paths: Vec<PathBuf> = vec![current_path.clone()];
         while let Ok(next_path_rel) = current_path.read_link() {
             current_path = current_path.join(next_path_rel);
@@ -171,8 +186,12 @@ impl BlueprintOpener {
             .collect::<Result<Vec<String>, SystemError>>()?;
         self.inotify.set_watches(directories)?;
         
-        // TODO: possible race condition: what if the filesystem changed before the watches were added?
+        Ok(())
+    }
+}
 
-        Ok(Err(self))
+impl AsRawFd for BlueprintOpener {
+    fn as_raw_fd(&self) -> RawFd {
+        self.inotify.as_raw_fd()
     }
 }

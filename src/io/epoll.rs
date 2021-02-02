@@ -4,6 +4,7 @@ use crate::error::SystemError;
 use crate::event::Event;
 use crate::io::input::InputDevice;
 use crate::io::persist::Inotify;
+use crate::io::persist::BlueprintOpener;
 use crate::sysexit;
 use std::collections::HashMap;
 use std::os::unix::io::{AsRawFd, RawFd};
@@ -24,6 +25,7 @@ pub struct Epoll {
 pub enum Pollable {
     InputDevice(InputDevice),
     Inotify(Inotify),
+    BlueprintOpener(BlueprintOpener),
 }
 
 impl Pollable {
@@ -35,7 +37,14 @@ impl Pollable {
             Pollable::Inotify(inotify) => {
                 inotify.poll();
                 vec![EpollResult::Inotify]
-            }
+            },
+            Pollable::BlueprintOpener(opener) => {
+                if let Some(device) = opener.poll()? {
+                    vec![EpollResult::DeviceOpened(device.into())]
+                } else {
+                    vec![]
+                }
+            },
         })
     }
 }
@@ -45,6 +54,7 @@ impl AsRawFd for Pollable {
         match self {
             Pollable::InputDevice(device) => device.as_raw_fd(),
             Pollable::Inotify(device) => device.as_raw_fd(),
+            Pollable::BlueprintOpener(device) => device.as_raw_fd(),
         }
     }
 }
@@ -72,6 +82,8 @@ pub enum EpollResult {
     /// for some reason, most likely that reason being that the device has been physically
     /// disconnected from the computer.
     BrokenInputDevice(Box<InputDevice>),
+    /// A BlueprintOpener has reopened an input device.
+    DeviceOpened(Box<InputDevice>),
 }
 
 impl Epoll {

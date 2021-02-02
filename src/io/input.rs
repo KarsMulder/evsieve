@@ -72,6 +72,10 @@ impl InputSystem {
                     self.request_inotify();
                     self.handle_broken_devices();
                 },
+                EpollResult::DeviceOpened(device) => {
+                    eprintln!("The input device {} has been reopened.", device.path().display());
+                    unsafe { self.epoll.add_file((*device).into()).print_err() };
+                }
             }
         }
         Ok(events)
@@ -107,9 +111,9 @@ impl InputSystem {
     pub fn handle_broken_devices(&mut self) {
         // Try to reopen all broken devices.
         let mut still_broken_devices: Vec<InputDeviceBlueprint> = Vec::new();
-        for device in self.broken_devices.drain(..) {
+        for mut device in self.broken_devices.drain(..) {
             match device.try_open() {
-                Ok(Ok(device)) => {
+                Ok(Some(device)) => {
                     // TODO: get rid of unsafe
                     let device_path = device.path.clone();
                     let add_file_res = unsafe { self.epoll.add_file(device.into()) };
@@ -121,8 +125,8 @@ impl InputSystem {
                         }
                     }
                 },
-                Ok(Err(blueprint)) => {
-                    still_broken_devices.push(blueprint);
+                Ok(None) => {
+                    still_broken_devices.push(device);
                 },
                 Err(error) => error.print_err(),
             }
