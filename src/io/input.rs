@@ -15,7 +15,7 @@ use crate::ecodes;
 use crate::predevice::{PreInputDevice, GrabMode};
 use crate::error::{InterruptError, SystemError, Context};
 
-use super::epoll::Pollable;
+use super::epoll::{EpollResult, Pollable};
 
 /// Organises the collection of all input devices to be used by the system.
 /// 
@@ -312,8 +312,11 @@ unsafe fn get_device_state(evdev: *mut libevdev::libevdev, capabilities: &Capabi
 }
 
 impl Pollable for InputDevice {
-    fn poll(&mut self) -> Result<Vec<Event>, SystemError> {
-        self._poll()
+    fn poll(&mut self) -> EpollResult {
+        match self._poll() {
+            Ok(events) => EpollResult::Events(events),
+            Err(error) => EpollResult::Break(error),
+        }
     }
 }
 

@@ -3,6 +3,7 @@
 use crate::error::{InterruptError, SystemError};
 use crate::event::Event;
 use crate::sysexit;
+use crate::error::Context;
 use std::collections::HashMap;
 use std::os::unix::io::{AsRawFd, RawFd};
 
@@ -20,7 +21,16 @@ pub struct Epoll {
 }
 
 pub trait Pollable : AsRawFd {
-    fn poll(&mut self) -> Result<Vec<Event>, SystemError>;
+    fn poll(&mut self) -> EpollResult;
+}
+
+pub enum EpollResult {
+    /// Events have been polled from this device.
+    Events(Vec<Event>),
+    /// This device is irrepairably broken. Carry on without it.
+    Break(SystemError),
+    /// This device should be removed and replaced with another.
+    Replace(Box<dyn Pollable>),
 }
 
 impl Epoll {
@@ -171,9 +181,10 @@ impl Epoll {
         for index in ready_file_indices {
             if let Some(file) = self.files.get_mut(&index) {
                 match file.poll() {
-                    Ok(results) => polled_results.extend(results),
-                    Err(error) => {
-                        eprintln!("{}", error);
+                    EpollResult::Events(results) => polled_results.extend(results),
+                    EpollResult::Replace(_) => unimplemented!(),
+                    EpollResult::Break(error) => {
+                        error.print_err();
                         if ! broken_file_indices.contains(&index) {
                             broken_file_indices.push(index);
                         }
@@ -182,17 +193,10 @@ impl Epoll {
             }
         }
 
-        // Remove the broken devices from self and return them.
-        broken_file_indices.into_iter()
-        // Turn the broken indices into files.
-        .map(
-            |index| self.remove_file_by_index(index)
-        )
-        // Turn the broken files into results.
-        .for_each(|pollable| {
-            // TODO: handle proken devices.
-            panic!("Fatal error: an internal file descriptor broke.");
-        });
+        // Remove the broken devices from self.
+        for index in broken_file_indices {
+            self.remove_file_by_index(index);
+        }
 
         Ok(polled_results)
     }
