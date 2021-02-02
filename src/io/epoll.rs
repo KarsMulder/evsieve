@@ -215,8 +215,8 @@ impl Epoll {
     }
 
     /// Returns whether currently any files are opened under this epoll.
-    pub fn has_files(&self) -> bool {
-        ! self.files.is_empty()
+    pub fn is_empty(&self) -> bool {
+        self.files.is_empty()
     }
 }
 

@@ -58,10 +58,10 @@ impl InputSystem {
             match self.epoll.poll() {
                 Ok(events) => return Ok(events),
                 Err(InterruptError {}) => {
-                    if self.epoll.has_files() && !sysexit::should_exit() {
-                        continue;
-                    } else {
+                    if self.epoll.is_empty() || sysexit::should_exit() {
                         return Err(InterruptError {});
+                    } else {
+                        continue;
                     }
                 }
             }
