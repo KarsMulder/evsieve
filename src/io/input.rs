@@ -11,7 +11,7 @@ use crate::io::persist::{InputDeviceBlueprint};
 use crate::event::{Event, EventType, EventValue, EventCode, Namespace};
 use crate::domain::Domain;
 use crate::capability::{Capability, Capabilities, AbsInfo, RepeatInfo};
-use crate::{ecodes, sysexit};
+use crate::ecodes;
 use crate::predevice::{PreInputDevice, GrabMode};
 use crate::error::{InterruptError, SystemError, Context};
 use crate::io::epoll::Pollable;
@@ -54,18 +54,7 @@ impl InputSystem {
     }
 
     pub fn poll(&mut self) -> Result<Vec<Event>, InterruptError> {
-        loop {
-            match self.epoll.poll() {
-                Ok(events) => return Ok(events),
-                Err(InterruptError {}) => {
-                    if self.epoll.is_empty() || sysexit::should_exit() {
-                        return Err(InterruptError {});
-                    } else {
-                        continue;
-                    }
-                }
-            }
-        }
+        self.epoll.poll()
     }
 
     pub fn get_capabilities(&self) -> &[Capability] {

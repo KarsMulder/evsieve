@@ -121,7 +121,7 @@ impl Epoll {
         file
     }
 
-    fn poll_raw(&mut self) -> Result<Vec<libc::epoll_event>, SystemError> {
+    fn poll_raw(&mut self) -> Result<Vec<libc::epoll_event>, std::io::Error> {
         // The number 8 was chosen arbitrarily.
         let max_events: i32 = std::cmp::min(self.files.len(), 8) as i32;
         let mut events: Vec<libc::epoll_event> = (0 .. max_events).map(|_| libc::epoll_event {
@@ -156,7 +156,7 @@ impl Epoll {
         };
 
         if result < 0 {
-            Err(SystemError::from(std::io::Error::last_os_error()))
+            Err(std::io::Error::last_os_error())
         } else {
             let num_fds = result as usize;
             Ok(events[0..num_fds].to_owned())
@@ -166,13 +166,34 @@ impl Epoll {
     /// Tries to read all events from all ready devices. Returns a vector containing all events read.
     /// If a device reports an error, said device is removed from self and also returned.
     pub fn poll(&mut self) -> Result<Vec<Event>, InterruptError> {
-        let events = self.poll_raw().map_err(|_| InterruptError::new())?;
+        let events = loop {
+            match self.poll_raw() {
+                Ok(events) => break events,
+                Err(error) => match error.kind() {
+                    std::io::ErrorKind::Interrupted => {
+                        if sysexit::should_exit() {
+                            return Err(InterruptError::new())
+                        } else {
+                            continue;
+                        }
+                    },
+                    _ => {
+                        if self.is_empty() {
+                            eprintln!("No input devices to poll events from; evsieve will exit now.");
+                        } else {
+                            eprintln!("Fatal error while polling for events: {}", error);
+                        }
+                        return Err(InterruptError::new());
+                    }
+                }
+            }
+        };
 
         // Create a list of which devices are ready and which are broken.
         let mut ready_file_indices: Vec<u64> = Vec::new();
         let mut broken_file_indices: Vec<u64> = Vec::new();
 
-        for event in events.iter() {
+        for event in events {
             let file_index = event.u64;
             if event.events & libc::EPOLLIN as u32 != 0 {
                 ready_file_indices.push(file_index);
