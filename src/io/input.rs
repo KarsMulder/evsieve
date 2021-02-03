@@ -111,7 +111,7 @@ impl InputDevice {
         };
         if res < 0 {
             return Err(SystemError::new(
-                format!("Failed to open a libevdev instance: {}", path.to_string_lossy())
+                format!("Failed to open a libevdev instance: {}.", path.to_string_lossy())
             ));
         }
 

@@ -25,7 +25,7 @@ impl InputDeviceBlueprint {
         }
         let input_device = match InputDevice::open(self.pre_device.clone()) {
             Ok(device) => device,
-            Err(_) => return Ok(None),
+            Err(error) => return Err(error),
         };
         if *input_device.capabilities() != self.capabilities {
             return Err(SystemError::new(
