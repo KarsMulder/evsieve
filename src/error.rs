@@ -126,6 +126,13 @@ macro_rules! display_error {
     };
 }
 
+impl SystemError {
+    pub fn os_with_context(context: impl Into<String>) -> SystemError {
+        SystemError::from(std::io::Error::last_os_error())
+            .with_context(context)
+    }
+}
+
 runtime_errors!(ArgumentError, InternalError, SystemError);
 display_error!(ArgumentError, "Invalid argument: {}");
 display_error!(InternalError, "Internal error: {}");
