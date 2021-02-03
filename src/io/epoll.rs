@@ -46,7 +46,7 @@ impl Epoll {
             libc::epoll_create1(0)
         };
         if epoll_fd < 0 {
-            return Err(SystemError::new("Failed to create epoll instance."));
+            return Err(SystemError::os_with_context("While trying to create an epoll instance:"));
         }
 
         Ok(Epoll {
@@ -87,7 +87,7 @@ impl Epoll {
         );
 
         if result < 0 {
-            Err(SystemError::new("Failed to add a device to an epoll instance."))
+            Err(SystemError::os_with_context("While adding a device to an epoll instance:"))
         } else {
             Ok(())
         }

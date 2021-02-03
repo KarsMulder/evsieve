@@ -6,7 +6,6 @@ use crate::predevice::PreInputDevice;
 use crate::capability::Capabilities;
 use crate::error::SystemError;
 use crate::io::epoll::{Pollable};
-use crate::error::Context;
 use std::collections::HashMap;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::PathBuf;
@@ -46,7 +45,7 @@ impl Inotify {
     pub fn new() -> Result<Inotify, SystemError> {
         let fd = unsafe { libc::inotify_init1(libc::IN_NONBLOCK) };
         if fd < 0 {
-            return Err(SystemError::new("Failed to initialize an inotify instance."));
+            return Err(SystemError::os_with_context("While initializing an inotify instance:"));
         }
         Ok(Inotify { fd, watches: HashMap::new() })
     }
@@ -73,8 +72,8 @@ impl Inotify {
             )
         };
         if watch < 0 {
-            return Err(SystemError::from(std::io::Error::last_os_error()))
-                .with_context(format!("Failed to add \"{}\" to an inotify instance:", path))
+            return Err(SystemError::os_with_context(format!(
+                "While trying to add \"{}\" to an inotify instance:", path)))
         }
         self.watches.insert(path, watch);
         Ok(())
