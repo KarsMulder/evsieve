@@ -13,53 +13,34 @@ use crate::domain::Domain;
 use crate::capability::{Capability, Capabilities, AbsInfo, RepeatInfo};
 use crate::ecodes;
 use crate::predevice::{PreInputDevice, GrabMode};
-use crate::error::{InterruptError, SystemError, Context};
+use crate::error::{SystemError, Context};
 use crate::io::epoll::Pollable;
 use crate::io::persist::BlueprintOpener;
 
-/// Organises the collection of all input devices to be used by the system.
-/// 
-/// Currently just a glorified Epoll. In future implementation, it shall be the InputSystem's
-/// responsibility of making sure that broken devices get reopened.
-pub struct InputSystem {
-    epoll: Epoll,
-    /// A list of all capabilities any input device might possibly generate.
-    capabilities_vec: Vec<Capability>,
-}
+pub fn open_and_query_capabilities(pre_input_devices: Vec<PreInputDevice>)
+    -> Result<(Epoll, Vec<Capability>), SystemError>
+{
+    let input_devices = pre_input_devices.into_iter().map(
+        |device| {
+            let device_path = device.path.clone();
+            InputDevice::open(device)
+                .map_err(SystemError::from)
+                .with_context(format!("While opening the device \"{}\":", device_path.display()))
+    }).collect::<Result<Vec<InputDevice>, SystemError>>()?;
 
-impl InputSystem {
-    pub fn from_pre_input_devices(pre_input_devices: Vec<PreInputDevice>) -> Result<InputSystem, SystemError> {
-        // Open all pre-input devices as actual input devices.
-        let input_devices = pre_input_devices.into_iter().map(
-            |device| {
-                let device_path = device.path.clone();
-                InputDevice::open(device)
-                    .map_err(SystemError::from)
-                    .with_context(format!("While opening the device \"{}\":", device_path.display()))
-        }).collect::<Result<Vec<InputDevice>, SystemError>>()?;
-
-        // Precompute the capabilities of the input devices.
-        let mut capabilities_vec: Vec<Capability> = Vec::new();
-        for device in &input_devices {
-            let mut device_capabilities_vec = device.capabilities.to_vec_from_domain_and_namespace(device.domain, Namespace::Input);
-            capabilities_vec.append(&mut device_capabilities_vec);
-        }
-
-        let mut epoll = Epoll::new()?;
-        for device in input_devices {
-            unsafe { epoll.add_file(Box::new(device))? };
-        }
-        
-        Ok(InputSystem { epoll, capabilities_vec })
+    // Precompute the capabilities of the input devices.
+    let mut capabilities_vec: Vec<Capability> = Vec::new();
+    for device in &input_devices {
+        let mut device_capabilities_vec = device.capabilities.to_vec_from_domain_and_namespace(device.domain, Namespace::Input);
+        capabilities_vec.append(&mut device_capabilities_vec);
     }
 
-    pub fn poll(&mut self) -> Result<Vec<Event>, InterruptError> {
-        self.epoll.poll()
+    let mut epoll = Epoll::new()?;
+    for device in input_devices {
+        unsafe { epoll.add_file(Box::new(device))? };
     }
 
-    pub fn get_capabilities(&self) -> &[Capability] {
-        &self.capabilities_vec
-    }
+    Ok((epoll, capabilities_vec))
 }
 
 pub struct InputDevice {

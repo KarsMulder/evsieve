@@ -9,7 +9,6 @@ use crate::map::{Map, Toggle};
 use crate::stream::{StreamEntry, Setup};
 use crate::predevice::{PreInputDevice, PreOutputDevice};
 use crate::io::output::OutputSystem;
-use crate::io::input::InputSystem;
 use crate::state::{State, ToggleIndex};
 use crate::arguments::hook::HookArg;
 use crate::arguments::input::InputDevice;
@@ -242,12 +241,11 @@ pub fn implement(args_str: Vec<String>) -> Result<Setup, RuntimeError> {
     }
 
     // Compute the capabilities of the output devices.
-    let input_system = InputSystem::from_pre_input_devices(input_devices)?;
-    let capabilities_in = input_system.get_capabilities().to_owned();
+    let (input_poll, capabilities_in) = crate::io::input::open_and_query_capabilities(input_devices)?;
     let capabilities_out = crate::stream::run_caps(&stream, capabilities_in);
     let output_system = OutputSystem::create(output_devices, capabilities_out)?;
 
-    Ok(Setup::new(stream, input_system, output_system, state))
+    Ok(Setup::new(stream, input_poll, output_system, state))
 }
 
 /// Returns true if all items in the iterator are unique, otherwise returns false.

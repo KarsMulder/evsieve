@@ -6,7 +6,7 @@ use crate::state::State;
 use crate::event::{Event, Namespace};
 use crate::print::EventPrinter;
 use crate::capability::Capability;
-use crate::io::input::InputSystem;
+use crate::io::epoll::Epoll;
 use crate::io::output::OutputSystem;
 use crate::error::{InterruptError};
 
@@ -19,13 +19,13 @@ pub enum StreamEntry {
 
 pub struct Setup {
     stream: Vec<StreamEntry>,
-    input: InputSystem,
+    input: Epoll,
     output: OutputSystem,
     state: State,
 }
 
 impl Setup {
-    pub fn new(stream: Vec<StreamEntry>, input: InputSystem, output: OutputSystem, state: State) -> Setup {
+    pub fn new(stream: Vec<StreamEntry>, input: Epoll, output: OutputSystem, state: State) -> Setup {
         Setup { stream, input, output, state }
     }
 }
