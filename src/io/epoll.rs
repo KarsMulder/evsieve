@@ -34,9 +34,9 @@ pub trait Pollable : AsRawFd {
     /// removed from the system.
     ///
     /// This reduction system is useful for repairing devices: for example, if an input device
-    /// breaks, then it can return another device which will try to reopen the device. That
+    /// breaks, then it can return another device which will try to reopen the input device. That
     /// other device will then break itself when the original device can be reopened and reduce
-    /// to that device.
+    /// to that original device.
     fn reduce(self: Box<Self>) -> Result<Box<dyn Pollable>, Option<SystemError>>;
 }
 
@@ -121,9 +121,7 @@ impl Epoll {
         file
     }
 
-    /// Tries to read all events from all ready devices. Returns a vector containing all events read.
-    /// If a device reports an error, said device is removed from self and also returned.
-    pub fn poll(&mut self) -> Result<Vec<Event>, InterruptError> {
+    fn poll_raw(&mut self) -> Result<Vec<libc::epoll_event>, SystemError> {
         // The number 8 was chosen arbitrarily.
         let max_events: i32 = std::cmp::min(self.files.len(), 8) as i32;
         let mut events: Vec<libc::epoll_event> = (0 .. max_events).map(|_| libc::epoll_event {
@@ -145,10 +143,6 @@ impl Epoll {
             }
             libc::sigprocmask(libc::SIG_SETMASK, sigmask_mut_ptr, orig_sigmask_mut_ptr);
 
-            if sysexit::should_exit() {
-                return Err(InterruptError::new());
-            }
-
             let result = libc::epoll_pwait(
                 self.fd,
                 events.as_mut_ptr(),
@@ -162,18 +156,23 @@ impl Epoll {
         };
 
         if result < 0 {
-            // Either we got an SIGINT/SIGTERM interrupt or an unexpected error.
-            // It's unfortunately difficult to read errno from libc, so for now we assume the former.
-            return Err(InterruptError::new());
+            Err(SystemError::from(std::io::Error::last_os_error()))
+        } else {
+            let num_fds = result as usize;
+            Ok(events[0..num_fds].to_owned())
         }
+    }
 
-        let num_fds = result as usize;
+    /// Tries to read all events from all ready devices. Returns a vector containing all events read.
+    /// If a device reports an error, said device is removed from self and also returned.
+    pub fn poll(&mut self) -> Result<Vec<Event>, InterruptError> {
+        let events = self.poll_raw().map_err(|_| InterruptError::new())?;
 
         // Create a list of which devices are ready and which are broken.
         let mut ready_file_indices: Vec<u64> = Vec::new();
         let mut broken_file_indices: Vec<u64> = Vec::new();
 
-        for event in events[0 .. num_fds].iter() {
+        for event in events.iter() {
             let file_index = event.u64;
             if event.events & libc::EPOLLIN as u32 != 0 {
                 ready_file_indices.push(file_index);
