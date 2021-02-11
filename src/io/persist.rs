@@ -38,7 +38,7 @@ impl InputDeviceBlueprint {
 
 pub struct Inotify {
     fd: RawFd,
-    watches: HashMap<String, i32>,
+    watches: HashMap<String, i32>, // TODO: what if multiple paths have the same watch?
 }
 
 impl Inotify {
