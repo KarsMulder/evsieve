@@ -12,7 +12,7 @@ use crate::event::{Event, EventType, EventValue, EventCode, Namespace};
 use crate::domain::Domain;
 use crate::capability::{Capability, Capabilities, AbsInfo, RepeatInfo};
 use crate::ecodes;
-use crate::predevice::{PreInputDevice, GrabMode};
+use crate::predevice::{GrabMode, PersistMode, PreInputDevice};
 use crate::error::{SystemError, Context};
 use crate::io::epoll::Pollable;
 use crate::io::persist::BlueprintOpener;
@@ -61,6 +61,9 @@ pub struct InputDevice {
 
     /// Maps (type, code) pairs to the last known value of said pair.
     state: HashMap<EventCode, EventValue>,
+
+    /// What should happen if this device disconnects.
+    persist_mode: PersistMode,
 }
 
 impl InputDevice {
@@ -90,7 +93,8 @@ impl InputDevice {
 
         let mut device = InputDevice {
             file, path, evdev, domain, capabilities, state,
-            grab_mode: pre_device.grab_mode, grabbed: false
+            grab_mode: pre_device.grab_mode, grabbed: false,
+            persist_mode: pre_device.persist_mode,
         };
         device.grab_if_desired()?;
 
@@ -218,6 +222,7 @@ impl InputDevice {
                 path: self.path.clone(),
                 grab_mode: self.grab_mode,
                 domain: self.domain,
+                persist_mode: self.persist_mode,
             }
         }
     }

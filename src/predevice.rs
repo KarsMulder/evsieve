@@ -29,6 +29,15 @@ impl GrabMode {
     }
 }
 
+/// Represents what should happen if the device is not available.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum PersistMode {
+    /// Remove the device from the processing stream at runtime, or throw an error at startup time.
+    None,
+    /// Try to reattach the device at runtime, or throw an error at startup time.
+    Reopen,
+}
+
 #[derive(Clone)]
 pub struct PreInputDevice {
     /// The path to this device.
@@ -37,6 +46,8 @@ pub struct PreInputDevice {
     pub domain: Domain,
     /// Whether and how the user has requested this InputDevice be grabbed.
     pub grab_mode: GrabMode,
+    /// What should be done if the device is disconnected while running.
+    pub persist_mode: PersistMode,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

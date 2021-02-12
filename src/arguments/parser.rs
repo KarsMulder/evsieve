@@ -21,7 +21,7 @@ use std::path::PathBuf;
 
 const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 const USAGE_MSG: &str = 
-"Usage: evsieve [--input PATH... [domain=DOMAIN] [grab[=auto|force]]]...
+"Usage: evsieve [--input PATH... [domain=DOMAIN] [grab[=auto|force]] [persist=[reopen|none]]]...
                [--map SOURCE [DEST...] [yield]]...
                [--copy SOURCE [DEST...] [yield]]...
                [--block [SOURCE...]]...
@@ -166,7 +166,9 @@ pub fn implement(args_str: Vec<String>) -> Result<Setup, RuntimeError> {
                     };
 
                     let input_device = PreInputDevice {
-                        path, domain: source_domain, grab_mode: device.grab_mode
+                        path, domain: source_domain,
+                        grab_mode: device.grab_mode,
+                        persist_mode: device.persist_mode,
                     };
 
                     // Register this device for later creation.

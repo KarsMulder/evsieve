@@ -2,7 +2,7 @@
 
 use crate::domain;
 use crate::domain::Domain;
-use crate::predevice::GrabMode;
+use crate::predevice::{GrabMode, PersistMode};
 use crate::error::ArgumentError;
 use crate::arguments::lib::ComplexArgGroup;
 
@@ -14,13 +14,14 @@ pub(super) struct InputDevice {
     /// At least one path must be specified.
 	pub paths: Vec<String>,
     pub grab_mode: GrabMode,
+    pub persist_mode: PersistMode,
 }
 
 impl InputDevice {
 	pub fn parse(args: Vec<String>) -> Result<InputDevice, ArgumentError> {
         let arg_group = ComplexArgGroup::parse(args,
             &["grab"],
-            &["domain", "grab"],
+            &["domain", "grab", "persist"],
             true,
             false,
         )?;
@@ -45,12 +46,21 @@ impl InputDevice {
             Some(value) => match value.as_str() {
                 "auto" => GrabMode::Auto,
                 "force" => GrabMode::Force,
-                _ => return Err(ArgumentError::new("Invalid grab mode specified.".to_owned())),
+                _ => return Err(ArgumentError::new("Invalid grab mode specified.")),
+            }
+        };
+
+        let persist_mode = match arg_group.get_unique_clause("persist")? {
+            None => PersistMode::Reopen,
+            Some(value) => match value.as_str() {
+                "reopen" => PersistMode::Reopen,
+                "none" => PersistMode::None,
+                _ => return Err(ArgumentError::new("Invalid persist mode specified.")),
             }
         };
 
         Ok(InputDevice {
-            domain, grab_mode,
+            domain, grab_mode, persist_mode,
             paths: arg_group.require_paths()?,
         })
     }
