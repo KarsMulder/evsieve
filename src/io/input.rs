@@ -271,6 +271,7 @@ unsafe fn get_capabilities(evdev: *mut libevdev::libevdev) -> Capabilities {
     }
 }
 
+/// # Safety
 /// Exhibits undefined behaviour if evdev is not a valid pointer or the capabilities are invalid.
 unsafe fn get_device_state(evdev: *mut libevdev::libevdev, capabilities: &Capabilities) -> HashMap<EventCode, EventValue> {
     let mut device_state: HashMap<EventCode, EventValue> = HashMap::new();
@@ -302,12 +303,17 @@ impl Pollable for InputDevice {
 
     fn reduce(self: Box<Self>) -> Result<Box<dyn Pollable>, Option<SystemError>> {
         eprintln!("The input device {} has been disconnected.", self.path.display()); // TODO: should this be moved?
-        let blueprint = self.to_blueprint();
-        match BlueprintOpener::new(blueprint) {
-            Ok(opener) => Ok(Box::new(opener)),
-            Err(error) => Err(Some(
-                error.with_context("While trying to watch the reconnection of an input device:")
-            )),
+        match self.persist_mode {
+            PersistMode::None => Err(None),
+            PersistMode::Reopen => {
+                let blueprint = self.to_blueprint();
+                match BlueprintOpener::new(blueprint) {
+                    Ok(opener) => Ok(Box::new(opener)),
+                    Err(error) => Err(Some(
+                        error.with_context("While trying to watch the reconnection of an input device:")
+                    )),
+                }
+            }
         }
     }
 }

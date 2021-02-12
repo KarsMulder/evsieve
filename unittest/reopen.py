@@ -34,7 +34,7 @@ def create_links():
 create_links()
 
 subprocess = sp.Popen(EVSIEVE_PROGRAM + [
-    "--input", symlink_chain[-1], "grab=force",
+    "--input", symlink_chain[-1], "grab=force", "persist=reopen",
     "--output", f"create-link={output_path}"
 ])
 
