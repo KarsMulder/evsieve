@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+use std::ffi::{CStr, CString};
 use std::fs::{File, OpenOptions};
 use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::io::{AsRawFd, RawFd};
@@ -7,11 +8,11 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use crate::bindings::libevdev;
 use crate::io::epoll::Epoll;
-use crate::io::persist::{InputDeviceBlueprint};
+use crate::io::persist::Blueprint;
 use crate::event::{Event, EventType, EventValue, EventCode, Namespace};
 use crate::domain::Domain;
 use crate::capability::{Capability, Capabilities, AbsInfo, RepeatInfo};
-use crate::{ecodes, utils};
+use crate::ecodes;
 use crate::predevice::{GrabMode, PersistMode, PreInputDevice};
 use crate::error::{SystemError, Context};
 use crate::io::epoll::Pollable;
@@ -43,6 +44,9 @@ pub fn open_and_query_capabilities(pre_input_devices: Vec<PreInputDevice>)
     Ok((epoll, capabilities_vec))
 }
 
+// Represents a name as reported by libevdev_get_name().
+pub type InputDeviceName = CString;
+
 pub struct InputDevice {
     file: File,
     path: PathBuf,
@@ -50,9 +54,8 @@ pub struct InputDevice {
 
     capabilities: Capabilities,
 
-    /// The name as reported by libevdev_get_name(). May be None if the name cannot be encoded
-    /// into UTF-8, or maybe some other reasons.
-    device_name: Option<String>,
+    /// The name as reported by libevdev_get_name().
+    name: InputDeviceName,
 
     /// Whether and how the user has requested this device to be grabbed.
     grab_mode: GrabMode,
@@ -96,13 +99,14 @@ impl InputDevice {
         let state = unsafe { get_device_state(evdev, &capabilities) };
 
         // According to the documentation, libevdev_get_name() never returns a null pointer
-        // but may return an empty string.
-        let device_name = unsafe {
-            utils::parse_cstr(libevdev::libevdev_get_name(evdev))
-        };
+        // but may return an empty string. We are not sure whether the return value is guaranteed
+        // to be UTF-8 decodable, so it may be possible that device_name ends up as None.
+        let name: InputDeviceName = unsafe {
+            CStr::from_ptr(libevdev::libevdev_get_name(evdev))
+        }.to_owned();
 
         let mut device = InputDevice {
-            file, path, evdev, domain, capabilities, state, device_name,
+            file, path, evdev, domain, capabilities, state, name,
             grab_mode: pre_device.grab_mode, grabbed: false,
             persist_mode: pre_device.persist_mode,
         };
@@ -224,10 +228,15 @@ impl InputDevice {
         &self.capabilities
     }
 
+    pub fn name(&self) -> &InputDeviceName {
+        &self.name
+    }
+
     // Closes the device and returns a blueprint from which it can be reopened.
-    pub fn to_blueprint(&self) -> InputDeviceBlueprint {
-        InputDeviceBlueprint {
+    pub fn to_blueprint(&self) -> Blueprint {
+        Blueprint {
             capabilities: self.capabilities.clone(),
+            name: self.name.clone(),
             pre_device: PreInputDevice {
                 path: self.path.clone(),
                 grab_mode: self.grab_mode,

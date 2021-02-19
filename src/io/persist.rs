@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 use crate::event::Event;
-use crate::io::input::InputDevice;
+use crate::io::input::{InputDevice, InputDeviceName};
 use crate::predevice::PreInputDevice;
 use crate::capability::Capabilities;
 use crate::error::SystemError;
@@ -10,12 +10,14 @@ use std::collections::HashMap;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::PathBuf;
 
-pub struct InputDeviceBlueprint {
+/// Represents something can can be used to re-open a closed input device.
+pub struct Blueprint {
     pub pre_device: PreInputDevice,
     pub capabilities: Capabilities,
+    pub name: InputDeviceName,
 }
 
-impl InputDeviceBlueprint {
+impl Blueprint {
     /// Tries to reopen the device from which this blueprint was generated.
     /// On success, returns the device. On failure, returns Ok(None). In case of a grave
     /// error that signals reopening should not be retried, returns Err(SystemError).
@@ -27,11 +29,20 @@ impl InputDeviceBlueprint {
             Ok(device) => device,
             Err(error) => return Err(error),
         };
-        if *input_device.capabilities() != self.capabilities {
-            return Err(SystemError::new(
-                format!("Cannot reopen input device \"{}\": this device's capabilities are different from the original device that disconnected.", self.pre_device.path.display())
-            ));
+        if input_device.name() != &self.name {
+            return Err(SystemError::new(format!(
+                "Cannot reopen input device \"{}\": the reattached device's name differs from the original name. Original: {}, new: {}",
+                self.pre_device.path.display(),
+                self.name.to_string_lossy(), input_device.name().to_string_lossy()
+            )))
         }
+        if *input_device.capabilities() != self.capabilities {
+            return Err(SystemError::new(format!(
+                "Cannot reopen input device \"{}\": the reattached device's capabilities are different from the original device that disconnected.",
+                self.pre_device.path.display()
+            )));
+        }
+        
         Ok(Some(input_device))
     }
 }
@@ -142,7 +153,7 @@ impl Drop for Inotify {
 /// The BlueprintOpener is responsible for watching for filesystem events on all relevant directories
 /// that are relevant for determining whether an input device can be reopened. 
 pub struct BlueprintOpener {
-    blueprint: InputDeviceBlueprint,
+    blueprint: Blueprint,
     inotify: Inotify,
 
     /// In case the device is successfully opened, store it here until it can be handled over to
@@ -151,7 +162,7 @@ pub struct BlueprintOpener {
 }
 
 impl BlueprintOpener {
-    pub fn new(blueprint: InputDeviceBlueprint) -> Result<BlueprintOpener, SystemError> {
+    pub fn new(blueprint: Blueprint) -> Result<BlueprintOpener, SystemError> {
         let inotify = Inotify::new()?;
         let mut opener = BlueprintOpener { blueprint, inotify, cached_device: None };
         opener.update_watched_paths()?;
