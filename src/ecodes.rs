@@ -2,18 +2,8 @@
 
 use crate::event::{EventType, EventCode};
 use crate::bindings::libevdev;
-use crate::utils::split_once;
+use crate::utils::{split_once, parse_cstr};
 use std::collections::HashMap;
-use std::ffi::CStr;
-use std::os::raw::c_char;
-
-unsafe fn parse_cstr(raw_ptr: *const c_char) -> Option<String> {
-    if raw_ptr == std::ptr::null() {
-        return None;
-    }
-    let raw_cstr: &CStr = CStr::from_ptr(raw_ptr);
-    raw_cstr.to_str().ok().map(str::to_string)
-}
 
 lazy_static! {
     pub static ref EVENT_TYPES: HashMap<String, EventType> = {

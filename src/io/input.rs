@@ -11,7 +11,7 @@ use crate::io::persist::{InputDeviceBlueprint};
 use crate::event::{Event, EventType, EventValue, EventCode, Namespace};
 use crate::domain::Domain;
 use crate::capability::{Capability, Capabilities, AbsInfo, RepeatInfo};
-use crate::ecodes;
+use crate::{ecodes, utils};
 use crate::predevice::{GrabMode, PersistMode, PreInputDevice};
 use crate::error::{SystemError, Context};
 use crate::io::epoll::Pollable;
@@ -49,6 +49,10 @@ pub struct InputDevice {
     evdev: *mut libevdev::libevdev,
 
     capabilities: Capabilities,
+
+    /// The name as reported by libevdev_get_name(). May be None if the name cannot be encoded
+    /// into UTF-8, or maybe some other reasons.
+    device_name: Option<String>,
 
     /// Whether and how the user has requested this device to be grabbed.
     grab_mode: GrabMode,
@@ -91,8 +95,14 @@ impl InputDevice {
         let capabilities = unsafe { get_capabilities(evdev) };
         let state = unsafe { get_device_state(evdev, &capabilities) };
 
+        // According to the documentation, libevdev_get_name() never returns a null pointer
+        // but may return an empty string.
+        let device_name = unsafe {
+            utils::parse_cstr(libevdev::libevdev_get_name(evdev))
+        };
+
         let mut device = InputDevice {
-            file, path, evdev, domain, capabilities, state,
+            file, path, evdev, domain, capabilities, state, device_name,
             grab_mode: pre_device.grab_mode, grabbed: false,
             persist_mode: pre_device.persist_mode,
         };
