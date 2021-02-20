@@ -21,13 +21,18 @@ use crate::io::persist::BlueprintOpener;
 pub fn open_and_query_capabilities(pre_input_devices: Vec<PreInputDevice>)
     -> Result<(Epoll, Vec<Capability>), SystemError>
 {
-    let input_devices = pre_input_devices.into_iter().map(
+    let mut input_devices = pre_input_devices.into_iter().map(
         |device| {
             let device_path = device.path.clone();
             InputDevice::open(device)
                 .map_err(SystemError::from)
                 .with_context(format!("While opening the device \"{}\":", device_path.display()))
     }).collect::<Result<Vec<InputDevice>, SystemError>>()?;
+
+    // Grab the devices that have grab=force specified.
+    for device in &mut input_devices {
+        device.grab_if_desired()?;
+    }
 
     // Precompute the capabilities of the input devices.
     let mut capabilities_vec: Vec<Capability> = Vec::new();
@@ -74,6 +79,10 @@ pub struct InputDevice {
 }
 
 impl InputDevice {
+    /// Opens an input device from a given path.
+    ///
+    /// Does not grab the device even if grab=force is specified. You must do that manually later
+    /// by calling grab_if_desired().
     pub fn open(pre_device: PreInputDevice) -> Result<InputDevice, SystemError> {
         let path = pre_device.path;
         let domain = pre_device.domain;
@@ -105,14 +114,11 @@ impl InputDevice {
             CStr::from_ptr(libevdev::libevdev_get_name(evdev))
         }.to_owned();
 
-        let mut device = InputDevice {
+        Ok(InputDevice {
             file, path, evdev, domain, capabilities, state, name,
             grab_mode: pre_device.grab_mode, grabbed: false,
             persist_mode: pre_device.persist_mode,
-        };
-        device.grab_if_desired()?;
-
-        Ok(device)
+        })
     }
 
     pub fn domain(&self) -> Domain {
@@ -173,7 +179,7 @@ impl InputDevice {
         Ok(result)
     }
 
-    fn grab_if_desired(&mut self) -> Result<(), SystemError> {
+    pub fn grab_if_desired(&mut self) -> Result<(), SystemError> {
         if self.grabbed {
             return Ok(());
         }
@@ -198,7 +204,7 @@ impl InputDevice {
         };
         if res < 0 {
             Err(SystemError::new(
-                format!("Failed to grab event device: {}", self.path.to_string_lossy()
+                format!("Failed to grab input device: {}", self.path.to_string_lossy()
             )))
         } else {
             self.grabbed = true;

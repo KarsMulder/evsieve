@@ -25,10 +25,9 @@ impl Blueprint {
         if ! self.pre_device.path.exists() {
             return Ok(None);
         }
-        let input_device = match InputDevice::open(self.pre_device.clone()) {
-            Ok(device) => device,
-            Err(error) => return Err(error),
-        };
+        let mut input_device = InputDevice::open(self.pre_device.clone())?;
+
+        // Do sanity checks so we don't accidentally re-open the wrong device.
         if input_device.name() != &self.name {
             return Err(SystemError::new(format!(
                 "Cannot reopen input device \"{}\": the reattached device's name differs from the original name. Original: {}, new: {}",
@@ -42,6 +41,9 @@ impl Blueprint {
                 self.pre_device.path.display()
             )));
         }
+
+        // Grab the input device if it has grab=force specified.
+        input_device.grab_if_desired()?;
         
         Ok(Some(input_device))
     }
