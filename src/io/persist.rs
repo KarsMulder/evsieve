@@ -51,7 +51,8 @@ impl Blueprint {
 
 pub struct Inotify {
     fd: RawFd,
-    watches: HashMap<String, i32>, // TODO: what if multiple paths have the same watch?
+    /// Maps a watch id to a list of all paths that are watched by that id.
+    watches: HashMap<i32, Vec<String>>,
 }
 
 impl Inotify {
@@ -88,38 +89,62 @@ impl Inotify {
             return Err(SystemError::os_with_context(format!(
                 "While trying to add \"{}\" to an inotify instance:", path)))
         }
-        self.watches.insert(path, watch);
+        self.watches.entry(watch).or_default().push(path);
         Ok(())
     }
 
     pub fn remove_watch(&mut self, path: String) -> Result<(), SystemError> {
-        let watch = match self.watches.remove(&path) {
-            Some(value) => value,
-            None => return Err(SystemError::new(format!("Cannot remove \"{}\" from inotify: this path is not watched.", path))),
-        };
-
-        // The error cases should be: self.fd is not valid, watch is not valid.
-        // In either case, it is fine that watch has been removed from self.watches in case of error.
-        let res = unsafe { libc::inotify_rm_watch(self.fd, watch) };
-        if res < 0 {
-            return Err(std::io::Error::last_os_error().into())
+        // Pre-cache the watch ids so we don't have to borrow self.watches during the loop.
+        let watch_ids: Vec<i32> = self.watches.keys().cloned().collect();
+        for watch_id in watch_ids {
+            let paths = match self.watches.get_mut(&watch_id) {
+                Some(paths) => paths,
+                // TODO: should this be RuntimeError?
+                None => return Err(SystemError::new("A watch was unexpectedly removed from an Inotify.")),
+            };
+            if paths.contains(&path) {
+                paths.retain(|item| item != &path);
+                if paths.is_empty() {
+                    self.remove_watch_by_id(watch_id)?;
+                }
+            }
         }
+
         Ok(())
     }
 
-    // Adds all watches in the given vector, and removes all not in the given vector.
+    fn remove_watch_by_id(&mut self, watch_id: i32) -> Result<(), SystemError> {
+        // The error cases should be: self.fd is not valid, watch is not valid.
+        // In either case, it is fine that watch is removed from self.watches in case of error.
+        let res = unsafe { libc::inotify_rm_watch(self.fd, watch_id) };
+        self.watches.remove(&watch_id);
+
+        if res < 0 {
+            Err(std::io::Error::last_os_error().into())
+        } else {
+            Ok(())
+        }
+    }
+
+    fn watched_paths(&self) -> impl Iterator<Item=&String> {
+        self.watches.values().flatten()
+    }
+
+    /// Adds all watches in the given vector, and removes all not in the given vector.
     pub fn set_watches(&mut self, paths: Vec<String>) -> Result<(), SystemError> {
-        let paths_to_add: Vec<String> = paths.iter()
-            .filter(|&path| !self.watches.contains_key(path))
-            .cloned().collect();
-        let paths_to_remove: Vec<String> = self.watches.keys()
+        let paths_to_remove: Vec<String> = self.watched_paths()
             .filter(|&path| !paths.contains(path))
+            .cloned().collect();
+        for path in paths_to_remove {
+            self.remove_watch(path)?;
+        }
+
+        let watched_paths: Vec<&String> = self.watched_paths().collect();
+        let paths_to_add: Vec<String> = paths.iter()
+            .filter(|path| !watched_paths.contains(path))
             .cloned().collect();
         for path in paths_to_add {
             self.add_watch(path)?;
-        }
-        for path in paths_to_remove {
-            self.remove_watch(path)?;
         }
         Ok(())
     }
