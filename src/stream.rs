@@ -67,7 +67,7 @@ pub fn run_once(event_in: Event, events_out: &mut Vec<Event>, stream: &mut [Stre
             },
             StreamEntry::Print(printer) => {
                 printer.apply_to_all(&events);
-            }
+            },
         }
     }
 
@@ -76,7 +76,7 @@ pub fn run_once(event_in: Event, events_out: &mut Vec<Event>, stream: &mut [Stre
     );
 }
 
-/// A direct analogue for run_once, except it runs through capabilities instead of events.
+/// A direct analogue for run_once(), except it runs through capabilities instead of events.
 pub fn run_caps(stream: &[StreamEntry], capabilities: Vec<Capability>) -> Vec<Capability> {
     let mut caps: Vec<Capability> = capabilities;
     let mut buffer: Vec<Capability> = Vec::new();
