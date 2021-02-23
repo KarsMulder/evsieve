@@ -149,16 +149,18 @@ impl Inotify {
     }
 
     /// Does nothing besides clearing out the queued events.
-    pub fn poll(&mut self) {
-        // TODO: get this value from somewhere.
+    pub fn poll(&mut self) -> Result<(), SystemError> {
         const NAME_MAX: usize = 255;
         const BUFFER_SIZE: usize = std::mem::size_of::<libc::inotify_event>() + NAME_MAX + 1;
         let mut buffer: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
         let res = unsafe {
             libc::read(self.fd, buffer.as_mut_ptr() as *mut libc::c_void, BUFFER_SIZE)
         };
+
         if res < 0 {
-            eprintln!("Error: failed to read from an inotify instance.");
+            Err(SystemError::os_with_context("While reading from an inotify instance:"))
+        } else {
+            Ok(())
         }
     }
 }
@@ -243,7 +245,7 @@ impl AsRawFd for BlueprintOpener {
 
 impl Pollable for BlueprintOpener {
     fn poll(&mut self) -> Result<Vec<Event>, Option<RuntimeError>> {
-        self.inotify.poll();
+        self.inotify.poll().map_err(|err| Some(err.into()))?;
         match self.try_open() {
             Ok(Some(device)) => {
                 self.cached_device = Some(Box::new(device));
