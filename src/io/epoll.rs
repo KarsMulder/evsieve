@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use crate::error::{InterruptError, SystemError};
+use crate::error::{InterruptError, SystemError, RuntimeError};
 use crate::event::Event;
 use crate::sysexit;
 use crate::error::Context;
@@ -27,7 +27,7 @@ pub trait Pollable : AsRawFd {
     /// removed from this epoll and reduced. If it returns Err(Some), then said error shall
     /// also be printed. Err(None) is considered a request "nothing is wrong, just reduce me"
     /// and will cause the device to be silently reduced.
-    fn poll(&mut self) -> Result<Vec<Event>, Option<SystemError>>;
+    fn poll(&mut self) -> Result<Vec<Event>, Option<RuntimeError>>;
     /// When the device is broken, it will be removed from the epoll, and then have reduce()
     /// called to see if it can live on in some form. If reduce() returns Ok, then the returned
     /// device shall be added to the epoll. If it returns Err, then the device is permanently
@@ -37,7 +37,7 @@ pub trait Pollable : AsRawFd {
     /// breaks, then it can return another device which will try to reopen the input device. That
     /// other device will then break itself when the original device can be reopened and reduce
     /// to that original device.
-    fn reduce(self: Box<Self>) -> Result<Box<dyn Pollable>, Option<SystemError>>;
+    fn reduce(self: Box<Self>) -> Result<Box<dyn Pollable>, Option<RuntimeError>>;
 }
 
 impl Epoll {

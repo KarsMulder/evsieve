@@ -4,7 +4,7 @@ use crate::event::Event;
 use crate::io::input::{InputDevice, InputDeviceName};
 use crate::predevice::PreInputDevice;
 use crate::capability::Capabilities;
-use crate::error::SystemError;
+use crate::error::{SystemError, InternalError, RuntimeError};
 use crate::io::epoll::{Pollable};
 use std::collections::HashMap;
 use std::os::unix::io::{AsRawFd, RawFd};
@@ -93,14 +93,13 @@ impl Inotify {
         Ok(())
     }
 
-    pub fn remove_watch(&mut self, path: String) -> Result<(), SystemError> {
+    pub fn remove_watch(&mut self, path: String) -> Result<(), RuntimeError> {
         // Pre-cache the watch ids so we don't have to borrow self.watches during the loop.
         let watch_ids: Vec<i32> = self.watches.keys().cloned().collect();
         for watch_id in watch_ids {
             let paths = match self.watches.get_mut(&watch_id) {
                 Some(paths) => paths,
-                // TODO: should this be RuntimeError?
-                None => return Err(SystemError::new("A watch was unexpectedly removed from an Inotify.")),
+                None => return Err(InternalError::new("A watch was unexpectedly removed from an Inotify.").into()),
             };
             if paths.contains(&path) {
                 paths.retain(|item| item != &path);
@@ -131,7 +130,7 @@ impl Inotify {
     }
 
     /// Adds all watches in the given vector, and removes all not in the given vector.
-    pub fn set_watches(&mut self, paths: Vec<String>) -> Result<(), SystemError> {
+    pub fn set_watches(&mut self, paths: Vec<String>) -> Result<(), RuntimeError> {
         let paths_to_remove: Vec<String> = self.watched_paths()
             .filter(|&path| !paths.contains(path))
             .cloned().collect();
@@ -189,14 +188,14 @@ pub struct BlueprintOpener {
 }
 
 impl BlueprintOpener {
-    pub fn new(blueprint: Blueprint) -> Result<BlueprintOpener, SystemError> {
+    pub fn new(blueprint: Blueprint) -> Result<BlueprintOpener, RuntimeError> {
         let inotify = Inotify::new()?;
         let mut opener = BlueprintOpener { blueprint, inotify, cached_device: None };
         opener.update_watched_paths()?;
         Ok(opener)
     }
 
-    pub fn try_open(&mut self) -> Result<Option<InputDevice>, SystemError> {
+    pub fn try_open(&mut self) -> Result<Option<InputDevice>, RuntimeError> {
         if let Some(device) = self.blueprint.try_open()? {
             return Ok(Some(device));
         };
@@ -205,7 +204,7 @@ impl BlueprintOpener {
         Ok(None)
     }
 
-    pub fn update_watched_paths(&mut self) -> Result<(), SystemError> {
+    pub fn update_watched_paths(&mut self) -> Result<(), RuntimeError> {
         const MAX_SYMLINKS: usize = 20;
 
         // Walk down the chain of symlinks starting at current_path.
@@ -217,7 +216,7 @@ impl BlueprintOpener {
             traversed_paths.push(current_path.clone());
             // The +1 is because the device node is not a symlink.
             if traversed_paths.len() > MAX_SYMLINKS + 1 {
-                return Err(SystemError::new("Too many symlinks."));
+                return Err(SystemError::new("Too many symlinks.").into());
             }
         }
         
@@ -243,7 +242,7 @@ impl AsRawFd for BlueprintOpener {
 }
 
 impl Pollable for BlueprintOpener {
-    fn poll(&mut self) -> Result<Vec<Event>, Option<SystemError>> {
+    fn poll(&mut self) -> Result<Vec<Event>, Option<RuntimeError>> {
         self.inotify.poll();
         match self.try_open() {
             Ok(Some(device)) => {
@@ -255,7 +254,7 @@ impl Pollable for BlueprintOpener {
         }
     }
 
-    fn reduce(self: Box<Self>) -> Result<Box<dyn Pollable>, Option<SystemError>> {
+    fn reduce(self: Box<Self>) -> Result<Box<dyn Pollable>, Option<RuntimeError>> {
         match self.cached_device {
             Some(device) => {
                 eprintln!("The input device {} has been reopened.", device.path().display());
@@ -263,7 +262,7 @@ impl Pollable for BlueprintOpener {
             },
             None => Err(Some(SystemError::new(format!(
                 "Unable to reopen the input device {}.", self.blueprint.pre_device.path.display()
-            )))),
+            )).into())),
         }
     }
 }

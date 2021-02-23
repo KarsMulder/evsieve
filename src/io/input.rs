@@ -14,7 +14,7 @@ use crate::domain::Domain;
 use crate::capability::{Capability, Capabilities, AbsInfo, RepeatInfo};
 use crate::ecodes;
 use crate::predevice::{GrabMode, PersistMode, PreInputDevice};
-use crate::error::{SystemError, Context};
+use crate::error::{SystemError, RuntimeError, Context};
 use crate::io::epoll::Pollable;
 use crate::io::persist::BlueprintOpener;
 
@@ -322,11 +322,11 @@ unsafe fn get_device_state(evdev: *mut libevdev::libevdev, capabilities: &Capabi
 }
 
 impl Pollable for InputDevice {
-    fn poll(&mut self) -> Result<Vec<Event>, Option<SystemError>> {
-        self._poll().map_err(Option::Some)
+    fn poll(&mut self) -> Result<Vec<Event>, Option<RuntimeError>> {
+        self._poll().map_err(|err| Option::Some(err.into()))
     }
 
-    fn reduce(self: Box<Self>) -> Result<Box<dyn Pollable>, Option<SystemError>> {
+    fn reduce(self: Box<Self>) -> Result<Box<dyn Pollable>, Option<RuntimeError>> {
         eprintln!("The input device {} has been disconnected.", self.path.display()); // TODO: should this be moved?
         match self.persist_mode {
             PersistMode::None => Err(None),
