@@ -64,19 +64,26 @@ use error::{InterruptError, RuntimeError};
 
 fn main() {
     let result = run_and_interpret_exit_code();
+    subprocess::terminate_all();
     std::process::exit(result)
 }
 
 fn run_and_interpret_exit_code() -> i32 {
-    let result = match run() {
-        Ok(_) => 0,
-        Err(error) => {
+    let result = std::panic::catch_unwind(run);
+
+    match result {
+        Ok(Ok(())) => 0,
+        // A RuntimeError happened.
+        Ok(Err(error)) => {
             eprintln!("{}", error);
             1
-        }
-    };
-    subprocess::terminate_all();
-    result
+        },
+        // A panic happened.
+        Err(_) => {
+            eprintln!("Internal error: a panic happened. This is a bug.");
+            1
+        },
+    }
 }
 
 fn run() -> Result<(), RuntimeError> {

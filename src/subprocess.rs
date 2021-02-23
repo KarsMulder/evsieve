@@ -10,7 +10,10 @@ lazy_static! {
 
 /// Tries to terminate all subprocesses.
 pub fn terminate_all() {
-    MANAGER.lock().expect("Internal lock poisoned.").terminate_all()
+    match MANAGER.lock() {
+        Ok(mut lock) => lock.terminate_all(),
+        Err(_) => eprintln!("Failed to terminate subprocesses: internal lock poisoned."),
+    }
 }
 
 /// Will spawn a process. Will print an error on failure, but will not return an error code.
