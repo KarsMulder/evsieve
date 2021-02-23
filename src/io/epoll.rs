@@ -4,6 +4,7 @@ use crate::error::{InterruptError, SystemError, RuntimeError};
 use crate::event::Event;
 use crate::sysexit;
 use crate::error::Context;
+use crate::signal;
 use std::collections::HashMap;
 use std::os::unix::io::{AsRawFd, RawFd};
 
@@ -18,6 +19,8 @@ pub struct Epoll {
     files: HashMap<u64, Box<dyn Pollable>>,
     /// A counter, so every file registered can get an unique index in the files map.
     counter: u64,
+    /// Ensures that no signals are delivered during inopportune moments while an Epoll exists.
+    signal_block: std::sync::Arc<signal::SignalBlock>,
 }
 
 pub trait Pollable : AsRawFd {
@@ -53,6 +56,7 @@ impl Epoll {
             fd: epoll_fd,
             files: HashMap::new(),
             counter: 0,
+            signal_block: signal::block(),
         })
     }
 
@@ -131,28 +135,13 @@ impl Epoll {
         }).collect();
 
         let result = unsafe {
-            // Ensure that we cannot be interrupted by a signal in the short timespan between when
-            // we check for the should_exit status, and when the epoll_pwait system call starts.
-            let mut orig_sigmask: libc::sigset_t = std::mem::zeroed();
-            let mut sigmask: libc::sigset_t = std::mem::zeroed();
-            let orig_sigmask_mut_ptr = &mut orig_sigmask as *mut libc::sigset_t;
-            let sigmask_mut_ptr = &mut sigmask as *mut libc::sigset_t;
-            libc::sigemptyset(sigmask_mut_ptr);
-            for &signal in sysexit::EXIT_SIGNALS {
-                libc::sigaddset(sigmask_mut_ptr, signal);
-            }
-            libc::sigprocmask(libc::SIG_SETMASK, sigmask_mut_ptr, orig_sigmask_mut_ptr);
-
-            let result = libc::epoll_pwait(
+            libc::epoll_pwait(
                 self.fd,
                 events.as_mut_ptr(),
                 max_events,
                 -1, // timeout, -1 means it will wait indefinitely
-                orig_sigmask_mut_ptr,
-            );
-
-            libc::sigprocmask(libc::SIG_SETMASK, orig_sigmask_mut_ptr, std::ptr::null_mut());
-            result
+                self.signal_block.orig_sigmask(),
+            )
         };
 
         if result < 0 {

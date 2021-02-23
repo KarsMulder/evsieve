@@ -21,6 +21,7 @@ pub mod key;
 pub mod map;
 pub mod domain;
 pub mod state;
+pub mod signal;
 pub mod utils;
 pub mod error;
 pub mod capability;
