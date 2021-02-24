@@ -300,14 +300,14 @@ fn interpret_event_value(value_str: &str, parser: &KeyParser) -> Result<Range, A
             )));
         }
     }
-	
-	Ok(Range::new(min, max))
+
+    Ok(Range::new(min, max))
 }
 
 /// Returns None for "", an integer for integer strings, and otherwise gives an error.
 fn parse_int_or_wildcard(value_str: &str) -> Result<Option<i32>, ArgumentError> {
-	if value_str == "" {
-		Ok(None)
+    if value_str == "" {
+        Ok(None)
     } else {
         let value: i32 = value_str.parse().map_err(|err| ArgumentError::new(
             format!("Cannot interpret {} as an integer: {}.", value_str, err)
