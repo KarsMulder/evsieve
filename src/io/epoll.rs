@@ -20,6 +20,7 @@ pub struct Epoll {
     /// A counter, so every file registered can get an unique index in the files map.
     counter: u64,
     /// Ensures that no signals are delivered during inopportune moments while an Epoll exists.
+    /// Epoll::poll() should be the only moment during which signals are allowed to be delivered.
     signal_block: std::sync::Arc<signal::SignalBlock>,
 }
 
@@ -140,7 +141,7 @@ impl Epoll {
                 events.as_mut_ptr(),
                 max_events,
                 -1, // timeout, -1 means it will wait indefinitely
-                self.signal_block.orig_sigmask(),
+                self.signal_block.orig_sigmask(), // Accept signals only while polling.
             )
         };
 
@@ -231,8 +232,11 @@ impl Epoll {
 
 impl Drop for Epoll {
     fn drop(&mut self) {
-        unsafe {
-            libc::close(self.fd);
+        let res = unsafe {
+            libc::close(self.fd)
+        };
+        if res < 0 {
+            SystemError::os_with_context("While closing an epoll file descriptor:").print_err();
         }
     }
 }
