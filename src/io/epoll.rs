@@ -47,7 +47,7 @@ pub trait Pollable : AsRawFd {
 impl Epoll {
     pub fn new() -> Result<Epoll, SystemError> {
         let epoll_fd = unsafe {
-            libc::epoll_create1(0)
+            libc::epoll_create1(libc::EPOLL_CLOEXEC)
         };
         if epoll_fd < 0 {
             return Err(SystemError::os_with_context("While trying to create an epoll instance:"));

@@ -159,6 +159,8 @@ impl OutputDevice {
             let mut uinput_dev: *mut libevdev::libevdev_uinput = ptr::null_mut();
             let res = libevdev::libevdev_uinput_create_from_device(
                 dev,
+                // In the source code of the current version of libevdev, the O_CLOEXEC will be
+                // automatically set on the created file descriptor.
                 libevdev::libevdev_uinput_open_mode_LIBEVDEV_UINPUT_OPEN_MANAGED,
                 &mut uinput_dev
             );

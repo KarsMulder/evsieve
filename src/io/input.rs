@@ -90,7 +90,9 @@ impl InputDevice {
         // Open the file itself.
         let file = OpenOptions::new()
             .read(true)
-            .custom_flags(libc::O_NONBLOCK)
+            // O_CLOEXEC is already set by default in the std source code, but I'm providing it
+            // anyway to clearly signify we _need_ that flag.
+            .custom_flags(libc::O_NONBLOCK | libc::O_CLOEXEC)
             .open(&path)?;
 
         // Turn the file into an evdev instance.
