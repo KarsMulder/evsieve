@@ -9,6 +9,7 @@ use crate::io::epoll::{Pollable};
 use std::collections::HashMap;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::PathBuf;
+use std::collections::HashSet;
 
 /// Represents something can can be used to re-open a closed input device.
 pub struct Blueprint {
@@ -130,7 +131,7 @@ impl Inotify {
     }
 
     /// Adds all watches in the given vector, and removes all not in the given vector.
-    pub fn set_watches(&mut self, paths: Vec<String>) -> Result<(), RuntimeError> {
+    pub fn set_watched_paths(&mut self, paths: Vec<String>) -> Result<(), RuntimeError> {
         let paths_to_remove: Vec<String> = self.watched_paths()
             .filter(|&path| !paths.contains(path))
             .cloned().collect();
@@ -193,20 +194,39 @@ impl BlueprintOpener {
     pub fn new(blueprint: Blueprint) -> Result<BlueprintOpener, RuntimeError> {
         let inotify = Inotify::new()?;
         let mut opener = BlueprintOpener { blueprint, inotify, cached_device: None };
-        opener.update_watched_paths()?;
+        let paths = opener.get_paths_to_watch()?;
+        opener.inotify.set_watched_paths(paths)?;
+
         Ok(opener)
     }
 
     pub fn try_open(&mut self) -> Result<Option<InputDevice>, RuntimeError> {
-        if let Some(device) = self.blueprint.try_open()? {
-            return Ok(Some(device));
-        };
-        // TODO: possible race condition: what if the filesystem changed before the watches were added?
-        self.update_watched_paths()?;
-        Ok(None)
+        const MAX_TRIES: usize = 5;
+        for _ in 0 .. MAX_TRIES {
+            // Try to open the device.
+            if let Some(device) = self.blueprint.try_open()? {
+                return Ok(Some(device));
+            };
+
+            // If that fails, find out which paths may cause a change, then watch them.
+            // Just in case the relevant paths change between now and when we actually watch them
+            // thanks to a race-condition, we do this within a loop until the paths are identical
+            // for two iterations.
+            let paths_to_watch: Vec<String> = self.get_paths_to_watch()?;
+            let paths_to_watch_hashset: HashSet<&String> = paths_to_watch.iter().collect();
+            let paths_already_watched: HashSet<&String> = self.inotify.watched_paths().collect();
+
+            if paths_to_watch_hashset == paths_already_watched {
+                return Ok(None)
+            } else {
+                self.inotify.set_watched_paths(paths_to_watch)?;
+            }
+        }
+
+        Err(SystemError::new("Exceeded maximum tries when updating inotify watches.").into())
     }
 
-    pub fn update_watched_paths(&mut self) -> Result<(), RuntimeError> {
+    pub fn get_paths_to_watch(&mut self) -> Result<Vec<String>, RuntimeError> {
         const MAX_SYMLINKS: usize = 20;
 
         // Walk down the chain of symlinks starting at current_path.
@@ -222,18 +242,16 @@ impl BlueprintOpener {
             }
         }
         
-        // Watch every directory containing a symlink.
-        let directories: Vec<String> = traversed_paths.into_iter()
+        // Return every directory containing a symlink.
+        traversed_paths.into_iter()
             .map(|mut path| {
                 path.pop();
                 path.into_os_string().into_string().map_err(
                     |_| SystemError::new("Encountered a path without valid UTF-8 data.")
                 )
             })
-            .collect::<Result<Vec<String>, SystemError>>()?;
-        self.inotify.set_watches(directories)?;
-        
-        Ok(())
+            .collect::<Result<Vec<String>, SystemError>>()
+            .map_err(Into::into)
     }
 }
 
