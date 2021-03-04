@@ -15,7 +15,7 @@ links = "evdev"
 # Linux kernel, so I'm marking the license conservatively in Cargo.toml. If you wish to
 # redistribute this program under GPLv3+, you should do your own legal research on whether
 # that is possible.
-license = "GPL-2.0-or-later AND MIT AND HPND-sell-variant AND GPL-2.0-only WITH Linux-syscall-note"
+license = "GPL-2.0-or-later AND MIT AND GPL-2.0-only WITH Linux-syscall-note"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
