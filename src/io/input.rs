@@ -181,6 +181,11 @@ impl InputDevice {
         Ok(result)
     }
 
+    /// Tries to grab the device if grab_mode says we should.
+    ///
+    /// Returns Ok if either grabbing was successful or there is no need to grab this device.
+    /// Returns Err(SystemError) if we tried to grab the device, but failed because the OS didn't
+    /// let us grab the device.
     pub fn grab_if_desired(&mut self) -> Result<(), SystemError> {
         if self.grabbed {
             return Ok(());
