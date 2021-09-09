@@ -40,6 +40,7 @@ impl Drop for PidFile {
 pub enum Daemon {
     None,
     Traditional(TraditionalDaemon),
+    Systemd,
 }
 
 impl Daemon {
@@ -54,11 +55,26 @@ impl Daemon {
         Daemon::None
     }
 
+    pub fn systemd() -> Daemon {
+        Daemon::Systemd
+    }
+
+    pub fn auto() -> Daemon {
+        match std::env::var("NOTIFY_SOCKET") {
+            Ok(_) => Daemon::systemd(),
+            Err(_) => Daemon::none(),
+        }
+    }
+
     /// # Safety
     /// This function can only be called from a single-threaded context.
     pub unsafe fn finalize(&mut self) {
         match self {
             Daemon::None => {},
+            Daemon::Systemd => {
+                // TODO: check if the systemd-notify tool exists.
+                crate::subprocess::try_spawn("systemd-notify".to_string(), vec!["--ready".to_string()]);
+            },
             Daemon::Traditional(daemon) => daemon.finalize(),
         }
     }
