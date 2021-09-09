@@ -51,7 +51,7 @@ impl InputDevice {
         };
 
         let persist_mode = match arg_group.get_unique_clause("persist")? {
-            None => PersistMode::Reopen,
+            None => PersistMode::None,
             Some(value) => match value.as_str() {
                 "reopen" => PersistMode::Reopen,
                 "none" => PersistMode::None,
