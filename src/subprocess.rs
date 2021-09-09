@@ -2,6 +2,7 @@ use std::process::{Command, Stdio, Child};
 use std::io;
 use std::sync::Mutex;
 use signal_hook::iterator::Signals;
+use crate::error::{Context, SystemError};
 
 lazy_static! {
     /// Keeps track of all subprocess we've spawned so we can terminate them when evsieve exits.
@@ -16,10 +17,9 @@ pub fn terminate_all() {
     }
 }
 
-/// Will spawn a process. Will print an error on failure, but will not return an error code.
-/// The process will be SIGTERM'd when subprocess::terminate_all is called (if it is still
-/// running by then).
-pub fn try_spawn(program: String, args: Vec<String>) {
+/// Will spawn a process. The process will be SIGTERM'd when `subprocess::terminate_all` is called
+/// (if it is still running by then).
+pub fn try_spawn(program: String, args: Vec<String>) -> Result<(), SystemError> {
     // Compute a printable version of the command, so we have something to show the
     // user in case an error happens.
     let printable_cmd: String = vec![program.clone()].into_iter().chain(args.iter().map(
@@ -38,8 +38,9 @@ pub fn try_spawn(program: String, args: Vec<String>) {
     let child = match child_res {
         Ok(proc) => proc,
         Err(error) => {
-            eprintln!("Failed to run {}: {}", printable_cmd, error);
-            return;
+            return Err(SystemError::from(error).with_context(
+                format!("While trying to run {}:", printable_cmd)
+            ));
         }
     };
 
@@ -47,7 +48,8 @@ pub fn try_spawn(program: String, args: Vec<String>) {
         child, printable_cmd
     };
 
-    MANAGER.lock().expect("Internal lock poisoned.").add_process(process)
+    MANAGER.lock().expect("Internal lock poisoned.").add_process(process);
+    Ok(())
 }
 
 struct SubprocessManager {

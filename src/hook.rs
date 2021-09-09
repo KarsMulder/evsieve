@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+use crate::error::Context;
 use crate::range::Range;
 use crate::key::Key;
 use crate::state::{State, BoolIndex};
@@ -100,7 +101,7 @@ impl Hook {
     pub fn add_command(&mut self, program: String, args: Vec<String>) {
         self.add_effect(
             Box::new(move |_| {
-                subprocess::try_spawn(program.clone(), args.clone());
+                subprocess::try_spawn(program.clone(), args.clone()).print_err();
             })
         );
     }

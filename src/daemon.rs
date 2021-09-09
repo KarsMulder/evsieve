@@ -1,3 +1,5 @@
+use crate::error::Context;
+
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 pub enum Daemon {
@@ -19,8 +21,13 @@ impl Daemon {
         match self {
             Daemon::None => {},
             Daemon::Systemd => {
-                // TODO: check if the systemd-notify tool exists.
-                crate::subprocess::try_spawn("systemd-notify".to_string(), vec!["--ready".to_string()]);
+                match crate::subprocess::try_spawn("systemd-notify".to_string(), vec!["--ready".to_string()]) {
+                    Ok(()) => {},
+                    Err(error) => {
+                        eprintln!("ERROR: failed to notify systemd that evsieve is ready.");
+                        error.print_err();
+                    },
+                }
             },
         }
     }
