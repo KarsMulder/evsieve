@@ -4,13 +4,14 @@ use std::ffi::CString;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::mem::MaybeUninit;
+use std::os::unix::prelude::RawFd;
 use std::path::{PathBuf};
 
 use crate::error::{SystemError, Context};
 
 struct PidFile {
     path: PathBuf,
-    file: File,
+    _file: File,
 }
 
 impl PidFile {
@@ -25,7 +26,7 @@ impl PidFile {
         file.sync_all()?;
 
         Ok(PidFile {
-            path, file
+            path, _file: file
         })
     }
 }
@@ -44,9 +45,13 @@ pub enum Daemon {
 impl Daemon {
     /// # Safety
     /// This call closes all open file descriptors except the standard I/O. Make sure you do not have
-    /// any open file descriptors you intend to write to.
+    /// any open file descriptors you intend to use.
     pub unsafe fn traditional(pidfile_path: PathBuf) -> Result<Daemon, SystemError> {
         Ok(Daemon::Traditional(TraditionalDaemon::new(pidfile_path)?))
+    }
+
+    pub fn none() -> Daemon {
+        Daemon::None
     }
 
     /// # Safety
@@ -60,13 +65,15 @@ impl Daemon {
 }
 
 pub struct TraditionalDaemon {
-    pidfile: PidFile,
+    _pidfile: PidFile,
+    child_pipe: Option<ChildPipe>,
 }
 
 impl TraditionalDaemon {
     /// # Safety
     /// This call closes all open file descriptors except the standard I/O. Make sure you do not have
-    /// any open file descriptors you intend to write to.
+    /// any open file descriptors you intend to write to. Also, all other threads disappear when this
+    /// function is called.
     pub unsafe fn new(pidfile_path: PathBuf) -> Result<TraditionalDaemon, SystemError> {
         // Close all open file descriptors except for the standard I/O.
         let rlimit = {
@@ -87,6 +94,16 @@ impl TraditionalDaemon {
             libc::close(i as i32);
         }
 
+        // Prepare pipes for communication with the child.
+        // The child should send a byte (i8) equal to the pipe when it is ready. The parent shall then
+        // exit with that byte as its status code.
+        let mut pipe_fds: [RawFd; 2] = [-1; 2];
+        if libc::pipe(&mut pipe_fds as *mut RawFd) < 0 {
+            return Err(SystemError::os_with_context("While trying to create internal communication pipes:"));
+        }
+        let parent_pipe_fd: RawFd = pipe_fds[0];
+        let child_pipe_fd: RawFd = pipe_fds[1];
+
         // Fork the process.
         let pid = libc::fork();
         if pid < 0 {
@@ -95,9 +112,24 @@ impl TraditionalDaemon {
         }
         if pid > 0 {
             // Forking was a success. We are the parent.
-            libc::exit(libc::EXIT_SUCCESS);
+            libc::close(child_pipe_fd);
+            // Wait until the child sends a byte.
+            let mut buffer: [i8; 1] = [0; 1];
+            loop {
+                let result = libc::read(parent_pipe_fd, &mut buffer as *mut _ as *mut libc::c_void, 1);
+                if result > 0 {
+                    let received_byte = buffer[0];
+                    libc::exit(received_byte as i32);
+                }
+                if result as i32 == -libc::EINTR {
+                    continue;
+                }
+                libc::exit(libc::EXIT_FAILURE);
+            }
         }
         // Else: forking was a success. We are the child.
+        libc::close(parent_pipe_fd);
+        let child_pipe = ChildPipe::from_raw_fd(child_pipe_fd);
 
         // Create a new session.
         let sid = libc::setsid();
@@ -129,7 +161,10 @@ impl TraditionalDaemon {
         }
 
         let pidfile = PidFile::new(pidfile_path).with_context("While creating the PID file:")?;
-        Ok(TraditionalDaemon { pidfile })
+        Ok(TraditionalDaemon {
+            _pidfile: pidfile,
+            child_pipe: Some(child_pipe),
+        })
     }
 
     /// # Safety
@@ -137,8 +172,20 @@ impl TraditionalDaemon {
     /// This function can only be called from a single-threaded program. If another thread tries to
     /// write to the standard I/O while this function is running, undefined behaviour ensures.
     pub unsafe fn finalize(&mut self) {
+        // Lock Rust's access to the standard I/O so no other safe Rust code dares writing to them
+        // while we close and reopen their file descriptors. This does not make the code thread-safe,
+        // it just makes is slightly less likely that something really bad happens if some safety
+        // assumption is violated.
+        let stdin = std::io::stdin();
+        let _stdin_lock = stdin.lock();
+        let stdout = std::io::stdout();
+        let _stdout_lock = stdout.lock();
+        let stderr = std::io::stderr();
+        let _stderr_lock = stderr.lock();
+
         // Close the standard I/O and redirect them to /dev/null.
         let devnull = CString::new("/dev/null").unwrap();
+
         for (fileno, mode) in [(libc::STDIN_FILENO, libc::O_RDONLY),
                                (libc::STDOUT_FILENO, libc::O_WRONLY),
                                (libc::STDERR_FILENO, libc::O_WRONLY)]
@@ -149,6 +196,56 @@ impl TraditionalDaemon {
             if libc::open(devnull.as_ptr() as *const i8, mode) != fileno {
                 libc::exit(libc::EXIT_FAILURE);
             }
+        }
+
+        // Inform the parent that the child process is ready.
+        if let Some(mut child_pipe) = self.child_pipe.take() {
+            let _ = child_pipe.send_byte(0);
+        }
+    }
+}
+
+
+/// A communication channel from the forked process to the parent process.
+struct ChildPipe {
+    fd: Option<RawFd>,
+}
+
+impl ChildPipe {
+    /// # Safety
+    /// The file descriptor must be valid.
+    unsafe fn from_raw_fd(fd: RawFd) -> ChildPipe {
+        ChildPipe { fd: Some(fd) }
+    }
+
+    fn send_byte(&mut self, byte: i8) -> Result<(), SystemError> {
+        if let Some(fd) = self.fd {
+            unsafe {
+                let buffer: [i8; 1] = [byte];
+                loop {
+                    let result = libc::write(fd, &buffer as *const _ as *const libc::c_void, std::mem::size_of::<[i8; 1]>());
+                    if result > 0 {
+                        libc::close(fd);
+                        self.fd = None;
+                        return Ok(());
+                    }
+                    if result < 0 {
+                        return Err(SystemError::os_with_context("While communicating with parent process:"))
+                    }
+                }
+            };
+        } else {
+            Err(SystemError::new("Writing to a closed pipe."))
+        }
+    }
+}
+
+/// In case the ChildPipe is dropped without having sent an "OK" byte yet, the child has probably
+/// encountered an error. Send the byte "1" to signal that something is wrong.
+impl Drop for ChildPipe {
+    fn drop(&mut self) {
+        if self.fd.is_some() {
+            let _ = self.send_byte(1);
         }
     }
 }
