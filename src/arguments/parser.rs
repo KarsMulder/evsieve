@@ -101,11 +101,11 @@ fn parse(args: Vec<String>) -> Result<Vec<Argument>, RuntimeError> {
 		groups.push(new_group);
     }
 
-    Ok(groups.into_iter().map(
+    groups.into_iter().map(
         |group| Argument::parse(group.clone()).with_context(format!(
             "While parsing the arguments \"{}\":", group.join(" ")
         )
-    )).collect::<Result<Vec<Argument>, RuntimeError>>()?)
+    )).collect::<Result<Vec<Argument>, RuntimeError>>()
 }
 
 pub fn implement(args_str: Vec<String>) -> Result<Setup, RuntimeError> {   
@@ -162,7 +162,7 @@ pub fn implement(args_str: Vec<String>) -> Result<Setup, RuntimeError> {
                     let source_domain = domain::get_unique_domain();
                     let target_domain = match &device.domain {
                         Some(value) => *value,
-                        None => domain::resolve(&path_str)?,
+                        None => domain::resolve(path_str)?,
                     };
 
                     let input_device = PreInputDevice {

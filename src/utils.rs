@@ -15,7 +15,7 @@ pub fn split_once<'a>(value: &'a str, deliminator: &str) -> (&'a str, Option<&'a
 /// # Safety
 /// The pointer must be either the null-pointer, or have a valid trailing 0-byte.
 pub unsafe fn parse_cstr(raw_ptr: *const c_char) -> Option<String> {
-    if raw_ptr == std::ptr::null() {
+    if raw_ptr.is_null() {
         return None;
     }
     let raw_cstr: &CStr = CStr::from_ptr(raw_ptr);

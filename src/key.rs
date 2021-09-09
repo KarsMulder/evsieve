@@ -162,7 +162,7 @@ pub struct KeyParser<'a> {
 
 impl<'a> KeyParser<'a> {
     pub fn parse(&self, key_str: &str) -> Result<Key, ArgumentError> {
-        interpret_key_with_domain(key_str, &self)
+        interpret_key_with_domain(key_str, self)
             .with_context(format!("While parsing the key \"{}\":", key_str))
     }
     pub fn parse_all(&self, key_strs: &[String]) -> Result<Vec<Key>, ArgumentError> {

@@ -123,7 +123,7 @@ impl OutputDevice {
             for code in &caps.codes {
                 let res = match code.ev_type() {
                     EventType::ABS => {
-                        let abs_info = caps.abs_info.get(&code)
+                        let abs_info = caps.abs_info.get(code)
                             .ok_or_else(|| InternalError::new("Cannot create uinput device: device has absolute axis without associated capabilities."))?;
                         let libevdev_abs_info: libevdev::input_absinfo = (*abs_info).into();
                         let libevdev_abs_info_ptr = &libevdev_abs_info as *const libevdev::input_absinfo;
@@ -211,7 +211,7 @@ impl OutputDevice {
         let my_path_cstr_ptr = unsafe {
             libevdev::libevdev_uinput_get_devnode(self.device)
         };
-        if my_path_cstr_ptr == std::ptr::null() {
+        if my_path_cstr_ptr.is_null() {
             return Err(SystemError::new("Failed to createa a symlink to an output device: cannot determine the path to the virtual device's device node."))
         };
         let my_path_cstr = unsafe { std::ffi::CStr::from_ptr(my_path_cstr_ptr) };
