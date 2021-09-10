@@ -33,6 +33,11 @@ Once compiled, this program will link against the libevdev library. The
 license of the libevdev library can be found in "licenses/thirdparty/
 libevdev/license.txt".
 
+Once compiled, this program may link against the libsystemd library. The
+libsystemd library is licensed under the GNU Lesser General Public License
+version 2.1 or later. A copy of this licence can be found in "licenses/
+thirdparty/libsystemd/lgpl.txt".
+
 Once compiled, this program will statically link against the Rust standard
 library. The Rust standard library is generally dual-licensed under the
 MIT license and the Apache 2.0 license. These licenses can be found in
@@ -47,6 +52,12 @@ Copies of the licenses for these crates can be found in the "licenses/
 thirdparty/crates" directory. The crates "signal-hook" and "signal-hook-registry"
 are both under the same license which can be found in "licenses/thirdparty/
 crates/signal-hook".
+
+During compilation, the third-party Cargo crate "pkg-config" is used, but
+the compiled program does not link against this crate. For the sake of
+completeness, we mention that it is dual-licensed under the MIT licence
+and Apache 2.0 licence. These licences can be found in "licenses/thirdparty/
+crates/pkg-config".
 
 Compiled forms of this program may statically or dynamically link against
 other libraries. All those libraries are available under their respective

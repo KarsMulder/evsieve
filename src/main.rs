@@ -90,15 +90,17 @@ fn run_and_interpret_exit_code() -> i32 {
 }
 
 fn run() -> Result<(), RuntimeError> {
+    sysexit::init()?;
+    let mut daemon = Daemon::auto();
+
     let args: Vec<String> = std::env::args().collect();
     if arguments::parser::check_help_and_version(&args) {
+        daemon.finalize();
         return Ok(());
     }
 
-    let mut daemon = Daemon::auto();
-    sysexit::init()?;
     let mut setup = arguments::parser::implement(args)?;
-    unsafe { daemon.finalize() };
+    daemon.finalize();
 
     loop {
         match stream::run(&mut setup) {
