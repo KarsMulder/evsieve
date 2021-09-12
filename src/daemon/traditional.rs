@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 //! A module full of dead code that can be used to add support for traditional-style daemons.
 //! The module mostly works, but it adds some headache-inducing invariants (e.g. requires the
 //! process to be single-threaded at some critical points). As such, I am not actually stabilizing

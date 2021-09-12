@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 use std::os::raw::{c_int, c_char};
 
 #[cfg(feature = "systemd")]
