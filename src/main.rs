@@ -62,7 +62,6 @@ pub mod bindings {
 #[macro_use]
 extern crate lazy_static;
 
-use daemon::Daemon;
 use error::{InterruptError, RuntimeError};
 
 fn main() {
@@ -91,16 +90,15 @@ fn run_and_interpret_exit_code() -> i32 {
 
 fn run() -> Result<(), RuntimeError> {
     sysexit::init()?;
-    let mut daemon = Daemon::auto();
 
     let args: Vec<String> = std::env::args().collect();
     if arguments::parser::check_help_and_version(&args) {
-        daemon.finalize();
+        daemon::notify_ready();
         return Ok(());
     }
 
     let mut setup = arguments::parser::implement(args)?;
-    daemon.finalize();
+    daemon::notify_ready();
 
     loop {
         match stream::run(&mut setup) {
