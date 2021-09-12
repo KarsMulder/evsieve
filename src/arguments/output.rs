@@ -45,13 +45,7 @@ impl OutputDevice {
         let mut keys = Vec::new();
         for &namespace in &[Namespace::User, Namespace::Yielded] {
             keys.append(
-                &mut KeyParser {
-                    allow_ranges: true,
-                    allow_transitions: true,
-                    allow_types: true,
-                    default_value: "",
-                    namespace,
-                }.parse_all(&key_strs)?
+                &mut KeyParser::default_filter().with_namespace(namespace).parse_all(&key_strs)?
             );
         }
 

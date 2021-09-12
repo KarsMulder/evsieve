@@ -28,25 +28,15 @@ impl MapArg {
 
         // Parse the keys.
         let keys_str = arg_group.require_keys()?;
-        let input_key = KeyParser {
-            allow_transitions: true,
-            allow_ranges: true,
-            allow_types: true,
-            default_value: "",
-            namespace: Namespace::User,
-        }.parse(&keys_str[0])?;
+        let input_key = KeyParser::default_filter().parse(&keys_str[0])?;
         
         let output_namespace = match arg_group.has_flag("yield") {
             true => Namespace::Yielded,
             false => Namespace::User,
         };
-        let mut output_keys = KeyParser {
-            allow_ranges: false,
-            allow_transitions: false,
-            allow_types: false,
-            default_value: "",
-            namespace: output_namespace,
-        }.parse_all(&keys_str[1..])?;
+        let mut output_keys = KeyParser::default_mask()
+            .with_namespace(output_namespace)
+            .parse_all(&keys_str[1..])?;
 
         if copy {
             output_keys.insert(0, Key::copy());
@@ -72,13 +62,7 @@ impl BlockArg {
             true,
         )?;
 
-        let keys = KeyParser {
-            allow_ranges: true,
-            allow_transitions: true,
-            allow_types: true,
-            default_value: "",
-            namespace: Namespace::User,
-        }.parse_all(&arg_group.get_keys_or_empty_key())?;
+        let keys = KeyParser::default_filter().parse_all(&arg_group.get_keys_or_empty_key())?;
 
         Ok(BlockArg { keys })
     }

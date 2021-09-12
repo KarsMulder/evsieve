@@ -3,7 +3,6 @@
 use crate::error::ArgumentError;
 use crate::arguments::lib::ComplexArgGroup;
 use crate::key::{Key, KeyParser};
-use crate::event::Namespace;
 use crate::print::{EventPrinter, EventPrintMode};
 
 /// Represents a --print argument.
@@ -21,13 +20,7 @@ impl PrintArg {
             true,
         )?;
 
-        let keys = KeyParser {
-            allow_ranges: true,
-            allow_transitions: true,
-            allow_types: true,
-            default_value: "",
-            namespace: Namespace::User,
-        }.parse_all(&arg_group.get_keys_or_empty_key())?;
+        let keys = KeyParser::default_filter().parse_all(&arg_group.get_keys_or_empty_key())?;
 
         let mode = match arg_group.get_unique_clause("format")? {
             Some(value) => match value.as_str() {

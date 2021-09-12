@@ -3,7 +3,6 @@
 use crate::error::ArgumentError;
 use crate::arguments::lib::ComplexArgGroup;
 use crate::key::{Key, KeyParser};
-use crate::event::Namespace;
 use crate::map::ToggleMode;
 
 /// Represents a --toggle argument.
@@ -39,21 +38,8 @@ impl ToggleArg {
             return Err(ArgumentError::new("A --toggle argument requires an input key and at least one output key."));
         }
 
-        let input_key = KeyParser {
-            allow_transitions: true,
-            allow_ranges: true,
-            default_value: "",
-            allow_types: true,
-            namespace: Namespace::User,
-        }.parse(&keys[0])?;
-    
-        let output_keys = KeyParser {
-            allow_ranges: false,
-            allow_transitions: false,
-            default_value: "",
-            allow_types: false,
-            namespace: Namespace::User,
-        }.parse_all(&keys[1..])?;
+        let input_key = KeyParser::default_filter().parse(&keys[0])?;
+        let output_keys = KeyParser::default_mask().parse_all(&keys[1..])?;
 
         let id = arg_group.get_unique_clause("id")?;
         if let Some(id) = &id {

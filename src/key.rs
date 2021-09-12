@@ -179,10 +179,40 @@ pub struct KeyParser<'a> {
 }
 
 impl<'a> KeyParser<'a> {
+    /// Returns the KeyParser that is the most commonly used one for filtering events,
+    /// e.g. the first key in `--map key:a key:b` but not the second key.
+    pub fn default_filter() -> KeyParser<'static> {
+        KeyParser {
+            default_value: "",
+            allow_ranges: true,
+            allow_transitions: true,
+            allow_types: true,
+            namespace: Namespace::User,
+        }
+    }
+
+    /// Returns the KeyParser that is the most commonly used one for masking events,
+    /// e.g. the second key in `--map key:a key:b` but not the first key.
+    pub fn default_mask() -> KeyParser<'static> {
+        KeyParser {
+            default_value: "",
+            allow_ranges: false,
+            allow_transitions: false,
+            allow_types: false,
+            namespace: Namespace::User,
+        }
+    }
+
+    pub fn with_namespace(&mut self, namespace: Namespace) -> &mut Self {
+        self.namespace = namespace;
+        self
+    }
+
     pub fn parse(&self, key_str: &str) -> Result<Key, ArgumentError> {
         interpret_key_with_domain(key_str, self)
             .with_context(format!("While parsing the key \"{}\":", key_str))
     }
+
     pub fn parse_all(&self, key_strs: &[String]) -> Result<Vec<Key>, ArgumentError> {
         key_strs.iter().map(
             |key| self.parse(key)
