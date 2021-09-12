@@ -105,6 +105,11 @@ pub enum VirtualEventType {
     Other(EventType),
 }
 
+impl VirtualEventType {
+    pub const KEY: &'static str = "key";
+    pub const BUTTON: &'static str = "btn";
+}
+
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub struct Event {
     pub code: EventCode,

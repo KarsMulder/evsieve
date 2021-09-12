@@ -124,7 +124,7 @@ impl KeyProperty {
                 if cfg!(debug_assertions) {
                     panic!("Cannot change the event type of an event. Panicked during event mapping.");
                 } else {
-                    eprintln!("ERROR: cannot change the event type of an event. If you see this message, this is a bug.");
+                    utils::warn_once("ERROR: cannot change the event type of an event. If you see this message, this is a bug.");
                 }
             }
         };
@@ -161,7 +161,7 @@ impl KeyProperty {
                 if cfg!(debug_assertions) {
                     panic!("Cannot change the event type of an event. Panicked during capability propagation.");
                 } else {
-                    eprintln!("ERROR: cannot change the event type of an event. If you see this message, this is a bug.");
+                    utils::warn_once("ERROR: cannot change the event type of an event. If you see this message, this is a bug.");
                 }
             }
         };
@@ -251,22 +251,36 @@ fn interpret_key(key_str: &str, parser: &KeyParser) -> Result<Key, ArgumentError
         return Err(ArgumentError::new("Cannot use event type \"syn\": it is impossible to manipulate synchronisation events because synchronisation is automatically taken care of by evsieve."));
     }
 
-    // Interpret the event code.
-    let event_code_name = match parts.next() {
-        Some(value) => value,
-        None => return Err(ArgumentError::new(format!("No event code provided for the key \"{}\".", key_str)))
-    };
-    let event_code = ecodes::event_code(event_type_name, event_code_name).ok_or_else(||
-        ArgumentError::new(format!(
-            "Unknown event code \"{}\".", event_code_name
-        ))
-    )?;
-    key.add_property(KeyProperty::Code(event_code));
+    // Extract the event code, or return a key that matches on type only.
+    match parts.next() {
+        Some(event_code_name) => {
+            let event_code = ecodes::event_code(event_type_name, event_code_name).ok_or_else(||
+                ArgumentError::new(format!(
+                    "Unknown event code \"{}\".", event_code_name
+                ))
+            )?;
+            key.add_property(KeyProperty::Code(event_code));
 
-    // ISSUE: ABS_MT support
-    if ecodes::is_abs_mt(event_code) {
-        utils::warn_once("Warning: it seems you're trying to manipulate ABS_MT events. Keep in mind that evsieve's support for ABS_MT is considered unstable. Evsieve's behaviour with respect to ABS_MT events is subject to change in the future.");
-    }
+            // ISSUE: ABS_MT support
+            if ecodes::is_abs_mt(event_code) {
+                utils::warn_once("Warning: it seems you're trying to manipulate ABS_MT events. Keep in mind that evsieve's support for ABS_MT is considered unstable. Evsieve's behaviour with respect to ABS_MT events is subject to change in the future.");
+            }
+        }
+        // If no event code is available, then either throw an error or return a key that matches only on
+        // the virtual type depending on whether parser.allow_types is set.
+        None => {
+            if ! parser.allow_types {
+                return Err(ArgumentError::new(format!("No event code provided for the key \"{}\".", key_str)));
+            }
+            // TODO: consider refactoring.
+            let virtual_type = match event_type_name {
+                "key" => VirtualEventType::Key,
+                "btn" => VirtualEventType::Button,
+                _ => VirtualEventType::Other(event_type),
+            };
+            key.add_property(KeyProperty::VirtualType(virtual_type));
+        }
+    };
     
     let event_value_str = match parts.next() {
         Some(value) => value,
