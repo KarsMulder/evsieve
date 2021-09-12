@@ -98,7 +98,7 @@ impl From<EventType> for u32 {
 /// To resolve this, we introduce a virtual event type which is equivalent to the kernel type
 /// except that EV_KEY is split into two different types, one for events with EV_KEY, KEY_* codes
 /// and one for events with EV_KEY, BTN_* codes.
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum VirtualEventType {
     Key,
     Button,

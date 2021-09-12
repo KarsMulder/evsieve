@@ -2,7 +2,7 @@
 
 use crate::domain;
 use crate::domain::Domain;
-use crate::event::{Event, Namespace};
+use crate::event::{Event, Namespace, VirtualEventType};
 use crate::utils;
 use crate::error::ArgumentError;
 use crate::capability::{Capability, CapMatch};
@@ -93,6 +93,7 @@ impl Key {
 enum KeyProperty {
     Code(EventCode),
     Domain(Domain),
+    VirtualType(VirtualEventType),
     Namespace(Namespace),
     Value(Range),
     PreviousValue(Range),
@@ -104,6 +105,7 @@ impl KeyProperty {
         match *self {
             KeyProperty::Code(value) => event.code == value,
             KeyProperty::Domain(value) => event.domain == value,
+            KeyProperty::VirtualType(value) => event.code.virtual_ev_type() == value,
             KeyProperty::Namespace(value) => event.namespace == value,
             KeyProperty::Value(range) => range.contains(event.value),
             KeyProperty::PreviousValue(range) => range.contains(event.previous_value),
@@ -118,6 +120,13 @@ impl KeyProperty {
             KeyProperty::Namespace(value) => event.namespace = value,
             KeyProperty::Value(range) => event.value = range.bound(event.value),
             KeyProperty::PreviousValue(range) => event.previous_value = range.bound(event.previous_value),
+            KeyProperty::VirtualType(_) => {
+                if cfg!(debug_assertions) {
+                    panic!("Cannot change the event type of an event. Panicked during event mapping.");
+                } else {
+                    eprintln!("ERROR: cannot change the event type of an event. If you see this message, this is a bug.");
+                }
+            }
         };
         event
     }
@@ -126,6 +135,7 @@ impl KeyProperty {
         match *self {
             KeyProperty::Code(value) => (cap.code == value).into(),
             KeyProperty::Domain(value) => (cap.domain == value).into(),
+            KeyProperty::VirtualType(value) => (cap.code.virtual_ev_type() == value).into(),
             KeyProperty::Namespace(value) => (cap.namespace == value).into(),
             KeyProperty::Value(range) => {
                 if cap.value_range.is_subset_of(&range) {
@@ -147,6 +157,13 @@ impl KeyProperty {
             KeyProperty::Namespace(value) => cap.namespace = value,
             KeyProperty::Value(range) => cap.value_range = range.bound_range(&cap.value_range),
             KeyProperty::PreviousValue(_range) => {},
+            KeyProperty::VirtualType(_) => {
+                if cfg!(debug_assertions) {
+                    panic!("Cannot change the event type of an event. Panicked during capability propagation.");
+                } else {
+                    eprintln!("ERROR: cannot change the event type of an event. If you see this message, this is a bug.");
+                }
+            }
         };
         cap
     }
