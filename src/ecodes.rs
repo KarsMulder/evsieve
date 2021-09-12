@@ -78,7 +78,15 @@ pub fn event_name(code: EventCode) -> String {
     }
 }
 
-// Returns whether this event is an multitouch event.
+/// Returns true if this code is of type EV_KEY with a BTN_* code.
+pub fn is_button_code(code: EventCode) -> bool {
+    match EVENT_NAMES.get(&code) {
+        Some(name) => name.starts_with("btn:"),
+        None => false,
+    }
+}
+
+/// Returns whether this event is an multitouch event.
 pub fn is_abs_mt(code: EventCode) -> bool {
     code.ev_type().is_abs() && event_name(code).starts_with("abs:mt_")
 }

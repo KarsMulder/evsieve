@@ -66,6 +66,18 @@ impl EventCode {
     pub const fn code(self) -> u16 {
         self.code
     }
+
+    pub fn virtual_ev_type(self) -> VirtualEventType {
+        if self.ev_type().is_key() {
+            if ecodes::is_button_code(self) {
+                VirtualEventType::Button
+            } else {
+                VirtualEventType::Key
+            }
+        } else {
+            VirtualEventType::Other(self.ev_type())
+        }
+    }
 }
 
 impl From<EventType> for u16 {
@@ -78,6 +90,19 @@ impl From<EventType> for u32 {
     fn from(ev_type: EventType) -> u32 {
         u16::from(ev_type) as u32
     }
+}
+
+/// In the kernel, the type EV_KEY is used for both keys like key:a and buttons like btn:left.
+/// This could confuse the user if a "--map key" argument were to also match btn:something events.
+///
+/// To resolve this, we introduce a virtual event type which is equivalent to the kernel type
+/// except that EV_KEY is split into two different types, one for events with EV_KEY, KEY_* codes
+/// and one for events with EV_KEY, BTN_* codes.
+#[derive(PartialEq, Eq, Clone, Copy)]
+pub enum VirtualEventType {
+    Key,
+    Button,
+    Other(EventType),
 }
 
 #[derive(PartialEq, Eq, Clone, Copy)]
