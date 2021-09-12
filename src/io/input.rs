@@ -29,7 +29,6 @@ pub fn open_and_query_capabilities(pre_input_devices: Vec<PreInputDevice>)
                 .with_context(format!("While opening the device \"{}\":", device_path.display()))
     }).collect::<Result<Vec<InputDevice>, SystemError>>()?;
 
-    // Grab the devices that have grab=force specified.
     for device in &mut input_devices {
         device.grab_if_desired()?;
     }
