@@ -24,6 +24,7 @@ impl PrintArg {
         let keys = KeyParser {
             allow_ranges: true,
             allow_transitions: true,
+            allow_types: true,
             default_value: "",
             namespace: Namespace::User,
         }.parse_all(&arg_group.get_keys_or_empty_key())?;

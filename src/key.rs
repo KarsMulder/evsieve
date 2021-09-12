@@ -174,6 +174,7 @@ pub struct KeyParser<'a> {
     pub default_value: &'a str,
     pub allow_transitions: bool,
     pub allow_ranges: bool,
+    pub allow_types: bool,
     pub namespace: Namespace,
 }
 
@@ -206,6 +207,7 @@ pub fn resembles_key(key_str: &str) -> bool {
             default_value: "",
             allow_ranges: true,
             allow_transitions: true,
+            allow_types: true,
             namespace: Namespace::User,
         }.parse(key_str).is_ok()
         // Otherwise, check if it contains some of the key-like characters.

@@ -48,6 +48,7 @@ impl OutputDevice {
                 &mut KeyParser {
                     allow_ranges: true,
                     allow_transitions: true,
+                    allow_types: true,
                     default_value: "",
                     namespace,
                 }.parse_all(&key_strs)?

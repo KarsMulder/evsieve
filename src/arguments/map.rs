@@ -31,6 +31,7 @@ impl MapArg {
         let input_key = KeyParser {
             allow_transitions: true,
             allow_ranges: true,
+            allow_types: true,
             default_value: "",
             namespace: Namespace::User,
         }.parse(&keys_str[0])?;
@@ -42,6 +43,7 @@ impl MapArg {
         let mut output_keys = KeyParser {
             allow_ranges: false,
             allow_transitions: false,
+            allow_types: false,
             default_value: "",
             namespace: output_namespace,
         }.parse_all(&keys_str[1..])?;
@@ -73,6 +75,7 @@ impl BlockArg {
         let keys = KeyParser {
             allow_ranges: true,
             allow_transitions: true,
+            allow_types: true,
             default_value: "",
             namespace: Namespace::User,
         }.parse_all(&arg_group.get_keys_or_empty_key())?;

@@ -29,6 +29,7 @@ impl HookArg {
         let hold_keys = KeyParser {
             allow_transitions: false,
             allow_ranges: true,
+            allow_types: false,
             default_value: "1~",
             namespace: Namespace::User,
         }.parse_all(&arg_group.keys)?;

@@ -43,6 +43,7 @@ impl ToggleArg {
             allow_transitions: true,
             allow_ranges: true,
             default_value: "",
+            allow_types: true,
             namespace: Namespace::User,
         }.parse(&keys[0])?;
     
@@ -50,6 +51,7 @@ impl ToggleArg {
             allow_ranges: false,
             allow_transitions: false,
             default_value: "",
+            allow_types: false,
             namespace: Namespace::User,
         }.parse_all(&keys[1..])?;
 
