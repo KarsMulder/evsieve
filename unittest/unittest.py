@@ -558,6 +558,45 @@ def unittest_consistency():
         },
     )
 
+def unittest_type():
+    run_unittest(
+        ["--input", "/dev/input/by-id/unittest-type-in-1", "domain=in1", "grab=force",
+        "--input", "/dev/input/by-id/unittest-type-in-2", "domain=in2", "grab=force",
+        "--map", "key@in1", "key:a",
+        "--map", "btn", "btn:left",
+        "--hook", "key:z", "toggle",
+        "--output", "btn", "@in1", "create-link=/dev/input/by-id/unittest-type-out-1",
+        "--output", "create-link=/dev/input/by-id/unittest-type-out-2"],
+        {
+            "/dev/input/by-id/unittest-type-in-1": [
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_B, 0),
+                (e.EV_ABS, e.ABS_X, 1),
+                (e.EV_ABS, e.ABS_X, 0),
+            ],
+            "/dev/input/by-id/unittest-type-in-2": [
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_B, 0),
+                (e.EV_KEY, e.BTN_RIGHT, 1),
+                (e.EV_KEY, e.BTN_RIGHT, 0),
+            ],
+        },
+        {
+            "/dev/input/by-id/unittest-type-out-1": [
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_A, 0),
+                (e.EV_ABS, e.ABS_X, 1),
+                (e.EV_ABS, e.ABS_X, 0),
+                (e.EV_KEY, e.BTN_LEFT, 1),
+                (e.EV_KEY, e.BTN_LEFT, 0),
+            ],
+            "/dev/input/by-id/unittest-type-out-2": [
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_B, 0),
+            ],
+        },
+    )
+
 
 unittest_mirror()
 unittest_capslock()
@@ -571,3 +610,4 @@ unittest_yield()
 unittest_order()
 unittest_namespace()
 unittest_consistency()
+unittest_type()
