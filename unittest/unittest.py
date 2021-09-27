@@ -564,7 +564,6 @@ def unittest_type():
         "--input", "/dev/input/by-id/unittest-type-in-2", "domain=in2", "grab=force",
         "--map", "key@in1", "key:a",
         "--map", "btn", "btn:left",
-        "--hook", "key:z", "toggle",
         "--output", "btn", "@in1", "create-link=/dev/input/by-id/unittest-type-out-1",
         "--output", "create-link=/dev/input/by-id/unittest-type-out-2"],
         {
