@@ -62,7 +62,7 @@ pub mod bindings {
 #[macro_use]
 extern crate lazy_static;
 
-use error::{InterruptError, RuntimeError};
+use error::{InterruptError, RuntimeError, Context};
 use io::epoll::Message;
 
 fn main() {
@@ -110,6 +110,13 @@ fn run() -> Result<(), RuntimeError> {
         for message in messages {
             match message {
                 Message::Event(event) => stream::run(&mut setup, event),
+                Message::BrokenDevice(device) => {
+                    match device.reduce() {
+                        Ok(file) => unsafe { epoll.add_file(file) }.print_err(),
+                        Err(None) => (),
+                        Err(Some(error)) => error.print_err(),
+                    }
+                }
             }
         }
     }

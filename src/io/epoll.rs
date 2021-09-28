@@ -30,6 +30,7 @@ pub struct Epoll {
 /// Represents all messages files added to the Epoll may return.
 pub enum Message {
     Event(Event),
+    BrokenDevice(Box<dyn Pollable>),
 }
 
 pub trait Pollable : AsRawFd {
@@ -222,11 +223,7 @@ impl Epoll {
         // Remove the broken devices from self.
         for index in broken_file_indices {
             let broken_file = self.remove_file_by_index(index);
-            match broken_file.reduce() {
-                Ok(file) => unsafe { self.add_file(file) }.print_err(),
-                Err(None) => (),
-                Err(Some(error)) => error.print_err(),
-            }
+            polled_results.push(Message::BrokenDevice(broken_file));
         }
 
         Ok(polled_results)
