@@ -8,6 +8,10 @@ use crate::signal;
 use std::collections::HashMap;
 use std::os::unix::io::{AsRawFd, RawFd};
 
+/// Like a file descriptor, that identifies a file registered in this Epoll.
+#[derive(Clone, Copy, Hash, PartialEq, Eq)]
+pub struct FileIndex(u64);
+
 /// The epoll is responsible for detecting which input devices have events available.
 /// The evsieve program spends most of its time waiting on Epoll::poll, which waits until
 /// some input device has events available.
@@ -16,7 +20,7 @@ use std::os::unix::io::{AsRawFd, RawFd};
 /// it will be removed from the Epoll and returned as an EpollResult.
 pub struct Epoll {
     fd: RawFd,
-    files: HashMap<u64, Box<dyn Pollable>>,
+    files: HashMap<FileIndex, Box<dyn Pollable>>,
     /// A counter, so every file registered can get an unique index in the files map.
     counter: u64,
     /// Ensures that no signals are delivered during inopportune moments while an Epoll exists.
@@ -61,9 +65,9 @@ impl Epoll {
         })
     }
 
-    fn get_unique_index(&mut self) -> u64 {
+    fn get_unique_index(&mut self) -> FileIndex {
         self.counter += 1;
-        self.counter
+        FileIndex(self.counter)
     }
 
     /// # Safety
@@ -81,7 +85,7 @@ impl Epoll {
         // We set the data to the index of said file, so we know which file is ready for reading.
         let mut event = libc::epoll_event {
             events: libc::EPOLLIN as u32,
-            u64: index,
+            u64: index.0,
         };
 
         let result = libc::epoll_ctl(
@@ -98,7 +102,7 @@ impl Epoll {
         }
     }
 
-    fn remove_file_by_index(&mut self, index: u64) -> Box<dyn Pollable> {
+    fn remove_file_by_index(&mut self, index: FileIndex) -> Box<dyn Pollable> {
         let file = match self.files.remove(&index) {
             Some(file) => file,
             None => panic!("Internal error: attempted to remove a device from an epoll that's not registered with it."),
@@ -180,16 +184,16 @@ impl Epoll {
         };
 
         // Create a list of which devices are ready and which are broken.
-        let mut ready_file_indices: Vec<u64> = Vec::new();
-        let mut broken_file_indices: Vec<u64> = Vec::new();
+        let mut ready_file_indices: Vec<FileIndex> = Vec::new();
+        let mut broken_file_indices: Vec<FileIndex> = Vec::new();
 
         for event in events {
             let file_index = event.u64;
             if event.events & libc::EPOLLIN as u32 != 0 {
-                ready_file_indices.push(file_index);
+                ready_file_indices.push(FileIndex(file_index));
             }
             if event.events & libc::EPOLLERR as u32 != 0 || event.events & libc::EPOLLHUP as u32 != 0 {
-                broken_file_indices.push(file_index);
+                broken_file_indices.push(FileIndex(file_index));
             }
         }
 
