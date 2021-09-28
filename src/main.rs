@@ -63,6 +63,7 @@ pub mod bindings {
 extern crate lazy_static;
 
 use error::{InterruptError, RuntimeError};
+use io::epoll::Message;
 
 fn main() {
     let result = run_and_interpret_exit_code();
@@ -101,11 +102,15 @@ fn run() -> Result<(), RuntimeError> {
     daemon::notify_ready();
 
     loop {
-        let events = match epoll.poll() {
-            Ok(events) => events,
+        let messages = match epoll.poll() {
+            Ok(res) => res,
             Err(InterruptError {}) => return Ok(()),
         };
 
-        stream::run(&mut setup, events);
+        for message in messages {
+            match message {
+                Message::Event(event) => stream::run(&mut setup, event),
+            }
+        }
     }
 }

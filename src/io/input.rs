@@ -7,7 +7,7 @@ use std::os::unix::io::{AsRawFd, RawFd};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use crate::bindings::libevdev;
-use crate::io::epoll::Epoll;
+use crate::io::epoll::{Epoll, Pollable, Message};
 use crate::io::persist::Blueprint;
 use crate::event::{Event, EventType, EventValue, EventCode, Namespace};
 use crate::domain::Domain;
@@ -15,7 +15,6 @@ use crate::capability::{Capability, Capabilities, AbsInfo, RepeatInfo};
 use crate::ecodes;
 use crate::predevice::{GrabMode, PersistMode, PreInputDevice};
 use crate::error::{SystemError, RuntimeError, Context};
-use crate::io::epoll::Pollable;
 use crate::io::persist::BlueprintOpener;
 
 pub fn open_and_query_capabilities(pre_input_devices: Vec<PreInputDevice>)
@@ -328,8 +327,11 @@ unsafe fn get_device_state(evdev: *mut libevdev::libevdev, capabilities: &Capabi
 }
 
 impl Pollable for InputDevice {
-    fn poll(&mut self) -> Result<Vec<Event>, Option<RuntimeError>> {
-        self._poll().map_err(|err| Option::Some(err.into()))
+    fn poll(&mut self) -> Result<Vec<Message>, Option<RuntimeError>> {
+        match self._poll() {
+            Ok(events) => Ok(events.into_iter().map(Message::Event).collect()),
+            Err(error) => Err(Some(error.into())),
+        }
     }
 
     fn reduce(self: Box<Self>) -> Result<Box<dyn Pollable>, Option<RuntimeError>> {

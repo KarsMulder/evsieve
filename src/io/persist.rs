@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use crate::event::Event;
 use crate::io::input::{InputDevice, InputDeviceName};
 use crate::predevice::PreInputDevice;
 use crate::capability::Capabilities;
 use crate::error::{SystemError, InternalError, RuntimeError};
-use crate::io::epoll::{Pollable};
+use crate::io::epoll::{Pollable, Message};
 use std::collections::HashMap;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::PathBuf;
@@ -262,7 +261,7 @@ impl AsRawFd for BlueprintOpener {
 }
 
 impl Pollable for BlueprintOpener {
-    fn poll(&mut self) -> Result<Vec<Event>, Option<RuntimeError>> {
+    fn poll(&mut self) -> Result<Vec<Message>, Option<RuntimeError>> {
         self.inotify.poll().map_err(|err| Some(err.into()))?;
         match self.try_open() {
             Ok(Some(device)) => {

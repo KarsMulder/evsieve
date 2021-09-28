@@ -19,28 +19,28 @@ pub struct Setup {
     stream: Vec<StreamEntry>,
     output: OutputSystem,
     state: State,
+    /// A vector of events that have been "sent" to an output device but are not actually written
+    /// to it yet because we await an EV_SYN event.
+    staged_events: Vec<Event>,
 }
 
 impl Setup {
     pub fn new(stream: Vec<StreamEntry>, output: OutputSystem, state: State) -> Setup {
-        Setup { stream, output, state }
+        Setup { stream, output, state, staged_events: Vec::new() }
     }
 }
 
-pub fn run(setup: &mut Setup, input_events: Vec<Event>) {
-    let mut output_events: Vec<Event> = Vec::with_capacity(input_events.len());
-    for event in input_events {
-        if event.ev_type().is_syn() {
-            setup.output.route_events(&output_events);
-            output_events.clear();
-            setup.output.synchronize();
-        } else {
-            run_once(event, &mut output_events, &mut setup.stream, &mut setup.state);
-        }        
+pub fn run(setup: &mut Setup, event: Event) {
+    if event.ev_type().is_syn() {
+        setup.output.route_events(&setup.staged_events);
+        setup.staged_events.clear();
+        setup.output.synchronize();
+    } else {
+        run_event(event, &mut setup.staged_events, &mut setup.stream, &mut setup.state);
     }
 }
 
-pub fn run_once(event_in: Event, events_out: &mut Vec<Event>, stream: &mut [StreamEntry], state: &mut State) {
+pub fn run_event(event_in: Event, events_out: &mut Vec<Event>, stream: &mut [StreamEntry], state: &mut State) {
     let mut events: Vec<Event> = vec![event_in];
     let mut buffer: Vec<Event> = Vec::new();
 

@@ -16,8 +16,7 @@ pub struct FileIndex(u64);
 /// The evsieve program spends most of its time waiting on Epoll::poll, which waits until
 /// some input device has events available.
 /// 
-/// It also keeps track of when input devices unexpectedly close. When some device closes,
-/// it will be removed from the Epoll and returned as an EpollResult.
+/// It also keeps track of when input devices unexpectedly close.
 pub struct Epoll {
     fd: RawFd,
     files: HashMap<FileIndex, Box<dyn Pollable>>,
@@ -28,6 +27,11 @@ pub struct Epoll {
     signal_block: std::sync::Arc<signal::SignalBlock>,
 }
 
+/// Represents all messages files added to the Epoll may return.
+pub enum Message {
+    Event(Event),
+}
+
 pub trait Pollable : AsRawFd {
     /// Should return a list of events that were polled by this device.
     ///
@@ -35,7 +39,7 @@ pub trait Pollable : AsRawFd {
     /// removed from this epoll and reduced. If it returns Err(Some), then said error shall
     /// also be printed. Err(None) is considered a request "nothing is wrong, just reduce me"
     /// and will cause the device to be silently reduced.
-    fn poll(&mut self) -> Result<Vec<Event>, Option<RuntimeError>>;
+    fn poll(&mut self) -> Result<Vec<Message>, Option<RuntimeError>>;
     /// When the device is broken, it will be removed from the epoll, and then have reduce()
     /// called to see if it can live on in some form. If reduce() returns Ok, then the returned
     /// device shall be added to the epoll. If it returns Err, then the device is permanently
@@ -159,7 +163,7 @@ impl Epoll {
 
     /// Tries to read all events from all ready devices. Returns a vector containing all events read.
     /// If a device reports an error, said device is removed from self and also returned.
-    pub fn poll(&mut self) -> Result<Vec<Event>, InterruptError> {
+    pub fn poll(&mut self) -> Result<Vec<Message>, InterruptError> {
         let events = loop {
             match self.poll_raw() {
                 Ok(events) => break events,
@@ -198,7 +202,7 @@ impl Epoll {
         }
 
         // Retrieve all results from ready devices.
-        let mut polled_results: Vec<Event> = Vec::new();
+        let mut polled_results: Vec<Message> = Vec::new();
         for index in ready_file_indices {
             if let Some(file) = self.files.get_mut(&index) {
                 match file.poll() {
