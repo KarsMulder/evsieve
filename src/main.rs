@@ -97,13 +97,15 @@ fn run() -> Result<(), RuntimeError> {
         return Ok(());
     }
 
-    let mut setup = arguments::parser::implement(args)?;
+    let (mut setup, mut epoll) = arguments::parser::implement(args)?;
     daemon::notify_ready();
 
     loop {
-        match stream::run(&mut setup) {
-            Ok(_) => {},
+        let events = match epoll.poll() {
+            Ok(events) => events,
             Err(InterruptError {}) => return Ok(()),
-        }
+        };
+
+        stream::run(&mut setup, events);
     }
 }

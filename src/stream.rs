@@ -6,9 +6,7 @@ use crate::state::State;
 use crate::event::{Event, Namespace};
 use crate::print::EventPrinter;
 use crate::capability::Capability;
-use crate::io::epoll::Epoll;
 use crate::io::output::OutputSystem;
-use crate::error::{InterruptError};
 
 pub enum StreamEntry {
     Map(Map),
@@ -19,19 +17,17 @@ pub enum StreamEntry {
 
 pub struct Setup {
     stream: Vec<StreamEntry>,
-    input: Epoll,
     output: OutputSystem,
     state: State,
 }
 
 impl Setup {
-    pub fn new(stream: Vec<StreamEntry>, input: Epoll, output: OutputSystem, state: State) -> Setup {
-        Setup { stream, input, output, state }
+    pub fn new(stream: Vec<StreamEntry>, output: OutputSystem, state: State) -> Setup {
+        Setup { stream, output, state }
     }
 }
 
-pub fn run(setup: &mut Setup) -> Result<(), InterruptError> {
-    let input_events = setup.input.poll()?;
+pub fn run(setup: &mut Setup, input_events: Vec<Event>) {
     let mut output_events: Vec<Event> = Vec::with_capacity(input_events.len());
     for event in input_events {
         if event.ev_type().is_syn() {
@@ -42,8 +38,6 @@ pub fn run(setup: &mut Setup) -> Result<(), InterruptError> {
             run_once(event, &mut output_events, &mut setup.stream, &mut setup.state);
         }        
     }
-
-    Ok(())
 }
 
 pub fn run_once(event_in: Event, events_out: &mut Vec<Event>, stream: &mut [StreamEntry], state: &mut State) {
