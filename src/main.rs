@@ -41,6 +41,7 @@ pub mod io {
     pub mod output;
     pub mod loopback;
     pub mod persist;
+    pub mod internal_pipe;
 }
 
 pub mod arguments {
