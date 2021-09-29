@@ -63,7 +63,7 @@ pub mod bindings {
 extern crate lazy_static;
 
 use error::{InterruptError, RuntimeError, Context};
-use io::epoll::Message;
+use io::epoll::{Epoll, Message};
 
 fn main() {
     let result = run_and_interpret_exit_code();
@@ -98,7 +98,12 @@ fn run() -> Result<(), RuntimeError> {
         return Ok(());
     }
 
-    let (mut setup, mut epoll) = arguments::parser::implement(args)?;
+    let (mut setup, input_devices) = arguments::parser::implement(args)?;
+    let mut epoll = Epoll::new()?;
+    for device in input_devices {
+        unsafe { epoll.add_file(Box::new(device))? };
+    }
+
     daemon::notify_ready();
 
     loop {

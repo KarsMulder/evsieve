@@ -16,7 +16,6 @@ use crate::arguments::output::OutputDevice;
 use crate::arguments::toggle::ToggleArg;
 use crate::arguments::map::{MapArg, BlockArg};
 use crate::arguments::print::PrintArg;
-use crate::io::epoll::Epoll;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
@@ -109,7 +108,7 @@ fn parse(args: Vec<String>) -> Result<Vec<Argument>, RuntimeError> {
     )).collect::<Result<Vec<Argument>, RuntimeError>>()
 }
 
-pub fn implement(args_str: Vec<String>) -> Result<(Setup, Epoll), RuntimeError> {
+pub fn implement(args_str: Vec<String>) -> Result<(Setup, Vec<crate::io::input::InputDevice>), RuntimeError> {
     let args: Vec<Argument> = parse(args_str)?;
     let mut input_devices: Vec<PreInputDevice> = Vec::new();
     let mut output_devices: Vec<PreOutputDevice> = Vec::new();
@@ -244,11 +243,11 @@ pub fn implement(args_str: Vec<String>) -> Result<(Setup, Epoll), RuntimeError> 
     }
 
     // Compute the capabilities of the output devices.
-    let (input_poll, capabilities_in) = crate::io::input::open_and_query_capabilities(input_devices)?;
+    let (input_devices, capabilities_in) = crate::io::input::open_and_query_capabilities(input_devices)?;
     let capabilities_out = crate::stream::run_caps(&stream, capabilities_in);
     let output_system = OutputSystem::create(output_devices, capabilities_out)?;
 
-    Ok((Setup::new(stream, output_system, state), input_poll))
+    Ok((Setup::new(stream, output_system, state), input_devices))
 }
 
 /// Returns true if all items in the iterator are unique, otherwise returns false.

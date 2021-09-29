@@ -7,7 +7,7 @@ use std::os::unix::io::{AsRawFd, RawFd};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use crate::bindings::libevdev;
-use crate::io::epoll::{Epoll, Pollable, Message};
+use crate::io::epoll::{Pollable, Message};
 use crate::io::persist::Blueprint;
 use crate::event::{Event, EventType, EventValue, EventCode, Namespace};
 use crate::domain::Domain;
@@ -18,7 +18,7 @@ use crate::error::{SystemError, RuntimeError, Context};
 use crate::io::persist::BlueprintOpener;
 
 pub fn open_and_query_capabilities(pre_input_devices: Vec<PreInputDevice>)
-    -> Result<(Epoll, Vec<Capability>), SystemError>
+    -> Result<(Vec<InputDevice>, Vec<Capability>), SystemError>
 {
     let mut input_devices = pre_input_devices.into_iter().map(
         |device| {
@@ -39,12 +39,7 @@ pub fn open_and_query_capabilities(pre_input_devices: Vec<PreInputDevice>)
         capabilities_vec.append(&mut device_capabilities_vec);
     }
 
-    let mut epoll = Epoll::new()?;
-    for device in input_devices {
-        unsafe { epoll.add_file(Box::new(device))? };
-    }
-
-    Ok((epoll, capabilities_vec))
+    Ok((input_devices, capabilities_vec))
 }
 
 // Represents a name as reported by libevdev_get_name().
