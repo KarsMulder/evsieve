@@ -1,34 +1,35 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-//! Implements an analogue for std::sync::mpsc, except these structs use underlying Linux pipes with
-//! file descriptors, so they can be polled on by Epoll.
+//! Implements an analogue for std::sync::mpsc, except these structs use underlying an underlying Linux
+//! pipe which contains a byte if and only if there is at least one message waiting.
 //!
-//! This uses both mpsc queues and pipes under the hood. In a proper implementation, it should be possible
-//! to get rid of the mpsc queues, but that requires some transmutes and I am not knowledgable enough
-//! about the Rust memory model to be sure if that is safe, so I take the defensive route and minimize
-//! the amount of unsafe stuff done.
+//! This uses both an Arc<Mutex<Vec>> and pipes under the hood. In a proper implementation, it should be
+//! possible to get rid of the Mutex<Vec> and write the payload to the pipe directly, but that requires
+//! some transmutes and I am not knowledgable enough about the Rust memory model to be sure if that is
+//! safe, so I take the defensive route and minimize the amount of unsafe stuff done.
+//!
+//! And if you are wondering: why an Arc<Mutex<Vec>> instead of an mpsc queue? The answer is: because with
+//! the Mutex, it is easier to reason about the implementation's correctness (esp. for dealing with buffer
+//! overflows); this is not used in critical inner loops so the correctness-for-performance tradeoff is
+//! acceptable.
 
 use std::os::unix::io::{RawFd, AsRawFd};
-use std::sync::mpsc::{self, TryRecvError};
+use std::sync::{Arc, Mutex};
 use crate::error::SystemError;
 
-const PACKET_SIZE: usize = 1;
-
 pub struct Sender<T> {
-    sender: mpsc::Sender<T>,
+    buffer: Arc<Mutex<Vec<T>>>,
     fd: RawFd,
 }
 
 impl<T> Sender<T> {
     pub fn send(&self, data: T) -> Result<(), SystemError> {
-        self.sender.send(data).map_err(|_| SystemError::new("Internal communication channel broken."))?;
-        let buffer: [u8; PACKET_SIZE] = [0; PACKET_SIZE];
-        let result = unsafe { libc::write(self.fd, &buffer as *const _ as *const libc::c_void, PACKET_SIZE)};
-        if result < 0 {
-            Err(SystemError::os_with_context("Internal communication channel broken:"))
-        } else {
-            Ok(())
+        let mut guard = self.buffer.lock().map_err(|_| SystemError::new("Internal lock poisoned."))?;
+        if guard.is_empty() {
+            unsafe { write_byte_to_fd(self.fd)? };
         }
+        guard.push(data);
+        Ok(())
     }
 }
 
@@ -46,19 +47,19 @@ impl<T> Drop for Sender<T> {
 
 
 pub struct Receiver<T> {
-    receiver: mpsc::Receiver<T>,
+    buffer: Arc<Mutex<Vec<T>>>,
     fd: RawFd,
 }
 
 impl<T> Receiver<T> {
-    pub fn recv(&self) -> Result<T, TryRecvError> {
-        let mut buffer: [u8; PACKET_SIZE] = [0; PACKET_SIZE];
-        let result = unsafe { libc::read(self.fd, &mut buffer as *mut _ as *mut libc::c_void, PACKET_SIZE)};
-        if result < 0 {
-            Err(TryRecvError::Empty)
-        } else {
-            self.receiver.try_recv()
+    pub fn recv_all(&self) -> Result<Vec<T>, SystemError> {
+        let mut guard = self.buffer.lock().map_err(|_| SystemError::new("Internal lock poisoned."))?;
+        if ! guard.is_empty() {
+            unsafe { read_byte_from_fd(self.fd)? };
         }
+        
+        // Return the entire buffer and put an empty vector in its place.
+        Ok(std::mem::take(&mut *guard as &mut Vec<T>))
     }
 }
 
@@ -85,14 +86,48 @@ pub fn channel<T>() -> Result<(Sender<T>, Receiver<T>), SystemError> {
 
     // Yes, libc::pipe2() and mpsc::channel() return the read/write handles in the opposide order.
     let [read_fd, write_fd] = pipe_fds;
-    let (sender, receiver) = mpsc::channel();
+    let buffer = Arc::new(Mutex::new(Vec::new()));
 
     Ok((
         Sender {
-            sender, fd: write_fd,
+            buffer: buffer.clone(), fd: write_fd,
         },
         Receiver {
-            receiver, fd: read_fd,
+            buffer, fd: read_fd,
         },
     ))
+}
+
+const PACKET_SIZE: usize = 1;
+
+unsafe fn write_byte_to_fd(fd: RawFd) -> Result<(), std::io::Error> {
+    let buffer: [u8; PACKET_SIZE] = [0; PACKET_SIZE];
+    loop {
+        let result = libc::write(fd, &buffer as *const _ as *const libc::c_void, PACKET_SIZE);
+        if result < 0 {
+            let error = std::io::Error::last_os_error();
+            match error.kind() {
+                std::io::ErrorKind::Interrupted => continue,
+                _ => return Err(error),
+            }
+        }
+        break;
+    }
+    Ok(())
+}
+
+unsafe fn read_byte_from_fd(fd: RawFd) -> Result<(), std::io::Error> {
+    let mut buffer: [u8; PACKET_SIZE] = [0; PACKET_SIZE];
+    loop {
+        let result = libc::read(fd, &mut buffer as *mut _ as *mut libc::c_void, PACKET_SIZE);
+        if result < 0 {
+            let error = std::io::Error::last_os_error();
+            match error.kind() {
+                std::io::ErrorKind::Interrupted => continue,
+                _ => return Err(error),
+            }
+        }
+        break;
+    }
+    Ok(())
 }
