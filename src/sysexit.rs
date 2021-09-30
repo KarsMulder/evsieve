@@ -23,5 +23,6 @@ pub fn init() -> Result<(), std::io::Error> {
     for &signal in EXIT_SIGNALS {
         signal_hook::flag::register(signal, Arc::clone(&SHOULD_EXIT_FLAG))?;
     }
+    unsafe { libc::signal(libc::SIGPIPE, libc::SIG_IGN) };
     Ok(())
 }
