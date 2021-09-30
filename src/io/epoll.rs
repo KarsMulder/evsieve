@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use crate::error::{InterruptError, SystemError, RuntimeError};
-use crate::event::Event;
+use crate::error::{InterruptError, SystemError};
 use crate::sysexit;
 use crate::error::Context;
 use crate::signal;
@@ -17,9 +16,9 @@ pub struct FileIndex(u64);
 /// some input device has events available.
 /// 
 /// It also keeps track of when input devices unexpectedly close.
-pub struct Epoll {
+pub struct Epoll<T: AsRawFd> {
     fd: RawFd,
-    files: HashMap<FileIndex, Box<dyn Pollable>>,
+    files: HashMap<FileIndex, T>,
     /// A counter, so every file registered can get an unique index in the files map.
     counter: u64,
     /// Ensures that no signals are delivered during inopportune moments while an Epoll exists.
@@ -27,24 +26,14 @@ pub struct Epoll {
     signal_block: std::sync::Arc<signal::SignalBlock>,
 }
 
-/// Represents all messages files added to the Epoll may return.
+/// Represents a result that an Epoll may return.
 pub enum Message {
-    Event(Event),
-    BrokenDevice(Box<dyn Pollable>),
+    Ready(FileIndex),
+    Broken(FileIndex),
 }
 
-pub trait Pollable : AsRawFd {
-    /// Should return a list of events that were polled by this device.
-    ///
-    /// If this function returns Err, then the device is considered broken and shall be
-    /// removed from this epoll and reduced. If it returns Err(Some), then said error shall
-    /// also be printed. Err(None) is considered a request "nothing is wrong, just reduce me"
-    /// and will cause the device to be silently reduced.
-    fn poll(&mut self) -> Result<Vec<Message>, Option<RuntimeError>>;
-}
-
-impl Epoll {
-    pub fn new() -> Result<Epoll, SystemError> {
+impl<T: AsRawFd> Epoll<T> {
+    pub fn new() -> Result<Epoll<T>, SystemError> {
         let epoll_fd = unsafe {
             libc::epoll_create1(libc::EPOLL_CLOEXEC)
         };
@@ -67,7 +56,7 @@ impl Epoll {
 
     /// # Safety
     /// The file must return a valid raw file descriptor.
-    pub unsafe fn add_file(&mut self, file: Box<dyn Pollable>) -> Result<(), SystemError> {
+    pub unsafe fn add_file(&mut self, file: T) -> Result<(), SystemError> {
         let index = self.get_unique_index();
         let file_fd = file.as_raw_fd();
 
@@ -97,7 +86,12 @@ impl Epoll {
         }
     }
 
-    fn remove_file_by_index(&mut self, index: FileIndex) -> Box<dyn Pollable> {
+    /// Removes a file specified by an index from this epoll.
+    ///
+    /// # Panics
+    ///
+    /// Panics if index is not registered with this epoll.
+    pub fn remove(&mut self, index: FileIndex) -> T {
         let file = match self.files.remove(&index) {
             Some(file) => file,
             None => panic!("Internal error: attempted to remove a device from an epoll that's not registered with it."),
@@ -154,7 +148,7 @@ impl Epoll {
 
     /// Tries to read all events from all ready devices. Returns a vector containing all events read.
     /// If a device reports an error, said device is removed from self and also returned.
-    pub fn poll(&mut self) -> Result<Vec<Message>, InterruptError> {
+    pub fn poll(&mut self) -> Result<impl Iterator<Item=Message>, InterruptError> {
         let events = loop {
             match self.poll_raw() {
                 Ok(events) => break events,
@@ -168,6 +162,7 @@ impl Epoll {
                     },
                     _ => {
                         if self.is_empty() {
+                            // TODO
                             eprintln!("No input devices to poll events from; evsieve will exit now.");
                         } else {
                             eprintln!("Fatal error while polling for events: {}", error);
@@ -179,44 +174,19 @@ impl Epoll {
         };
 
         // Create a list of which devices are ready and which are broken.
-        let mut ready_file_indices: Vec<FileIndex> = Vec::new();
-        let mut broken_file_indices: Vec<FileIndex> = Vec::new();
+        let mut messages: Vec<Message> = Vec::new();
 
         for event in events {
             let file_index = event.u64;
             if event.events & libc::EPOLLIN as u32 != 0 {
-                ready_file_indices.push(FileIndex(file_index));
+                messages.push(Message::Ready(FileIndex(file_index)));
             }
             if event.events & libc::EPOLLERR as u32 != 0 || event.events & libc::EPOLLHUP as u32 != 0 {
-                broken_file_indices.push(FileIndex(file_index));
+                messages.push(Message::Broken(FileIndex(file_index)));
             }
         }
 
-        // Retrieve all results from ready devices.
-        let mut polled_results: Vec<Message> = Vec::new();
-        for index in ready_file_indices {
-            if let Some(file) = self.files.get_mut(&index) {
-                match file.poll() {
-                    Ok(results) => polled_results.extend(results),
-                    Err(error_opt) => {
-                        if let Some(error) = error_opt {
-                            error.print_err();
-                        }
-                        if ! broken_file_indices.contains(&index) {
-                            broken_file_indices.push(index);
-                        }
-                    },
-                }
-            }
-        }
-
-        // Remove the broken devices from self.
-        for index in broken_file_indices {
-            let broken_file = self.remove_file_by_index(index);
-            polled_results.push(Message::BrokenDevice(broken_file));
-        }
-
-        Ok(polled_results)
+        Ok(messages.into_iter())
     }
 
     /// Returns whether currently any files are opened under this epoll.
@@ -225,7 +195,21 @@ impl Epoll {
     }
 }
 
-impl Drop for Epoll {
+impl<T: AsRawFd> std::ops::Index<FileIndex> for Epoll<T> {
+    type Output = T;
+    fn index(&self, index: FileIndex) -> &Self::Output {
+        &self.files[&index]
+    }
+}
+
+impl<T: AsRawFd> std::ops::IndexMut<FileIndex> for Epoll<T> {
+    fn index_mut(&mut self, index: FileIndex) -> &mut Self::Output {
+        self.files.get_mut(&index).expect("Internal error: attempt to retrieve a file that does not belong to this epoll.")
+    }
+}
+
+
+impl<T: AsRawFd> Drop for Epoll<T> {
     fn drop(&mut self) {
         let res = unsafe {
             libc::close(self.fd)

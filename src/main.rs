@@ -69,7 +69,8 @@ pub mod bindings {
 extern crate lazy_static;
 
 use error::{InterruptError, RuntimeError, Context};
-use io::epoll::{Epoll, Message};
+use io::epoll::{Epoll, FileIndex, Message};
+use io::input::InputDevice;
 
 fn main() {
     let result = run_and_interpret_exit_code();
@@ -107,7 +108,7 @@ fn run() -> Result<(), RuntimeError> {
     let (mut setup, input_devices) = arguments::parser::implement(args)?;
     let mut epoll = Epoll::new()?;
     for device in input_devices {
-        unsafe { epoll.add_file(Box::new(device))? };
+        unsafe { epoll.add_file(device)? };
     }
 
     daemon::notify_ready();
@@ -120,11 +121,28 @@ fn run() -> Result<(), RuntimeError> {
 
         for message in messages {
             match message {
-                Message::Event(event) => stream::run(&mut setup, event),
-                Message::BrokenDevice(device) => {
-                    unimplemented!();
+                Message::Ready(index) => {
+                    let device = &mut epoll[index];
+                    let events = device.poll();
+                    match events {
+                        Ok(events) => for event in events {
+                            stream::run(&mut setup, event);
+                        },
+                        Err(error) => {
+                            error.print_err();
+                            handle_broken_file(&mut epoll, index);
+                        }
+                    }
+                },
+                Message::Broken(index) => {
+                    handle_broken_file(&mut epoll, index);
                 }
             }
         }
     }
+}
+
+fn handle_broken_file(epoll: &mut Epoll<InputDevice>, index: FileIndex) {
+    let broken_device = epoll.remove(index);
+    eprintln!("The device {} has been disconnected.", broken_device.path().display());
 }

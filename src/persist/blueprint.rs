@@ -37,7 +37,7 @@ impl Blueprint {
             )));
         }
 
-        // Grab the input device if it has grab=force specified.
+        // Grab the input device, check error here in case it has grab=force specified.
         input_device.grab_if_desired()?;
         
         Ok(Some(input_device))

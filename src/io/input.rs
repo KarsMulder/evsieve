@@ -7,13 +7,12 @@ use std::os::unix::io::{AsRawFd, RawFd};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use crate::bindings::libevdev;
-use crate::io::epoll::{Pollable, Message};
 use crate::event::{Event, EventType, EventValue, EventCode, Namespace};
 use crate::domain::Domain;
 use crate::capability::{Capability, Capabilities, AbsInfo, RepeatInfo};
 use crate::ecodes;
 use crate::predevice::{GrabMode, PersistMode, PreInputDevice};
-use crate::error::{SystemError, RuntimeError, Context};
+use crate::error::{SystemError, Context};
 use crate::persist::blueprint::Blueprint;
 
 pub fn open_and_query_capabilities(pre_input_devices: Vec<PreInputDevice>)
@@ -158,7 +157,7 @@ impl InputDevice {
 
     /// Reads the raw events from the device and attached additional information such as the
     /// domain of this device and whatever value this event had the last time it was seen.
-    fn _poll(&mut self) -> Result<Vec<Event>, SystemError> {
+    pub fn poll(&mut self) -> Result<Vec<Event>, SystemError> {
         let mut result: Vec<Event> = Vec::new();
         for (code, value) in self.read_raw()? {
             let previous_value_mut: &mut EventValue = self.state.entry(code).or_insert(0);
@@ -318,15 +317,6 @@ unsafe fn get_device_state(evdev: *mut libevdev::libevdev, capabilities: &Capabi
         
     }
     device_state
-}
-
-impl Pollable for InputDevice {
-    fn poll(&mut self) -> Result<Vec<Message>, Option<RuntimeError>> {
-        match self._poll() {
-            Ok(events) => Ok(events.into_iter().map(Message::Event).collect()),
-            Err(error) => Err(Some(error.into())),
-        }
-    }
 }
 
 impl AsRawFd for InputDevice {

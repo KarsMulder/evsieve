@@ -1,12 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use crate::io::input::{InputDevice};
 use crate::error::{SystemError, InternalError, RuntimeError};
-use crate::io::epoll::{Pollable, Message};
 use std::collections::HashMap;
 use std::os::unix::io::{AsRawFd, RawFd};
-use std::path::PathBuf;
-use std::collections::HashSet;
 
 
 pub struct Inotify {
