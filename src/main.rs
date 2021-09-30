@@ -40,8 +40,13 @@ pub mod io {
     pub mod epoll;
     pub mod output;
     pub mod loopback;
-    pub mod persist;
     pub mod internal_pipe;
+}
+
+pub mod persist {
+    pub mod inotify;
+    pub mod blueprint;
+    pub mod subsystem;
 }
 
 pub mod arguments {
@@ -117,11 +122,7 @@ fn run() -> Result<(), RuntimeError> {
             match message {
                 Message::Event(event) => stream::run(&mut setup, event),
                 Message::BrokenDevice(device) => {
-                    match device.reduce() {
-                        Ok(file) => unsafe { epoll.add_file(file) }.print_err(),
-                        Err(None) => (),
-                        Err(Some(error)) => error.print_err(),
-                    }
+                    unimplemented!();
                 }
             }
         }

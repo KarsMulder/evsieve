@@ -41,16 +41,6 @@ pub trait Pollable : AsRawFd {
     /// also be printed. Err(None) is considered a request "nothing is wrong, just reduce me"
     /// and will cause the device to be silently reduced.
     fn poll(&mut self) -> Result<Vec<Message>, Option<RuntimeError>>;
-    /// When the device is broken, it will be removed from the epoll, and then have reduce()
-    /// called to see if it can live on in some form. If reduce() returns Ok, then the returned
-    /// device shall be added to the epoll. If it returns Err, then the device is permanently
-    /// removed from the system.
-    ///
-    /// This reduction system is useful for repairing devices: for example, if an input device
-    /// breaks, then it can return another device which will try to reopen the input device. That
-    /// other device will then break itself when the original device can be reopened and reduce
-    /// to that original device.
-    fn reduce(self: Box<Self>) -> Result<Box<dyn Pollable>, Option<RuntimeError>>;
 }
 
 impl Epoll {

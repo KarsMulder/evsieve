@@ -8,14 +8,13 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use crate::bindings::libevdev;
 use crate::io::epoll::{Pollable, Message};
-use crate::io::persist::Blueprint;
 use crate::event::{Event, EventType, EventValue, EventCode, Namespace};
 use crate::domain::Domain;
 use crate::capability::{Capability, Capabilities, AbsInfo, RepeatInfo};
 use crate::ecodes;
 use crate::predevice::{GrabMode, PersistMode, PreInputDevice};
 use crate::error::{SystemError, RuntimeError, Context};
-use crate::io::persist::BlueprintOpener;
+use crate::persist::blueprint::Blueprint;
 
 pub fn open_and_query_capabilities(pre_input_devices: Vec<PreInputDevice>)
     -> Result<(Vec<InputDevice>, Vec<Capability>), SystemError>
@@ -326,22 +325,6 @@ impl Pollable for InputDevice {
         match self._poll() {
             Ok(events) => Ok(events.into_iter().map(Message::Event).collect()),
             Err(error) => Err(Some(error.into())),
-        }
-    }
-
-    fn reduce(self: Box<Self>) -> Result<Box<dyn Pollable>, Option<RuntimeError>> {
-        eprintln!("The input device {} has been disconnected.", self.path.display()); // TODO: should this be moved?
-        match self.persist_mode {
-            PersistMode::None => Err(None),
-            PersistMode::Reopen => {
-                let blueprint = self.to_blueprint();
-                match BlueprintOpener::new(blueprint) {
-                    Ok(opener) => Ok(Box::new(opener)),
-                    Err(error) => Err(Some(
-                        error.with_context("While trying to watch the reconnection of an input device:")
-                    )),
-                }
-            }
         }
     }
 }
