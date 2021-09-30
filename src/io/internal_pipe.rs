@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 //! Implements an analogue for std::sync::mpsc, except these structs use underlying an underlying Linux
-//! pipe which contains a byte if and only if there is at least one message waiting.
+//! pipe which is nonempty if and only if there is at least one message waiting.
 //!
 //! This uses both an Arc<Mutex<Vec>> and pipes under the hood. In a proper implementation, it should be
 //! possible to get rid of the Mutex<Vec> and write the payload to the pipe directly, but that requires
@@ -25,9 +25,7 @@ pub struct Sender<T> {
 impl<T> Sender<T> {
     pub fn send(&self, data: T) -> Result<(), SystemError> {
         let mut guard = self.buffer.lock().map_err(|_| SystemError::new("Internal lock poisoned."))?;
-        if guard.is_empty() {
-            unsafe { write_byte_to_fd(self.fd)? };
-        }
+        unsafe { write_byte_to_fd(self.fd)? };
         guard.push(data);
         Ok(())
     }
@@ -54,9 +52,7 @@ pub struct Receiver<T> {
 impl<T> Receiver<T> {
     pub fn recv_all(&self) -> Result<Vec<T>, SystemError> {
         let mut guard = self.buffer.lock().map_err(|_| SystemError::new("Internal lock poisoned."))?;
-        if ! guard.is_empty() {
-            unsafe { read_byte_from_fd(self.fd)? };
-        }
+        unsafe { read_bytes_until_empty(self.fd)? };
         
         // Return the entire buffer and put an empty vector in its place.
         Ok(std::mem::take(&mut *guard as &mut Vec<T>))
@@ -77,7 +73,7 @@ impl<T> Drop for Receiver<T> {
 
 
 pub fn channel<T>() -> Result<(Sender<T>, Receiver<T>), SystemError> {
-    const PIPE_FLAGS: i32 = libc::O_CLOEXEC | libc::O_DIRECT | libc::O_NONBLOCK;
+    const PIPE_FLAGS: i32 = libc::O_CLOEXEC | libc::O_NONBLOCK;
 
     let mut pipe_fds: [RawFd; 2] = [-1; 2];
     if unsafe { libc::pipe2(&mut pipe_fds as *mut RawFd, PIPE_FLAGS) } < 0 {
@@ -98,12 +94,13 @@ pub fn channel<T>() -> Result<(Sender<T>, Receiver<T>), SystemError> {
     ))
 }
 
-const PACKET_SIZE: usize = 1;
-
 unsafe fn write_byte_to_fd(fd: RawFd) -> Result<(), std::io::Error> {
-    let buffer: [u8; PACKET_SIZE] = [0; PACKET_SIZE];
+    const PACKET_SIZE: usize = 1;
+    type Buffer = [u8; PACKET_SIZE];
+    let buffer: Buffer = [0; PACKET_SIZE];
+
     loop {
-        let result = libc::write(fd, &buffer as *const _ as *const libc::c_void, PACKET_SIZE);
+        let result = libc::write(fd, &buffer as *const _ as *const libc::c_void, std::mem::size_of::<Buffer>());
         if result < 0 {
             let error = std::io::Error::last_os_error();
             match error.kind() {
@@ -116,18 +113,31 @@ unsafe fn write_byte_to_fd(fd: RawFd) -> Result<(), std::io::Error> {
     Ok(())
 }
 
-unsafe fn read_byte_from_fd(fd: RawFd) -> Result<(), std::io::Error> {
-    let mut buffer: [u8; PACKET_SIZE] = [0; PACKET_SIZE];
+#[allow(clippy::comparison_chain)]
+unsafe fn read_bytes_until_empty(fd: RawFd) -> Result<(), std::io::Error> {
+    const BUFFER_SIZE: usize = 32;
+    type Buffer = [u8; BUFFER_SIZE];
+    let mut buffer: Buffer = [0; BUFFER_SIZE];
+
     loop {
-        let result = libc::read(fd, &mut buffer as *mut _ as *mut libc::c_void, PACKET_SIZE);
-        if result < 0 {
+        let result = libc::read(fd, &mut buffer as *mut _ as *mut libc::c_void, std::mem::size_of::<Buffer>());
+        
+        if result > 0 {
+            // Some bytes were successfully read. There might be more bytes to read.
+            continue;
+        } else if result < 0 {
+            // An error occurred. The pipe may be empty (WouldBlock) or worse.
             let error = std::io::Error::last_os_error();
             match error.kind() {
                 std::io::ErrorKind::Interrupted => continue,
+                std::io::ErrorKind::WouldBlock  => break,
                 _ => return Err(error),
             }
+        } else {
+            // What is going on if result == 0 is not specified by the POSIX standard. Let's just break
+            // the loop and hope nothing bad happens.
+            break;
         }
-        break;
     }
     Ok(())
 }
