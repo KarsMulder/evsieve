@@ -21,9 +21,6 @@ pub struct Epoll<T: AsRawFd> {
     files: HashMap<FileIndex, T>,
     /// A counter, so every file registered can get an unique index in the files map.
     counter: u64,
-    /// Ensures that no signals are delivered during inopportune moments while an Epoll exists.
-    /// Epoll::poll() should be the only moment during which signals are allowed to be delivered.
-    signal_block: std::sync::Arc<signal::SignalBlock>,
 }
 
 /// Represents a result that an Epoll may return.
@@ -45,7 +42,6 @@ impl<T: AsRawFd> Epoll<T> {
             fd: epoll_fd,
             files: HashMap::new(),
             counter: 0,
-            signal_block: signal::block(),
         })
     }
 
@@ -133,12 +129,11 @@ impl<T: AsRawFd> Epoll<T> {
         }).collect();
 
         let result = unsafe {
-            libc::epoll_pwait(
+            libc::epoll_wait(
                 self.fd,
                 events.as_mut_ptr(),
                 max_events,
                 -1, // timeout, -1 means it will wait indefinitely
-                self.signal_block.orig_sigmask(), // Accept signals only while polling.
             )
         };
 

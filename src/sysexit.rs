@@ -17,12 +17,3 @@ pub static EXIT_SIGNALS: &[i32] = &[
     libc::SIGTERM,
     libc::SIGHUP,
 ];
-
-/// Prepares to listen to exit signals.
-pub fn init() -> Result<(), std::io::Error> {
-    for &signal in EXIT_SIGNALS {
-        signal_hook::flag::register(signal, Arc::clone(&SHOULD_EXIT_FLAG))?;
-    }
-    unsafe { libc::signal(libc::SIGPIPE, libc::SIG_IGN) };
-    Ok(())
-}
