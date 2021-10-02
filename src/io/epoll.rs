@@ -3,7 +3,6 @@
 use crate::error::{InterruptError, SystemError};
 use crate::sysexit;
 use crate::error::Context;
-use crate::signal;
 use std::collections::HashMap;
 use std::os::unix::io::{AsRawFd, RawFd};
 
@@ -80,6 +79,11 @@ impl<T: AsRawFd> Epoll<T> {
         } else {
             Ok(())
         }
+    }
+
+    /// Returns an iterator over all files belonging to this epoll.
+    pub fn files(&self) -> impl Iterator<Item=&T> {
+        self.files.values()
     }
 
     pub fn contains_index(&self, index: FileIndex) -> bool {

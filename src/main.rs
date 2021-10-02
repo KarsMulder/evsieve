@@ -160,6 +160,9 @@ fn run() -> Result<(), RuntimeError> {
                                 Err(error) => {
                                     error.print_err();
                                     handle_broken_file(&mut epoll, index);
+                                    if count_remaining_input_devices(&epoll) == 0 {
+                                        break 'mainloop Ok(());
+                                    }
                                 }
                             }
                         },
@@ -183,6 +186,9 @@ fn run() -> Result<(), RuntimeError> {
                 },
                 Message::Broken(index) => {
                     handle_broken_file(&mut epoll, index);
+                    if count_remaining_input_devices(&epoll) == 0 {
+                        break 'mainloop Ok(());
+                    }
                 }
             }
         }
@@ -194,4 +200,14 @@ fn handle_broken_file(epoll: &mut Epoll<Pollable>, index: FileIndex) {
     if let Pollable::InputDevice(device) = broken_device {
         eprintln!("The device {} has been disconnected.", device.path().display());
     }
+}
+
+fn count_remaining_input_devices(epoll: &Epoll<Pollable>) -> usize {
+    let mut result = 0;
+    for file in epoll.files() {
+        if let Pollable::InputDevice(_) = file {
+            result += 1;
+        }
+    }
+    result
 }
