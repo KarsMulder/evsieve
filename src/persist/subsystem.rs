@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use std::convert::TryInto;
-use std::path::PathBuf;
-
 use crate::io::input::InputDevice;
-use crate::persist::blueprint::{self, Blueprint};
+use crate::persist::blueprint::Blueprint;
 use crate::persist::inotify::Inotify;
 use crate::error::{Context, RuntimeError, SystemError};
 use std::collections::HashSet;
+use std::path::PathBuf;
 use std::os::unix::io::{AsRawFd, RawFd};
 
 pub struct Daemon {
