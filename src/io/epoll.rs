@@ -86,6 +86,10 @@ impl<T: AsRawFd> Epoll<T> {
         }
     }
 
+    pub fn contains_index(&self, index: FileIndex) -> bool {
+        self.files.contains_key(&index)
+    }
+
     /// Removes a file specified by an index from this epoll.
     ///
     /// # Panics
@@ -177,12 +181,13 @@ impl<T: AsRawFd> Epoll<T> {
         let mut messages: Vec<Message> = Vec::new();
 
         for event in events {
-            let file_index = event.u64;
+            let file_index = FileIndex(event.u64);
+
             if event.events & libc::EPOLLIN as u32 != 0 {
-                messages.push(Message::Ready(FileIndex(file_index)));
+                messages.push(Message::Ready(file_index));
             }
             if event.events & libc::EPOLLERR as u32 != 0 || event.events & libc::EPOLLHUP as u32 != 0 {
-                messages.push(Message::Broken(FileIndex(file_index)));
+                messages.push(Message::Broken(file_index));
             }
         }
 
