@@ -134,7 +134,7 @@ impl InputDevice {
 
             const SUCCESS: i32 = libevdev::libevdev_read_status_LIBEVDEV_READ_STATUS_SUCCESS as i32;
             const SYNC: i32 = libevdev::libevdev_read_status_LIBEVDEV_READ_STATUS_SYNC as i32;
-            const EAGAIN: i32 = -libc::EAGAIN;
+            const MINUS_EAGAIN: i32 = -libc::EAGAIN;
 
             let event_type = unsafe { EventType::new(event.type_) };
             let event_code = unsafe { EventCode::new(event_type, event.code) };
@@ -145,7 +145,7 @@ impl InputDevice {
                     events.push((event_code, event.value));
                     should_sync = true;
                 },
-                EAGAIN => break,
+                MINUS_EAGAIN => break,
                 _ => return Err(SystemError::new(
                     "An unknown error occured while reading from an event device."
                 )),

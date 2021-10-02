@@ -112,6 +112,8 @@ impl AsRawFd for Pollable {
     }
 }
 
+const TERMINATION_SIGNALS: [libc::c_int; 3] = [libc::SIGTERM, libc::SIGINT, libc::SIGHUP];
+
 fn run() -> Result<(), RuntimeError> {
     let args: Vec<String> = std::env::args().collect();
     if arguments::parser::check_help_and_version(&args) {
@@ -125,9 +127,17 @@ fn run() -> Result<(), RuntimeError> {
         unsafe { epoll.add_file(Pollable::InputDevice(device))? };
     }
 
-    let signal_fd = SignalFd::new(SigMask::new().fill().del(libc::SIGCHLD));
+    let mut sigmask = SigMask::new();
+    // Listen for these signals in the main loop.
+    for signal in TERMINATION_SIGNALS {
+        sigmask.add(signal);
+    }
+    let signal_fd = signal::SignalFd::new(&sigmask);
     unsafe { epoll.add_file(Pollable::SignalFd(signal_fd))? };
-    let _signal_block = signal::block();
+
+    // Additionally block SIGCHLD because another thread listens for it.
+    sigmask.add(libc::SIGCHLD);
+    let _signal_block = unsafe { signal::SignalBlock::new(&sigmask)? };
 
     daemon::notify_ready();
 
@@ -157,13 +167,10 @@ fn run() -> Result<(), RuntimeError> {
                             match fd.read_raw() {
                                 Ok(siginfo) => {
                                     let signal_no = siginfo.ssi_signo as i32;
-                                    match signal_no {
-                                        libc::SIGINT | libc::SIGTERM | libc::SIGHUP => {
-                                            break 'mainloop Ok(());
-                                        },
-                                        // TODO: handle other signals
-                                        _ => {},
+                                    if TERMINATION_SIGNALS.contains(&signal_no) {
+                                        break 'mainloop Ok(());
                                     }
+                                    // Ignore other signals.
                                 },
                                 Err(error) => match error.kind() {
                                     std::io::ErrorKind::Interrupted => continue,

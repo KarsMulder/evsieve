@@ -2,7 +2,6 @@
 
 use std::mem::MaybeUninit;
 use std::os::unix::prelude::{AsRawFd, RawFd};
-use std::sync::{Arc, Weak, Mutex};
 
 /// As long as a SignalBlock exists, this program will not receive any signals unless it asks
 /// for them. Only one SignalBlock should ever exist simultaneously, having more of them is
@@ -11,10 +10,6 @@ use std::sync::{Arc, Weak, Mutex};
 /// Use signal::block() to get a SingleTon of this struct.
 pub struct SignalBlock {
     orig_sigmask: libc::sigset_t,
-}
-
-lazy_static! {
-    static ref SIGNAL_BLOCK: Mutex<Weak<SignalBlock>> = Mutex::new(Weak::new());
 }
 
 #[repr(transparent)]
@@ -54,27 +49,17 @@ impl SigMask {
     }
 }
 
-pub fn block() -> Arc<SignalBlock> {
-    let mut lock = SIGNAL_BLOCK.lock().expect("Internal mutex poisoned.");
-    match lock.upgrade() {
-        Some(block) => block,
-        None => {
-            let mut mask = SigMask::new();
-            mask.fill().del(libc::SIGSEGV);
-            let block = Arc::new(unsafe { SignalBlock::new(&mask) });
-            *lock = Arc::downgrade(&block);
-            block
-        },
-    }
-}
-
 impl SignalBlock {
-    // # Safety
-    // Only one SignalBlock should exist at any time.
-    unsafe fn new(mask: &SigMask) -> SignalBlock {
-        let mut orig_sigmask: libc::sigset_t = std::mem::zeroed();
-        libc::sigprocmask(libc::SIG_SETMASK, mask.as_ref(), &mut orig_sigmask);
-        SignalBlock { orig_sigmask }
+    /// # Safety
+    /// Only one SignalBlock should exist at any time.
+    pub unsafe fn new(mask: &SigMask) -> Result<SignalBlock, std::io::Error> {
+        let mut orig_sigmask: MaybeUninit<libc::sigset_t> = std::mem::zeroed();
+        let res = libc::sigprocmask(libc::SIG_SETMASK, mask.as_ref(), orig_sigmask.as_mut_ptr());
+        if res < 0 {
+            Err(std::io::Error::last_os_error())
+        } else {
+            Ok(SignalBlock { orig_sigmask: orig_sigmask.assume_init() })
+        }
     }
 
     pub fn orig_sigmask(&self) -> &libc::sigset_t {
