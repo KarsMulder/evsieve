@@ -102,12 +102,15 @@ fn run_and_interpret_exit_code() -> i32 {
 enum Pollable {
     InputDevice(InputDevice),
     SignalFd(SignalFd),
+    PersistSubsystem(persist::subsystem::HostInterface),
 }
+
 impl AsRawFd for Pollable {
     fn as_raw_fd(&self) -> RawFd {
         match self {
             Pollable::InputDevice(device) => device.as_raw_fd(),
             Pollable::SignalFd(fd) => fd.as_raw_fd(),
+            Pollable::PersistSubsystem(interface) => interface.as_raw_fd(),
         }
     }
 }
@@ -129,6 +132,7 @@ fn run() -> Result<(), RuntimeError> {
 
     let mut sigmask = SigMask::new();
     // Listen for these signals in the main loop.
+    sigmask.add(libc::SIGPIPE);
     for signal in TERMINATION_SIGNALS {
         sigmask.add(signal);
     }
@@ -173,13 +177,26 @@ fn run() -> Result<(), RuntimeError> {
                                     if TERMINATION_SIGNALS.contains(&signal_no) {
                                         break 'mainloop Ok(());
                                     }
-                                    // Ignore other signals.
+                                    // Ignore other signals, including SIGPIPE.
                                 },
                                 Err(error) => match error.kind() {
                                     std::io::ErrorKind::Interrupted => continue,
                                     // TODO
                                     _ => panic!("Internal error: signalfd broken."),
                                 }
+                            }
+                        },
+                        Pollable::PersistSubsystem(ref mut interface) => {
+                            match interface.recv_opened_devices() {
+                                // TODO: saner error handling.
+                                Err(error) => error.print_err(),
+                                Ok(devices) => for device in devices {
+                                    unsafe {
+                                        epoll.add_file(Pollable::InputDevice(device))
+                                            .with_context("While adding a newly opened device to the epoll:")
+                                            .print_err();
+                                    }
+                                },
                             }
                         }
                     }
@@ -203,6 +220,7 @@ fn handle_broken_file(epoll: &mut Epoll<Pollable>, index: FileIndex) {
 }
 
 fn count_remaining_input_devices(epoll: &Epoll<Pollable>) -> usize {
+    // TODO: Print helpful message if no devices are left.
     let mut result = 0;
     for file in epoll.files() {
         if let Pollable::InputDevice(_) = file {

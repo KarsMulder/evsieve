@@ -253,6 +253,9 @@ impl InputDevice {
     }
 }
 
+/// This implement is necessary becaus *mut libevdev::libevdev is not Send.
+unsafe impl Send for InputDevice {}
+
 /// # Safety
 /// Exhibits undefined behaviour if evdev is not a valid pointer.
 unsafe fn get_capabilities(evdev: *mut libevdev::libevdev) -> Capabilities {

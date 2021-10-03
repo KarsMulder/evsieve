@@ -1,12 +1,50 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+use crate::daemon;
 use crate::io::input::InputDevice;
+use crate::io::internal_pipe;
+use crate::io::internal_pipe::{Sender, Receiver};
 use crate::persist::blueprint::Blueprint;
 use crate::persist::inotify::Inotify;
-use crate::error::{Context, RuntimeError, SystemError};
+use crate::error::{Context, InterruptError, RuntimeError, SystemError};
+use crate::io::epoll::{Epoll, FileIndex, Message};
 use std::collections::HashSet;
+use std::io::Repeat;
 use std::path::PathBuf;
 use std::os::unix::io::{AsRawFd, RawFd};
+use std::task::Poll;
+use std::thread::JoinHandle;
+
+use super::blueprint;
+
+/// Commands that the main thread can send to this subsystem.
+pub enum Command {
+    /// Requests this subsystem to try to reopen this blueprint.
+    AddBlueprint(Blueprint),
+    /// Requests this subsystem to halt.
+    Shutdown,
+}
+
+pub enum Report {
+    /// A device has been opened.
+    DeviceOpened(InputDevice),
+    /// This subsystem has shut down or almost shut down. There are no ongoing processes or destructors
+    /// left to run that could cause trouble if the program were to exit() now.
+    Shutdown,
+}
+
+enum Pollable {
+    Command(Receiver<Command>),
+    Daemon(Daemon),
+}
+impl AsRawFd for Pollable {
+    fn as_raw_fd(&self) -> RawFd {
+        match self {
+            Pollable::Command(receiver) => receiver.as_raw_fd(),
+            Pollable::Daemon(daemon) => daemon.as_raw_fd(),
+        }
+    }
+}
 
 pub struct Daemon {
     blueprints: Vec<Blueprint>,
@@ -17,6 +55,114 @@ pub struct Daemon {
     cached_devices: Vec<InputDevice>,
 }
 
+pub fn launch() -> Result<HostInterface, SystemError> {
+    let (commander, comm_in) = internal_pipe::channel()?;
+    let (mut comm_out, reporter) = internal_pipe::channel()?;
+
+    let join_handle = std::thread::spawn(move || {
+        // TODO: report error
+        let _ = start_worker(comm_in, &mut comm_out);
+        // TODO: consider panicking?
+        let _ = comm_out.send(Report::Shutdown);
+    });
+
+    Ok(HostInterface { commander, reporter, join_handle })
+}
+
+/// The main thread controls the subsystem through this struct.
+pub struct HostInterface {
+    commander: Sender<Command>,
+    reporter: Receiver<Report>,
+    join_handle: JoinHandle<()>,
+}
+
+impl HostInterface {
+    pub fn add_blueprint(&mut self, blueprint: Blueprint) -> Result<(), SystemError> {
+        self.commander.send(Command::AddBlueprint(blueprint))
+    }
+
+    /// Asks the subsystem to start shutting down. Does not wait until it has actually shut down.
+    pub fn request_shutdown(&mut self) -> Result<(), SystemError> {
+        self.commander.send(Command::Shutdown)
+    }
+
+    pub fn await_shutdown(mut self) {
+        if self.request_shutdown().is_ok() {
+            let _ = self.join_handle.join();
+        }
+    }
+
+    pub fn recv_opened_devices(&mut self) -> Result<Vec<InputDevice>, SystemError> {
+        // TODO: think about error and shutdown handling.
+        match self.reporter.recv()? {
+            Report::DeviceOpened(device) => Ok(vec![device]),
+            Report::Shutdown => Ok(Vec::new()),
+        }
+    }
+}
+
+impl AsRawFd for HostInterface {
+    fn as_raw_fd(&self) -> RawFd {
+        self.reporter.as_raw_fd()
+    }
+}
+
+fn start_worker(comm_in: Receiver<Command>, comm_out: &mut Sender<Report>) -> Result<(), RuntimeError> {
+    let daemon = Daemon::new()?;
+    let mut epoll = Epoll::new()?;
+    let daemon_index = unsafe {
+        epoll.add_file(Pollable::Daemon(daemon))?
+    };
+    unsafe {
+        epoll.add_file(Pollable::Command(comm_in))?
+    };
+    
+    loop {
+        let (commands, reports) = poll(&mut epoll)?;
+        for command in commands {
+            match command {
+                Command::Shutdown => return Ok(()),
+                Command::AddBlueprint(blueprint) => match &mut epoll[daemon_index] {
+                    Pollable::Daemon(daemon) => daemon.add_blueprint(blueprint)?,
+                    _ => unreachable!(),
+                }
+            }
+        }
+        for report in reports {
+            comm_out.send(report)?;
+        }
+    }
+}
+
+fn poll(epoll: &mut Epoll<Pollable>) -> Result<(Vec<Command>, Vec<Report>), RuntimeError> {
+    let mut reports: Vec<Report> = Vec::new();
+    let mut commands: Vec<Command> = Vec::new();
+
+    match epoll.poll() {
+        Err(InterruptError {}) => {
+            commands.push(Command::Shutdown);
+        },
+        Ok(messages) => for message in messages {
+            match message {
+                Message::Broken(_index) => return Err(SystemError::new("Persistence daemon broken.").into()),
+                Message::Ready(index) => match &mut epoll[index] {
+                    Pollable::Daemon(daemon) => {
+                        let new_devices = daemon.try_open()?;
+                        reports.extend(new_devices.into_iter().map(Report::DeviceOpened))
+                    },
+                    Pollable::Command(receiver) => {
+                        match receiver.recv() {
+                            Ok(command) => commands.push(command),
+                            Err(error) => return Err(error.into()),
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok((commands, reports))
+}
+
 impl Daemon {
     pub fn new() -> Result<Daemon, SystemError> {
         Ok(Daemon {
@@ -24,6 +170,12 @@ impl Daemon {
             inotify: Inotify::new()?,
             cached_devices: Vec::new(),
         })
+    }
+
+    pub fn add_blueprint(&mut self, blueprint: Blueprint) -> Result<(), RuntimeError> {
+        self.blueprints.push(blueprint);
+        // TODO: update watches
+        Ok(())
     }
 
     pub fn try_open(&mut self) -> Result<Vec<InputDevice>, RuntimeError> {
@@ -62,7 +214,7 @@ impl Daemon {
         }
 
         crate::utils::warn_once("Warning: maximum try count exceeded while listening for new devices.");
-        return Ok(opened_devices);
+        Ok(opened_devices)
     }
 
     pub fn get_paths_to_watch(&mut self) -> Vec<String> {

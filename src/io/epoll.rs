@@ -51,7 +51,7 @@ impl<T: AsRawFd> Epoll<T> {
 
     /// # Safety
     /// The file must return a valid raw file descriptor.
-    pub unsafe fn add_file(&mut self, file: T) -> Result<(), SystemError> {
+    pub unsafe fn add_file(&mut self, file: T) -> Result<FileIndex, SystemError> {
         let index = self.get_unique_index();
         let file_fd = file.as_raw_fd();
 
@@ -77,7 +77,7 @@ impl<T: AsRawFd> Epoll<T> {
         if result < 0 {
             Err(SystemError::os_with_context("While adding a device to an epoll instance:"))
         } else {
-            Ok(())
+            Ok(index)
         }
     }
 
