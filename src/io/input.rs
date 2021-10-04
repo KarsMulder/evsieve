@@ -238,6 +238,10 @@ impl InputDevice {
         &self.name
     }
 
+    pub fn persist_mode(&self) -> PersistMode {
+        self.persist_mode
+    }
+
     // Closes the device and returns a blueprint from which it can be reopened.
     pub fn to_blueprint(&self) -> Blueprint {
         Blueprint {

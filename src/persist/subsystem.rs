@@ -1,21 +1,16 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use crate::daemon;
 use crate::io::input::InputDevice;
 use crate::io::internal_pipe;
 use crate::io::internal_pipe::{Sender, Receiver};
 use crate::persist::blueprint::Blueprint;
 use crate::persist::inotify::Inotify;
 use crate::error::{Context, InterruptError, RuntimeError, SystemError};
-use crate::io::epoll::{Epoll, FileIndex, Message};
+use crate::io::epoll::{Epoll, Message};
 use std::collections::HashSet;
-use std::io::Repeat;
 use std::path::PathBuf;
 use std::os::unix::io::{AsRawFd, RawFd};
-use std::task::Poll;
 use std::thread::JoinHandle;
-
-use super::blueprint;
 
 /// Commands that the main thread can send to this subsystem.
 pub enum Command {
@@ -49,10 +44,6 @@ impl AsRawFd for Pollable {
 pub struct Daemon {
     blueprints: Vec<Blueprint>,
     inotify: Inotify,
-
-    /// In case a device is successfully opened, store it here until it can be handled over to
-    /// the main system.
-    cached_devices: Vec<InputDevice>,
 }
 
 pub fn launch() -> Result<HostInterface, SystemError> {
@@ -61,9 +52,11 @@ pub fn launch() -> Result<HostInterface, SystemError> {
 
     let join_handle = std::thread::spawn(move || {
         // TODO: report error
-        let _ = start_worker(comm_in, &mut comm_out);
+        start_worker(comm_in, &mut comm_out)
+            .with_context("In the persistence subsystem:")
+            .print_err();
         // TODO: consider panicking?
-        let _ = comm_out.send(Report::Shutdown);
+        comm_out.send(Report::Shutdown).print_err();
     });
 
     Ok(HostInterface { commander, reporter, join_handle })
@@ -135,8 +128,8 @@ fn start_worker(comm_in: Receiver<Command>, comm_out: &mut Sender<Report>) -> Re
 }
 
 fn poll(epoll: &mut Epoll<Pollable>) -> Result<(Vec<Command>, Vec<Report>), RuntimeError> {
-    let mut reports: Vec<Report> = Vec::new();
     let mut commands: Vec<Command> = Vec::new();
+    let mut reports: Vec<Report> = Vec::new();
 
     match epoll.poll() {
         Err(InterruptError {}) => {
@@ -168,19 +161,19 @@ impl Daemon {
         Ok(Daemon {
             blueprints: Vec::new(),
             inotify: Inotify::new()?,
-            cached_devices: Vec::new(),
         })
     }
 
     pub fn add_blueprint(&mut self, blueprint: Blueprint) -> Result<(), RuntimeError> {
         self.blueprints.push(blueprint);
-        // TODO: update watches
+        self.update_watches()?;
         Ok(())
     }
 
     pub fn try_open(&mut self) -> Result<Vec<InputDevice>, RuntimeError> {
         const MAX_TRIES: usize = 5;
         let mut opened_devices: Vec<InputDevice> = Vec::new();
+        self.inotify.poll()?;
 
         for _ in 0 .. MAX_TRIES {
             // Try to open the devices.
@@ -198,18 +191,11 @@ impl Daemon {
                 }
             });
             
-            // Find out which paths may cause a change, then watch them.
             // Just in case the relevant paths change between now and when we actually watch them
             // thanks to a race-condition, we do this within a loop until the paths are identical
             // for two iterations.
-            let paths_to_watch: Vec<String> = self.get_paths_to_watch();
-            let paths_to_watch_hashset: HashSet<&String> = paths_to_watch.iter().collect();
-            let paths_already_watched: HashSet<&String> = self.inotify.watched_paths().collect();
-
-            if paths_to_watch_hashset == paths_already_watched {
+            if ! self.update_watches()? {
                 return Ok(opened_devices);
-            } else {
-                self.inotify.set_watched_paths(paths_to_watch)?;
             }
         }
 
@@ -217,10 +203,25 @@ impl Daemon {
         Ok(opened_devices)
     }
 
+    /// Find out which paths may cause a change, then watch them.
+    /// Returns true if the watched patch changed, otherwise returns false.
+    fn update_watches(&mut self) ->  Result<bool, RuntimeError> {
+        let paths_to_watch: Vec<String> = self.get_paths_to_watch();
+            let paths_to_watch_hashset: HashSet<&String> = paths_to_watch.iter().collect();
+            let paths_already_watched: HashSet<&String> = self.inotify.watched_paths().collect();
+
+            if paths_to_watch_hashset == paths_already_watched {
+                Ok(false)
+            } else {
+                self.inotify.set_watched_paths(paths_to_watch)?;
+                Ok(true)
+            }
+    }
+
     pub fn get_paths_to_watch(&mut self) -> Vec<String> {
         let mut traversed_directories: Vec<String> = Vec::new();
 
-        for blueprint in self.blueprints.iter_mut() {
+        for blueprint in &mut self.blueprints {
             let paths = walk_symlink(blueprint.pre_device.path.clone());
             let mut directories = paths.into_iter()
                 .filter_map(|mut path| {

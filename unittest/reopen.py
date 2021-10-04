@@ -88,6 +88,6 @@ test_send_events()
 
 print("Unittest successful.")
 
-subprocess.kill()
+subprocess.terminate()
 input_device.close()
 output_device.close()

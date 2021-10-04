@@ -90,6 +90,14 @@ impl<T: AsRawFd> Epoll<T> {
         self.files.contains_key(&index)
     }
 
+    pub fn get(&self, index: FileIndex) -> Option<&T> {
+        self.files.get(&index)
+    }
+
+    pub fn get_mut(&mut self, index: FileIndex) -> Option<&mut T> {
+        self.files.get_mut(&index)
+    }
+
     /// Removes a file specified by an index from this epoll.
     ///
     /// # Panics
