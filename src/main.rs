@@ -47,6 +47,7 @@ pub mod persist {
     pub mod inotify;
     pub mod blueprint;
     pub mod subsystem;
+    pub mod interface;
 }
 
 pub mod arguments {
@@ -73,11 +74,11 @@ use std::os::unix::prelude::{AsRawFd, RawFd};
 use error::{InterruptError, RuntimeError, Context};
 use io::epoll::{Epoll, FileIndex, Message};
 use io::input::InputDevice;
-use persist::subsystem::HostInterface;
+use persist::interface::{HostInterfaceState};
 use signal::{SigMask, SignalFd};
 
 use crate::predevice::PersistMode;
-use crate::error::*;
+
 
 fn main() {
     let result = run_and_interpret_exit_code();
@@ -103,10 +104,10 @@ fn run_and_interpret_exit_code() -> i32 {
     }
 }
 
-enum Pollable {
+pub enum Pollable {
     InputDevice(InputDevice),
     SignalFd(SignalFd),
-    PersistSubsystem(persist::subsystem::HostInterface),
+    PersistSubsystem(persist::interface::HostInterface),
 }
 
 impl AsRawFd for Pollable {
@@ -147,8 +148,8 @@ fn run() -> Result<(), RuntimeError> {
     sigmask.add(libc::SIGCHLD);
     let _signal_block = unsafe { signal::SignalBlock::new(&sigmask)? };
 
-    // If the persistence subsystem is running, this shall be a pointer to its index in the epoll.
-    let mut persist_subsystem_index: Option<FileIndex> = None;
+    // If the persistence subsystem is running, this shall keep track of its index in the epoll.
+    let mut persist_subsystem: HostInterfaceState = HostInterfaceState::new();
 
     daemon::notify_ready();
 
@@ -170,7 +171,7 @@ fn run() -> Result<(), RuntimeError> {
                                 },
                                 Err(error) => {
                                     error.print_err();
-                                    handle_broken_file(&mut epoll, index, &mut persist_subsystem_index);
+                                    handle_broken_file(&mut epoll, index, &mut persist_subsystem);
                                     if count_remaining_input_devices(&epoll) == 0 {
                                         break 'mainloop;
                                     }
@@ -194,22 +195,20 @@ fn run() -> Result<(), RuntimeError> {
                             }
                         },
                         Pollable::PersistSubsystem(ref mut interface) => {
-                            match interface.recv_opened_devices() {
+                            match interface.recv_opened_device() {
                                 // TODO: saner error handling.
                                 Err(error) => error.print_err(),
-                                Ok(devices) => for device in devices {
-                                    unsafe {
-                                        epoll.add_file(Pollable::InputDevice(device))
-                                            .with_context("While adding a newly opened device to the epoll:")
-                                            .print_err();
-                                    }
+                                Ok(device) => unsafe {
+                                    epoll.add_file(Pollable::InputDevice(device))
+                                        .with_context("While adding a newly opened device to the epoll:")
+                                        .print_err();
                                 },
                             }
                         }
                     }
                 },
                 Message::Broken(index) => {
-                    handle_broken_file(&mut epoll, index, &mut persist_subsystem_index);
+                    handle_broken_file(&mut epoll, index, &mut persist_subsystem);
                     if count_remaining_input_devices(&epoll) == 0 {
                         break 'mainloop;
                     }
@@ -219,17 +218,19 @@ fn run() -> Result<(), RuntimeError> {
     }
 
     // Shut down the persistence system properly.
-    if let Some(index) = persist_subsystem_index {
-        if let Pollable::PersistSubsystem(interface) = epoll.remove(index) {
-            interface.await_shutdown();
-        }
-    }
+    persist_subsystem.await_shutdown(&mut epoll);
 
     Ok(())
 }
 
-fn handle_broken_file(epoll: &mut Epoll<Pollable>, index: FileIndex, persist_subsystem_index: &mut Option<FileIndex>) {
-    let broken_device = epoll.remove(index);
+fn handle_broken_file(epoll: &mut Epoll<Pollable>, index: FileIndex, persist_subsystem: &mut HostInterfaceState) {
+    let broken_device = match epoll.remove(index) {
+        Some(file) => file,
+        None => {
+            eprintln!("Warning: epoll reported a file as broken despite that file not being registered with said epoll.");
+            return;
+        }
+    };
     match broken_device {
         Pollable::InputDevice(device) => {
             eprintln!("The device {} has been disconnected.", device.path().display());
@@ -238,10 +239,12 @@ fn handle_broken_file(epoll: &mut Epoll<Pollable>, index: FileIndex, persist_sub
                 PersistMode::Reopen => true,
             };
             if should_persist {
-                // TODO: error handling
-                match require_persistence_subsystem(epoll, persist_subsystem_index) {
-                    Ok(interface) => interface.add_blueprint(device.to_blueprint()).print_err(),
-                    Err(error) => error.print_err(),
+                if let Some(interface) = persist_subsystem.require(epoll) {
+                    interface.add_blueprint(device.to_blueprint())
+                        .with_context("While trying to register a disconnected device for reopening:")
+                        .print_err()
+                } else {
+                    eprintln!("Warning: cannot reopen device: persistence subsystem not available.")
                 }
             }
         },
@@ -251,30 +254,8 @@ fn handle_broken_file(epoll: &mut Epoll<Pollable>, index: FileIndex, persist_sub
         },
         Pollable::PersistSubsystem(_interface) => {
             eprintln!("Warning: the persistence subsystem has broken. Evsieve may fail to open devices specified with the persist flag.");
-            *persist_subsystem_index = None;
+            persist_subsystem.mark_as_broken();
         },
-    }
-}
-
-// TODO: put this in its own module?
-fn require_persistence_subsystem<'a>(epoll: &'a mut Epoll<Pollable>, persist_subsystem_index: &mut Option<FileIndex>)
-        -> Result<&'a mut HostInterface, RuntimeError>
-{
-    let index = match persist_subsystem_index {
-        Some(index) => *index,
-        None => {
-            let interface = persist::subsystem::launch()
-                .with_context("While trying to launch the persistence subsystem:")?;
-            unsafe { epoll.add_file(Pollable::PersistSubsystem(interface)) }
-                .with_context("While registering the persistence subsystem with the epoll:")?
-        }
-    };
-    *persist_subsystem_index = Some(index);
-
-    if let Some(Pollable::PersistSubsystem(interface)) = epoll.get_mut(index) {
-        Ok(interface)
-    } else {
-        Err(InternalError::new("Persistence subsystem not registered at its expected index.").into())
     }
 }
 

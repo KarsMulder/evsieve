@@ -99,14 +99,10 @@ impl<T: AsRawFd> Epoll<T> {
     }
 
     /// Removes a file specified by an index from this epoll.
-    ///
-    /// # Panics
-    ///
-    /// Panics if index is not registered with this epoll.
-    pub fn remove(&mut self, index: FileIndex) -> T {
+    pub fn remove(&mut self, index: FileIndex) -> Option<T> {
         let file = match self.files.remove(&index) {
             Some(file) => file,
-            None => panic!("Internal error: attempted to remove a device from an epoll that's not registered with it."),
+            None => return None,
         };
 
         let result = unsafe { libc::epoll_ctl(
@@ -128,7 +124,7 @@ impl<T: AsRawFd> Epoll<T> {
             }
         }
 
-        file
+        Some(file)
     }
 
     fn poll_raw(&mut self) -> Result<Vec<libc::epoll_event>, std::io::Error> {

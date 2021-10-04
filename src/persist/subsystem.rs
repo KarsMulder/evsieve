@@ -5,12 +5,12 @@ use crate::io::internal_pipe;
 use crate::io::internal_pipe::{Sender, Receiver};
 use crate::persist::blueprint::Blueprint;
 use crate::persist::inotify::Inotify;
+use crate::persist::interface::HostInterface;
 use crate::error::{Context, InterruptError, RuntimeError, SystemError};
 use crate::io::epoll::{Epoll, Message};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::os::unix::io::{AsRawFd, RawFd};
-use std::thread::JoinHandle;
 
 /// Commands that the main thread can send to this subsystem.
 pub enum Command {
@@ -62,43 +62,7 @@ pub fn launch() -> Result<HostInterface, SystemError> {
     Ok(HostInterface { commander, reporter, join_handle })
 }
 
-/// The main thread controls the subsystem through this struct.
-pub struct HostInterface {
-    commander: Sender<Command>,
-    reporter: Receiver<Report>,
-    join_handle: JoinHandle<()>,
-}
 
-impl HostInterface {
-    pub fn add_blueprint(&mut self, blueprint: Blueprint) -> Result<(), SystemError> {
-        self.commander.send(Command::AddBlueprint(blueprint))
-    }
-
-    /// Asks the subsystem to start shutting down. Does not wait until it has actually shut down.
-    pub fn request_shutdown(&mut self) -> Result<(), SystemError> {
-        self.commander.send(Command::Shutdown)
-    }
-
-    pub fn await_shutdown(mut self) {
-        if self.request_shutdown().is_ok() {
-            let _ = self.join_handle.join();
-        }
-    }
-
-    pub fn recv_opened_devices(&mut self) -> Result<Vec<InputDevice>, SystemError> {
-        // TODO: think about error and shutdown handling.
-        match self.reporter.recv()? {
-            Report::DeviceOpened(device) => Ok(vec![device]),
-            Report::Shutdown => Ok(Vec::new()),
-        }
-    }
-}
-
-impl AsRawFd for HostInterface {
-    fn as_raw_fd(&self) -> RawFd {
-        self.reporter.as_raw_fd()
-    }
-}
 
 fn start_worker(comm_in: Receiver<Command>, comm_out: &mut Sender<Report>) -> Result<(), RuntimeError> {
     let daemon = Daemon::new()?;
