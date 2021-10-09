@@ -249,8 +249,7 @@ fn handle_broken_file(epoll: &mut Epoll<Pollable>, index: FileIndex, persist_sub
             }
         },
         Pollable::SignalFd(_fd) => {
-            // TODO
-            panic!();
+            panic!("Fatal error: signal file descriptor broken.");
         },
         Pollable::PersistSubsystem(_interface) => {
             eprintln!("Warning: the persistence subsystem has broken. Evsieve may fail to open devices specified with the persist flag.");
