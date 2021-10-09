@@ -160,7 +160,6 @@ fn run() -> Result<(), RuntimeError> {
     // If the persistence subsystem is running, this shall keep track of its index in the epoll.
     let persist_subsystem: HostInterfaceState = HostInterfaceState::new();
 
-    // Pack the important active components together and inform the daemon we're ready.
     let mut program = Program {
         epoll, setup, persist_subsystem
     };
@@ -203,12 +202,11 @@ enum Action {
     Exit,
 }
 
-/// Returns Ok if the program should continue to run. Returns InterruptError if the program should exit.
 fn handle_ready_file(program: &mut Program, index: FileIndex) -> Action {
     let file = match program.epoll.get_mut(index) {
         Some(file) => file,
         None => {
-            eprintln!("Warning: an epoll reported a device as ready which is not registered with it.");
+            eprintln!("Internal error: an epoll reported a device as ready which is not registered with it.");
             return Action::Continue;
         }
     };
@@ -252,15 +250,16 @@ fn handle_ready_file(program: &mut Program, index: FileIndex) -> Action {
         },
         Pollable::PersistSubsystem(ref mut interface) => {
             match interface.recv_opened_device() {
-                // TODO: saner error handling.
-                Err(error) => {
-                    error.print_err();
-                    Action::Continue
-                },
                 Ok(device) => unsafe {
                     program.epoll.add_file(Pollable::InputDevice(device))
                         .with_context("While adding a newly opened device to the epoll:")
                         .print_err();
+                    Action::Continue
+                },
+                Err(error) => {
+                    error.print_err();
+                    let _ = interface.request_shutdown();
+                    program.persist_subsystem.mark_as_broken();
                     Action::Continue
                 },
             }
@@ -272,7 +271,7 @@ fn handle_broken_file(program: &mut Program, index: FileIndex) -> Action {
     let broken_device = match program.epoll.remove(index) {
         Some(file) => file,
         None => {
-            eprintln!("Warning: epoll reported a file as broken despite that file not being registered with said epoll.");
+            eprintln!("Internal error: epoll reported a file as broken despite that file not being registered with said epoll.");
             return Action::Continue;
         }
     };
@@ -289,7 +288,7 @@ fn handle_broken_file(program: &mut Program, index: FileIndex) -> Action {
                         .with_context("While trying to register a disconnected device for reopening:")
                         .print_err()
                 } else {
-                    eprintln!("Warning: cannot reopen device: persistence subsystem not available.")
+                    eprintln!("Internal error: cannot reopen device: persistence subsystem not available.")
                 }
             }
             if count_remaining_input_devices(&program.epoll) == 0 {
@@ -304,7 +303,7 @@ fn handle_broken_file(program: &mut Program, index: FileIndex) -> Action {
             Action::Exit
         },
         Pollable::PersistSubsystem(_interface) => {
-            eprintln!("Warning: the persistence subsystem has broken. Evsieve may fail to open devices specified with the persist flag.");
+            eprintln!("Internal error: the persistence subsystem has broken. Evsieve may fail to open devices specified with the persist flag.");
             program.persist_subsystem.mark_as_broken();
             Action::Continue
         },
