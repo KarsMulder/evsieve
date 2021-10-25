@@ -20,7 +20,7 @@ impl Blueprint {
         if ! self.pre_device.path.exists() {
             return Ok(None);
         }
-        let mut input_device = InputDevice::open(self.pre_device.clone())?;
+        let input_device = InputDevice::open(self.pre_device.clone())?;
 
         // Do sanity checks so we don't accidentally re-open the wrong device.
         if input_device.name() != &self.name {
@@ -36,9 +36,6 @@ impl Blueprint {
                 self.pre_device.path.display()
             )));
         }
-
-        // Grab the input device, check error here in case it has grab=force specified.
-        input_device.grab_if_desired()?;
         
         Ok(Some(input_device))
     }

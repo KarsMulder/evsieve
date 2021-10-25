@@ -250,7 +250,14 @@ fn handle_ready_file(program: &mut Program, index: FileIndex) -> Action {
         },
         Pollable::PersistSubsystem(ref mut interface) => {
             match interface.recv_opened_device() {
-                Ok(device) => unsafe {
+                Ok(mut device) => unsafe {
+                    // TODO: Consider what to do if the device is grabbed by another program.
+                    if let Err(error) = device.grab_if_desired() {
+                        error.with_context(format!("While grabbing the device {}:", device.path().display()))
+                            .print_err();
+                        return Action::Continue
+                    }
+
                     program.epoll.add_file(Pollable::InputDevice(device))
                         .with_context("While adding a newly opened device to the epoll:")
                         .print_err();

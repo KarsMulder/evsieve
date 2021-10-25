@@ -26,6 +26,7 @@ pub fn open_and_query_capabilities(pre_input_devices: Vec<PreInputDevice>)
                 .with_context(format!("While opening the device \"{}\":", device_path.display()))
     }).collect::<Result<Vec<InputDevice>, SystemError>>()?;
 
+    // Return an error if a device with grab=force cannot be grabbed.
     for device in &mut input_devices {
         device.grab_if_desired()?;
     }
