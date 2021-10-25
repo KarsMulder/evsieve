@@ -67,7 +67,7 @@ impl<T: 'static> Receiver<T> {
     pub fn recv(&self) -> Result<T, SystemError> {
         let data_size = std::mem::size_of::<T>();
         assert!(data_size <= libc::PIPE_BUF);
-        let mut data = MaybeUninit::uninit();
+        let mut data: MaybeUninit<T> = MaybeUninit::uninit();
 
         loop {
             let result = unsafe { libc::read(
