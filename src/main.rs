@@ -206,7 +206,7 @@ fn handle_ready_file(program: &mut Program, index: FileIndex) -> Action {
     let file = match program.epoll.get_mut(index) {
         Some(file) => file,
         None => {
-            eprintln!("Internal error: an epoll reported a device as ready which is not registered with it.");
+            eprintln!("Internal error: an epoll reported a device as ready which is not registered with it. This is a bug.");
             return Action::Continue;
         }
     };
@@ -257,10 +257,9 @@ fn handle_ready_file(program: &mut Program, index: FileIndex) -> Action {
                     Action::Continue
                 },
                 Err(error) => {
-                    error.print_err();
-                    let _ = interface.request_shutdown();
-                    program.persist_subsystem.mark_as_broken();
-                    Action::Continue
+                    error.with_context("While polling the persistence subsystem from the main thread:")
+                        .print_err();
+                    handle_broken_file(program, index)
                 },
             }
         }
@@ -302,8 +301,9 @@ fn handle_broken_file(program: &mut Program, index: FileIndex) -> Action {
             eprintln!("Fatal error: signal file descriptor broken.");
             Action::Exit
         },
-        Pollable::PersistSubsystem(_interface) => {
+        Pollable::PersistSubsystem(mut interface) => {
             eprintln!("Internal error: the persistence subsystem has broken. Evsieve may fail to open devices specified with the persist flag.");
+            let _ = interface.request_shutdown();
             program.persist_subsystem.mark_as_broken();
             Action::Continue
         },
