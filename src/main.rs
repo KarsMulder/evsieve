@@ -258,9 +258,13 @@ fn handle_ready_file(program: &mut Program, index: FileIndex) -> Action {
                         return Action::Continue
                     }
 
+                    let device_path = device.path().to_owned();
                     program.epoll.add_file(Pollable::InputDevice(device))
                         .with_context("While adding a newly opened device to the epoll:")
                         .print_err();
+                    
+                    println!("The device {} has been reconnected.", device_path.display());
+
                     Action::Continue
                 },
                 Err(error) => {
