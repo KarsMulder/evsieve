@@ -175,7 +175,13 @@ fn run() -> Result<(), RuntimeError> {
         for message in messages {
             let action = match message {
                 Message::Ready(index) => {
-                    handle_ready_file(&mut program, index)
+                    match handle_ready_file(&mut program, index) {
+                        Ok(action) => action,
+                        Err(error) => {
+                            error.print_err();
+                            handle_broken_file(&mut program, index)
+                        }
+                    }
                 },
                 Message::Broken(index) => {
                     handle_broken_file(&mut program, index)
@@ -202,78 +208,59 @@ enum Action {
     Exit,
 }
 
-fn handle_ready_file(program: &mut Program, index: FileIndex) -> Action {
+/// If this function returns Err, then `handle_broken_file` needs to be called with the same index.
+/// IMPORTANT: this functions should NOT return Err if the device at `index` itself is not broken.
+/// If some other error occurs, you should handle it in this function itself and then return Ok.
+fn handle_ready_file(program: &mut Program, index: FileIndex) -> Result<Action, RuntimeError> {
     let file = match program.epoll.get_mut(index) {
         Some(file) => file,
         None => {
             eprintln!("Internal error: an epoll reported a device as ready which is not registered with it. This is a bug.");
-            return Action::Continue;
-        }
+            return Ok(Action::Continue);
+        },
     };
     match file {
         Pollable::InputDevice(device) => {
-            match device.poll() {
-                Ok(events) => {
-                    for event in events {
-                        stream::run(&mut program.setup, event);
-                    }
-                    Action::Continue
-                },
-                Err(error) => {
-                    error.with_context(
-                        format!("While polling the input device {}:", device.path().display())
-                    ).print_err();
-
-                    handle_broken_file(program, index)
-                }
+            let events = device.poll().with_context(
+                format!("While polling the input device {}:", device.path().display())
+            )?;
+            for event in events {
+                stream::run(&mut program.setup, event);
             }
+            Ok(Action::Continue)
         },
         Pollable::SignalFd(fd) => {
-            match fd.read_raw() {
-                Ok(siginfo) => {
-                    let signal_no = siginfo.ssi_signo as i32;
-                    if TERMINATION_SIGNALS.contains(&signal_no) {
-                        Action::Exit
-                    } else {
-                        // Ignore other signals, including SIGPIPE.
-                        Action::Continue
-                    }
-                },
-                Err(error) => match error.kind() {
-                    std::io::ErrorKind::Interrupted => Action::Continue,
-                    _ => {
-                        eprintln!("Fatal error: signal file descriptor broken.");
-                        Action::Exit
-                    }
-                }
+            let siginfo = fd.read_raw()?;
+            let signal_no = siginfo.ssi_signo as i32;
+            if TERMINATION_SIGNALS.contains(&signal_no) {
+                Ok(Action::Exit)
+            } else {
+                // Ignore other signals, including SIGPIPE.
+                Ok(Action::Continue)
             }
         },
         Pollable::PersistSubsystem(ref mut interface) => {
-            match interface.recv_opened_device() {
-                Ok(mut device) => unsafe {
-                    // TODO: Consider what to do if the device is grabbed by another program.
-                    if let Err(error) = device.grab_if_desired() {
-                        error.with_context(format!("While grabbing the device {}:", device.path().display()))
-                            .print_err();
-                        return Action::Continue
-                    }
+            // TODO: Consider how to handle shutdown signals.
+            let mut device = interface.recv_opened_device()
+                .with_context("While polling the persistence subsystem from the main thread:")?;
+            // TODO: Consider what to do if the device is grabbed by another program.
+            if let Err(error) = device.grab_if_desired() {
+                error.with_context(format!("While grabbing the device {}:", device.path().display()))
+                    .print_err();
+                return Ok(Action::Continue)
+            }
 
-                    let device_path = device.path().to_owned();
-                    program.epoll.add_file(Pollable::InputDevice(device))
-                        .with_context("While adding a newly opened device to the epoll:")
-                        .print_err();
-                    
-                    println!("The device {} has been reconnected.", device_path.display());
-
-                    Action::Continue
-                },
+            let device_path = device.path().to_owned();
+            match unsafe { program.epoll.add_file(Pollable::InputDevice(device)) }
+            {
+                Ok(_) => println!("The device {} has been reconnected.", device_path.display()),
                 Err(error) => {
-                    error.with_context("While polling the persistence subsystem from the main thread:")
-                        .print_err();
-                    handle_broken_file(program, index)
+                    error.with_context("While adding a newly opened device to the epoll:").print_err();
                 },
             }
-        }
+
+            Ok(Action::Continue)
+        },
     }
 }
 
