@@ -1,7 +1,6 @@
 use crate::persist::subsystem::{Command, Report};
 use crate::persist::blueprint::Blueprint;
 use crate::io::internal_pipe::{Sender, Receiver};
-use crate::io::input::InputDevice;
 use crate::io::epoll::{Epoll, FileIndex};
 use crate::{Pollable, error::*};
 use std::thread::JoinHandle;
@@ -31,12 +30,8 @@ impl HostInterface {
         }
     }
 
-    pub fn recv_opened_device(&mut self) -> Result<InputDevice, SystemError> {
-        // TODO: think about error and shutdown handling.
-        match self.reporter.recv()? {
-            Report::DeviceOpened(device) => Ok(device),
-            Report::Shutdown => Err(SystemError::new("Persistence subsystem has shut down.")),
-        }
+    pub fn recv(&mut self) -> Result<Report, SystemError> {
+        self.reporter.recv()
     }
 }
 
@@ -110,6 +105,10 @@ impl HostInterfaceState {
 
     pub fn mark_as_broken(&mut self) {
         *self = HostInterfaceState::Error;
+    }
+
+    pub fn mark_as_shutdown(&mut self) {
+        *self = HostInterfaceState::Shutdown;
     }
 
     pub fn await_shutdown(self, epoll: &mut Epoll<Pollable>) {

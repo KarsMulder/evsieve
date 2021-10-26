@@ -51,12 +51,20 @@ pub fn launch() -> Result<HostInterface, SystemError> {
     let (mut comm_out, reporter) = internal_pipe::channel()?;
 
     let join_handle = std::thread::spawn(move || {
-        // TODO: report error
-        start_worker(comm_in, &mut comm_out)
-            .with_context("In the persistence subsystem:")
-            .print_err();
-        // TODO: consider panicking?
+        // Asserting unwind safety for Sender. My reasons for this are a bit wobbly, but I looked at
+        // its source and all visible actions it takes appear to be atomic, e.g. a message is either sent
+        // or not. I can't think of a scenario where a panic at any point could violate safety.
+        let panic_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            start_worker(comm_in, &mut comm_out)
+                .with_context("In the persistence subsystem:")
+                .print_err();
+        }));
+
         comm_out.send(Report::Shutdown).print_err();
+
+        if let Err(payload) = panic_result {
+            std::panic::resume_unwind(payload);
+        }
     });
 
     Ok(HostInterface { commander, reporter, join_handle })

@@ -78,6 +78,7 @@ use persist::interface::{HostInterfaceState};
 use stream::Setup;
 use signal::{SigMask, SignalFd};
 
+use crate::persist::subsystem::Report;
 use crate::predevice::PersistMode;
 
 
@@ -240,9 +241,16 @@ fn handle_ready_file(program: &mut Program, index: FileIndex) -> Result<Action, 
             }
         },
         Pollable::PersistSubsystem(ref mut interface) => {
-            // TODO: Consider how to handle shutdown signals.
-            let mut device = interface.recv_opened_device()
-                .with_context("While polling the persistence subsystem from the main thread:")?;
+            let report = interface.recv().with_context("While polling the persistence subsystem from the main thread:")?;
+            let mut device = match report {
+                Report::DeviceOpened(device) => device,
+                Report::Shutdown => {
+                    let _ = program.epoll.remove(index);
+                    program.persist_subsystem.mark_as_shutdown();
+                    return Ok(Action::Continue);
+                }
+            };
+
             // TODO: Consider what to do if the device is grabbed by another program.
             if let Err(error) = device.grab_if_desired() {
                 error.with_context(format!("While grabbing the device {}:", device.path().display()))
