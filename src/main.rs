@@ -296,33 +296,35 @@ fn handle_broken_file(program: &mut Program, index: FileIndex) -> Action {
                     eprintln!("Internal error: cannot reopen device: persistence subsystem not available.")
                 }
             }
-            if count_remaining_input_devices(&program.epoll) == 0 {
-                println!("No devices to poll events from. Evsieve will exit now.");
-                Action::Exit
-            } else {
-                Action::Continue
-            }
         },
         Pollable::SignalFd(_fd) => {
             eprintln!("Fatal error: signal file descriptor broken.");
-            Action::Exit
+            return Action::Exit;
         },
         Pollable::PersistSubsystem(mut interface) => {
             eprintln!("Internal error: the persistence subsystem has broken. Evsieve may fail to open devices specified with the persist flag.");
             let _ = interface.request_shutdown();
             program.persist_subsystem.mark_as_broken();
-            Action::Continue
         },
+    }
+
+    if count_remaining_input_devices(&program.epoll) == 0 {
+        println!("No devices to poll events from. Evsieve will exit now.");
+        Action::Exit
+    } else {
+        Action::Continue
     }
 }
 
 fn count_remaining_input_devices(epoll: &Epoll<Pollable>) -> usize {
-    // TODO: Print helpful message if no devices are left.
+    // TODO: Improve
     let mut result = 0;
     for file in epoll.files() {
-        if let Pollable::InputDevice(_) = file {
-            result += 1;
+        match file {
+            Pollable::InputDevice(_) => result += 1,
+            Pollable::PersistSubsystem(_) => result += 1,
+            Pollable::SignalFd(_) => {},
         }
     }
-    result + 1 // TODO REMOVE
+    result
 }
