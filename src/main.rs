@@ -210,7 +210,7 @@ enum Action {
 }
 
 /// If this function returns Err, then `handle_broken_file` needs to be called with the same index.
-/// IMPORTANT: this functions should NOT return Err if the device at `index` itself is not broken.
+/// IMPORTANT: this function should NOT return Err if the device at `index` itself is not broken.
 /// If some other error occurs, you should handle it in this function itself and then return Ok.
 fn handle_ready_file(program: &mut Program, index: FileIndex) -> Result<Action, RuntimeError> {
     let file = match program.epoll.get_mut(index) {
