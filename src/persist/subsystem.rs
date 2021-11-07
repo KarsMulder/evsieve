@@ -198,13 +198,27 @@ impl Daemon {
             let mut directories = paths.into_iter()
                 .filter_map(|mut path| {
                     path.pop();
-                    // TODO: print a helpful error.
-                    path.into_os_string().into_string().ok()
+                    match path.into_os_string().into_string() {
+                        Ok(string) => Some(string),
+                        // Unfortunately the ill-designed Rust standard library does not provide means
+                        // to convert a OsString to a CString without converting it to String first.
+                        // This makes Evsieve unable to deal with non-UTF8 paths. This bug is sufficiently
+                        // low-priority that I cannot be bothered to fix it until Rust fixes their standard
+                        // library by adding direct OsString -> CString conversion.
+                        Err(os_string) => {
+                            let warning_message = format!(
+                                "Error: unable to deal with non-UTF8 path \"{}\".",
+                                os_string.to_string_lossy()
+                            );
+                            crate::utils::warn_once(warning_message);
+                            None
+                        },
+                    }
                 });
             traversed_directories.extend(&mut directories);
         }
 
-        traversed_directories.sort();
+        traversed_directories.sort_unstable();
         traversed_directories.dedup();
         
         traversed_directories

@@ -216,7 +216,7 @@ fn handle_ready_file(program: &mut Program, index: FileIndex) -> Result<Action, 
     let file = match program.epoll.get_mut(index) {
         Some(file) => file,
         None => {
-            eprintln!("Internal error: an epoll reported a device as ready which is not registered with it. This is a bug.");
+            eprintln!("Internal error: an epoll reported ready on a device that is not registered with it. This is a bug.");
             return Ok(Action::Continue);
         },
     };
@@ -251,10 +251,10 @@ fn handle_ready_file(program: &mut Program, index: FileIndex) -> Result<Action, 
                 }
             };
 
-            // TODO: Consider what to do if the device is grabbed by another program.
             if let Err(error) = device.grab_if_desired() {
                 error.with_context(format!("While grabbing the device {}:", device.path().display()))
                     .print_err();
+                eprintln!("Warning: unable to reopen device {}. The device is most likely grabbed by another program.", device.path().display());
                 return Ok(Action::Continue)
             }
 
