@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+use std::cell::Cell;
+
 use crate::error::Context;
 use crate::range::Range;
 use crate::key::Key;
-use crate::state::{State, BoolIndex};
+use crate::state::{State};
 use crate::event::Event;
 use crate::subprocess;
 
@@ -15,27 +17,27 @@ pub type Effect = Box<dyn Fn(&mut State)>;
 struct Tracker {
     key: Key,
     range: Range,
-    state_index: BoolIndex,
+    state: Cell<bool>,
 }
 
 impl Tracker {
-    fn new(mut key: Key, state: &mut State) -> Tracker {
+    fn new(mut key: Key) -> Tracker {
         let range = key.pop_value().unwrap_or_else(|| Range::new(Some(1), None));
         Tracker {
             key,
             range,
-            state_index: state.push_bool(false),
+            state: Cell::new(false),
         }
     }
 
     /// If the event matches, remembers whether this event falls in the desired range.
     /// If this event falls in the desired range and the previous one didn't, returns true.
     /// Otherwise, returns false.
-    fn apply(&self, event: &Event, state: &mut State) -> bool {
+    fn apply(&self, event: &Event) -> bool {
         if self.key.matches(event) {
-            let previous_value = state[self.state_index];
+            let previous_value = self.state.get();
             let new_value = self.range.contains(event.value);
-            state[self.state_index] = self.range.contains(event.value);
+            self.state.set(new_value);
             
             new_value && ! previous_value
         } else {
@@ -43,8 +45,8 @@ impl Tracker {
         }
     }
 
-    fn is_down(&self, state: &mut State) -> bool {
-        state[self.state_index]
+    fn is_down(&self) -> bool {
+        self.state.get()
     }
 }
 
@@ -54,9 +56,9 @@ pub struct Hook {
 }
 
 impl Hook {
-    pub fn new(hold_keys: Vec<Key>, state: &mut State) -> Hook {
+    pub fn new(hold_keys: Vec<Key>) -> Hook {
         let hold_trackers = hold_keys.into_iter().map(
-            |key| Tracker::new(key, state)
+            |key| Tracker::new(key)
         ).collect();
         Hook { hold_trackers, effects: Vec::new() }
     }
@@ -67,7 +69,7 @@ impl Hook {
 
     fn apply(&self, event: &Event, state: &mut State) {
         let any_tracker_activated = self.hold_trackers.iter().any(
-            |tracker| tracker.apply(event, state)
+            |tracker| tracker.apply(event)
         );
 
         // Check whether at least one tracker turned active that wasn't on active,
@@ -78,7 +80,7 @@ impl Hook {
 
         // Test whether all other trackers are active.
         for tracker in &self.hold_trackers {
-            if ! tracker.is_down(state) {
+            if ! tracker.is_down() {
                 return;
             }
         }

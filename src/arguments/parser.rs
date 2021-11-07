@@ -212,7 +212,7 @@ pub fn implement(args_str: Vec<String>) -> Result<(Setup, Vec<crate::io::input::
                 }
             },
             Argument::HookArg(hook_arg) => {
-                let mut hook = Hook::new(hook_arg.hold_keys, &mut state);
+                let mut hook = Hook::new(hook_arg.hold_keys);
                 for exec_shell in hook_arg.exec_shell.iter().cloned() {
                     hook.add_command("/bin/sh".to_owned(), vec!["-c".to_owned(), exec_shell]);
                 }
