@@ -12,18 +12,23 @@ pub struct State {
     toggles: Vec<ToggleState>,
     /// Represents some bools that can be used for arbitrary purposes.
     bools: Vec<bool>,
+    /// Represents the state of --merge arguments.
+    merges: Vec<HashMap<EventCode, isize>>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct ToggleIndex(usize);
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct BoolIndex(usize);
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct MergeIndex(usize);
 
 impl State {
     pub fn new() -> State {
         State {
             toggles: Vec::new(),
             bools: Vec::new(),
+            merges: Vec::new(),
         }
     }
 
@@ -52,6 +57,12 @@ impl State {
         self.bools.push(value);
         BoolIndex(self.bools.len() - 1)
     }
+
+    /// Allocates space for a --merge operator and returns the index at which it can be accessed.
+    pub fn allocate_merge(&mut self) -> MergeIndex {
+        self.merges.push(HashMap::new());
+        MergeIndex(self.merges.len() - 1)
+    }
 }
 
 impl Index<ToggleIndex> for State {
@@ -77,6 +88,19 @@ impl Index<BoolIndex> for State {
 impl IndexMut<BoolIndex> for State {
     fn index_mut(&mut self, index: BoolIndex) -> &mut bool {
         &mut self.bools[index.0]
+    }
+}
+
+impl Index<MergeIndex> for State {
+    type Output = HashMap<EventCode, isize>;
+    fn index(&self, index: MergeIndex) -> &HashMap<EventCode, isize> {
+        &self.merges[index.0]
+    }
+}
+
+impl IndexMut<MergeIndex> for State {
+    fn index_mut(&mut self, index: MergeIndex) -> &mut HashMap<EventCode, isize> {
+        &mut self.merges[index.0]
     }
 }
 
