@@ -19,6 +19,8 @@ use crate::arguments::print::PrintArg;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
+use super::merge::MergeArg;
+
 const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 const USAGE_MSG: &str = 
 "Usage: evsieve [--input PATH... [domain=DOMAIN] [grab[=auto|force]] [persist=reopen|none]]...
@@ -27,6 +29,7 @@ const USAGE_MSG: &str =
                [--block [SOURCE...]]...
                [--toggle SOURCE DEST... [id=ID] [mode=consistent|passive]]...
                [--hook KEY... [exec-shell=COMMAND]... [toggle[=[ID][:INDEX]]]...]...
+               [--merge [EVENTS...]]...
                [--print [EVENTS...] [format=default|direct]]...
                [--output [EVENTS...] [create-link=PATH] [name=NAME] [repeat[=MODE]]]...";
 
@@ -38,6 +41,7 @@ enum Argument {
     BlockArg(BlockArg),
     ToggleArg(ToggleArg),
     PrintArg(PrintArg),
+    MergeArg(MergeArg),
 }
 
 impl Argument {
@@ -52,6 +56,7 @@ impl Argument {
             "--toggle" => Ok(Argument::ToggleArg(ToggleArg::parse(args)?)),
             "--block" => Ok(Argument::BlockArg(BlockArg::parse(args)?)),
             "--print" => Ok(Argument::PrintArg(PrintArg::parse(args)?)),
+            "--merge" => Ok(Argument::MergeArg(MergeArg::parse(args)?)),
             _ => Err(ArgumentError::new(format!("Encountered unknown argument: {}", first_arg)).into()),
         }
     }
@@ -233,7 +238,10 @@ pub fn implement(args_str: Vec<String>) -> Result<(Setup, Vec<crate::io::input::
             },
             Argument::PrintArg(print_arg) => {
                 stream.push(StreamEntry::Print(print_arg.compile()));
-            }
+            },
+            Argument::MergeArg(merge_arg) => {
+                stream.push(StreamEntry::Merge(merge_arg.compile()));
+            },
         }
     }
 
