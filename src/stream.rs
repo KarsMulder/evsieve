@@ -2,6 +2,7 @@
 
 use crate::map::{Map, Toggle};
 use crate::hook::Hook;
+use crate::merge::Merge;
 use crate::state::State;
 use crate::event::{Event, Namespace};
 use crate::print::EventPrinter;
@@ -13,6 +14,7 @@ pub enum StreamEntry {
     Hook(Hook),
     Toggle(Toggle),
     Print(EventPrinter),
+    Merge(Merge),
 }
 
 pub struct Setup {
@@ -56,6 +58,11 @@ pub fn run_event(event_in: Event, events_out: &mut Vec<Event>, stream: &mut [Str
                 events.clear();
                 std::mem::swap(&mut events, &mut buffer);
             },
+            StreamEntry::Merge(merge) => {
+                merge.apply_to_all(&events, &mut buffer);
+                events.clear();
+                std::mem::swap(&mut events, &mut buffer);
+            },
             StreamEntry::Hook(hook) => {
                 hook.apply_to_all(&events, state);
             },
@@ -87,6 +94,7 @@ pub fn run_caps(stream: &[StreamEntry], capabilities: Vec<Capability>) -> Vec<Ca
                 caps.clear();
                 std::mem::swap(&mut caps, &mut buffer);
             },
+            StreamEntry::Merge(_) => (),
             StreamEntry::Hook(_) => (),
             StreamEntry::Print(_) => (),
         }

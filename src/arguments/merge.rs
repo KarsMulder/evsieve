@@ -19,6 +19,7 @@ impl MergeArg {
             true,
         )?;
 
+        // TODO: ban value indications because they make no sense.
         let keys = KeyParser::default_filter().parse_all(&arg_group.get_keys_or_empty_key())?;
 
         Ok(MergeArg { keys })
