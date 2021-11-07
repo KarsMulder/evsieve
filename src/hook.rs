@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use std::cell::Cell;
-
 use crate::error::Context;
 use crate::range::Range;
 use crate::key::Key;
@@ -17,7 +15,10 @@ pub type Effect = Box<dyn Fn(&mut State)>;
 struct Tracker {
     key: Key,
     range: Range,
-    state: Cell<bool>,
+
+    /// The state is mutable at runtime. It reflects whether the key tracked by this tracked
+    /// is currently pressed or not.
+    state: bool,
 }
 
 impl Tracker {
@@ -26,18 +27,18 @@ impl Tracker {
         Tracker {
             key,
             range,
-            state: Cell::new(false),
+            state: false,
         }
     }
 
     /// If the event matches, remembers whether this event falls in the desired range.
     /// If this event falls in the desired range and the previous one didn't, returns true.
     /// Otherwise, returns false.
-    fn apply(&self, event: &Event) -> bool {
+    fn apply(&mut self, event: &Event) -> bool {
         if self.key.matches(event) {
-            let previous_value = self.state.get();
+            let previous_value = self.state;
             let new_value = self.range.contains(event.value);
-            self.state.set(new_value);
+            self.state = new_value;
             
             new_value && ! previous_value
         } else {
@@ -46,7 +47,7 @@ impl Tracker {
     }
 
     fn is_down(&self) -> bool {
-        self.state.get()
+        self.state
     }
 }
 
@@ -57,9 +58,7 @@ pub struct Hook {
 
 impl Hook {
     pub fn new(hold_keys: Vec<Key>) -> Hook {
-        let hold_trackers = hold_keys.into_iter().map(
-            |key| Tracker::new(key)
-        ).collect();
+        let hold_trackers = hold_keys.into_iter().map(Tracker::new).collect();
         Hook { hold_trackers, effects: Vec::new() }
     }
 
@@ -67,8 +66,8 @@ impl Hook {
         self.effects.push(effect);
     }
 
-    fn apply(&self, event: &Event, state: &mut State) {
-        let any_tracker_activated = self.hold_trackers.iter().any(
+    fn apply(&mut self, event: &Event, state: &mut State) {
+        let any_tracker_activated = self.hold_trackers.iter_mut().any(
             |tracker| tracker.apply(event)
         );
 
@@ -93,7 +92,7 @@ impl Hook {
         }
     }
 
-    pub fn apply_to_all(&self, events: &[Event], state: &mut State) {
+    pub fn apply_to_all(&mut self, events: &[Event], state: &mut State) {
         for event in events {
             self.apply(event, state);
         }
