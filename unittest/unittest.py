@@ -596,6 +596,45 @@ def unittest_type():
         },
     )
 
+def unittest_merge():
+    run_unittest(
+        ["--input", "/dev/input/by-id/unittest-type-in-1", "domain=in1", "grab=force",
+        "--map", "key:b", "key:a",
+        "--map", "key:y", "key:x",
+        "--merge", "key:a",
+        "--output", "create-link=/dev/input/by-id/unittest-type-out-1"],
+        {
+            "/dev/input/by-id/unittest-type-in-1": [
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_C, 1),
+                (e.EV_KEY, e.KEY_A, 0),
+                (e.EV_KEY, e.KEY_C, 0),
+                (e.EV_KEY, e.KEY_B, 0),
+
+                (e.EV_KEY, e.KEY_X, 1),
+                (e.EV_KEY, e.KEY_Y, 1),
+                (e.EV_KEY, e.KEY_Z, 1),
+                (e.EV_KEY, e.KEY_X, 0),
+                (e.EV_KEY, e.KEY_Z, 0),
+                (e.EV_KEY, e.KEY_Y, 0),
+            ],
+        },
+        {
+            "/dev/input/by-id/unittest-type-out-1": [
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_C, 1),
+                (e.EV_KEY, e.KEY_C, 0),
+                (e.EV_KEY, e.KEY_A, 0),
+
+                (e.EV_KEY, e.KEY_X, 1),
+                (e.EV_KEY, e.KEY_Z, 1),
+                (e.EV_KEY, e.KEY_X, 0),
+                (e.EV_KEY, e.KEY_Z, 0),
+            ],
+        },
+    )
+
 
 unittest_mirror()
 unittest_capslock()
@@ -610,3 +649,4 @@ unittest_order()
 unittest_namespace()
 unittest_consistency()
 unittest_type()
+unittest_merge()

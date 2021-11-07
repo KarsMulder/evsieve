@@ -41,6 +41,8 @@ impl Merge {
             },
         }
 
+        // TODO: consider how to deal with keys that were down before the program started.
+
         match (current_down_count, event.value) {
             // If a KEY_UP event let to the down count becoming zero, or a KEY_DOWN event let to the
             // count becoming one, write it to the output. Importantly, do not pass the event on in
