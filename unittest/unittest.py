@@ -598,15 +598,15 @@ def unittest_type():
 
 def unittest_merge():
     run_unittest(
-        ["--input", "/dev/input/by-id/unittest-type-in-1", "domain=in1", "grab=force",
+        ["--input", "/dev/input/by-id/unittest-merge-in-1", "domain=in1", "grab=force",
         "--map", "key:b", "key:a",
         "--map", "key:y", "key:x",
         "--map", "key:t:1", "key:a:0",
         "--block", "key:t",
         "--merge", "key:a",
-        "--output", "create-link=/dev/input/by-id/unittest-type-out-1"],
+        "--output", "create-link=/dev/input/by-id/unittest-merge-out-1"],
         {
-            "/dev/input/by-id/unittest-type-in-1": [
+            "/dev/input/by-id/unittest-merge-in-1": [
                 (e.EV_KEY, e.KEY_A, 1),
                 (e.EV_KEY, e.KEY_B, 1),
                 (e.EV_KEY, e.KEY_C, 1),
@@ -630,7 +630,7 @@ def unittest_merge():
             ],
         },
         {
-            "/dev/input/by-id/unittest-type-out-1": [
+            "/dev/input/by-id/unittest-merge-out-1": [
                 (e.EV_KEY, e.KEY_A, 1),
                 (e.EV_KEY, e.KEY_C, 1),
                 (e.EV_KEY, e.KEY_C, 0),
