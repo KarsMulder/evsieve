@@ -45,7 +45,7 @@ impl Merge {
         match (last_down_count, event.value) {
             // If a KEY_UP event let to the down count becoming zero, or a KEY_DOWN event let to the
             // count becoming one, write it to the output. Importantly, do not pass the event on in
-            // case a KEY_UP event resulted into the event count becoming zero.
+            // case a KEY_UP event resulted into the event staying zero (last: 0, current: 0).
             (1, 0) | (0, 1) => output_events.push(event),
             // Otherwise, drop this event.
             _ => return,
