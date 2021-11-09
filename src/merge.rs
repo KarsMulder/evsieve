@@ -12,7 +12,7 @@ pub struct Merge {
     keys: Vec<Key>,
     
     /// How many down events each (type, code, domain) pair has.
-    state: HashMap<(EventCode, Domain), isize>,
+    state: HashMap<(EventCode, Domain), usize>,
 }
 
 impl Merge {
@@ -28,12 +28,13 @@ impl Merge {
             return;
         }
 
-        let current_down_count: &mut isize = self.state.entry((event.code, event.domain)).or_insert(0);
+        let current_down_count: &mut usize = self.state.entry((event.code, event.domain)).or_insert(0);
+        let last_down_count: usize = *current_down_count;
         match event.value {
             // If this is a KEY_DOWN (1) event, add one to the down count.
             1 => *current_down_count += 1,
-            // If this is a KEY_UP (0) event, substract one from the down count.
-            0 => *current_down_count -= 1,
+            // If this is a KEY_UP (0) event, substract one from the down count, but never go below zero.
+            0 => *current_down_count = current_down_count.saturating_sub(1),
             // Otherwise, silently pass on and ignore this event.
             _ => {
                 output_events.push(event);
@@ -41,13 +42,11 @@ impl Merge {
             },
         }
 
-        // TODO: consider how to deal with keys that were down before the program started.
-
-        match (current_down_count, event.value) {
+        match (last_down_count, event.value) {
             // If a KEY_UP event let to the down count becoming zero, or a KEY_DOWN event let to the
             // count becoming one, write it to the output. Importantly, do not pass the event on in
             // case a KEY_UP event resulted into the event count becoming zero.
-            (0, 0) | (1, 1) => output_events.push(event),
+            (1, 0) | (0, 1) => output_events.push(event),
             // Otherwise, drop this event.
             _ => return,
         }
