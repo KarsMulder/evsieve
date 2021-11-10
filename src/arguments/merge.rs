@@ -20,7 +20,8 @@ impl MergeArg {
         )?;
 
         // TODO: ban value indications because they make no sense.
-        let parser = KeyParser::default_filter();
+        let mut parser = KeyParser::default_filter();
+        parser.restrict_to_EV_KEY = false; // TODO
         let keys = parser.parse_all(&arg_group.get_keys_or_empty_key())?;
 
         Ok(MergeArg { keys })

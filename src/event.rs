@@ -108,6 +108,8 @@ pub enum VirtualEventType {
 impl VirtualEventType {
     pub const KEY: &'static str = "key";
     pub const BUTTON: &'static str = "btn";
+
+    pub const EV_KEY_TYPES: [&'static str; 2] = [VirtualEventType::KEY, VirtualEventType::BUTTON];
 }
 
 #[derive(PartialEq, Eq, Clone, Copy)]
