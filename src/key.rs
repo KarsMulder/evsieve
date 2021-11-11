@@ -134,7 +134,13 @@ impl KeyProperty {
                 if cfg!(debug_assertions) {
                     panic!("Cannot change the event type of an event. Panicked during event mapping.");
                 } else {
-                    utils::warn_once("Internal error: cannot change the event type of an event. If you see this message, this is a bug.");
+                    // Do nothing.
+                    //
+                    // I would like to print a warning here, but benchmarks show that makes evsieve's
+                    // performance 33% slower, just for a situation that should both never happen and
+                    // if it did happen, would most likely be caught during capability propagation.
+                    //
+                    // utils::warn_once("Internal error: cannot change the event type of an event. If you see this message, this is a bug.");
                 }
             }
         };
