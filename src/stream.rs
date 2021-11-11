@@ -81,6 +81,7 @@ pub fn run_event(event_in: Event, events_out: &mut Vec<Event>, stream: &mut [Str
 pub fn run_caps(stream: &[StreamEntry], capabilities: Vec<Capability>) -> Vec<Capability> {
     let mut caps: Vec<Capability> = capabilities;
     let mut buffer: Vec<Capability> = Vec::new();
+    let mut last_num_caps = caps.len();
     
     for entry in stream {
         match entry {
@@ -101,7 +102,10 @@ pub fn run_caps(stream: &[StreamEntry], capabilities: Vec<Capability>) -> Vec<Ca
 
         // Merge capabilities that differ only in value together when possible.
         // This avoids a worst-case scenario with exponential computation time.
-        caps = crate::capability::aggregate_capabilities(caps);
+        if caps.len() >= 2 * last_num_caps {
+            caps = crate::capability::aggregate_capabilities(caps);
+            last_num_caps = caps.len();
+        }
     }
 
     caps.into_iter().filter(|cap| cap.namespace == Namespace::Output).collect()
