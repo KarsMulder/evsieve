@@ -39,6 +39,14 @@ impl Key {
         result
     }
 
+    /// Returns a key that matches all events with a certain (real) type and namespace.
+    pub fn from_ev_type_and_namespace(ev_type: EventType, namespace: Namespace) -> Key {
+        let mut result = Key::new();
+        result.add_property(KeyProperty::Namespace(namespace));
+        result.add_property(KeyProperty::Type(ev_type));
+        result
+    }
+
     pub fn matches(&self, event: &Event) -> bool {
         self.properties.iter().all(|prop| prop.matches(event))
     }
@@ -93,6 +101,7 @@ impl Key {
 enum KeyProperty {
     Code(EventCode),
     Domain(Domain),
+    Type(EventType),
     VirtualType(VirtualEventType),
     Namespace(Namespace),
     Value(Range),
@@ -105,6 +114,7 @@ impl KeyProperty {
         match *self {
             KeyProperty::Code(value) => event.code == value,
             KeyProperty::Domain(value) => event.domain == value,
+            KeyProperty::Type(ev_type) => event.ev_type() == ev_type,
             KeyProperty::VirtualType(value) => event.code.virtual_ev_type() == value,
             KeyProperty::Namespace(value) => event.namespace == value,
             KeyProperty::Value(range) => range.contains(event.value),
@@ -120,11 +130,11 @@ impl KeyProperty {
             KeyProperty::Namespace(value) => event.namespace = value,
             KeyProperty::Value(range) => event.value = range.bound(event.value),
             KeyProperty::PreviousValue(range) => event.previous_value = range.bound(event.previous_value),
-            KeyProperty::VirtualType(_) => {
+            KeyProperty::VirtualType(_) | KeyProperty::Type(_) => {
                 if cfg!(debug_assertions) {
                     panic!("Cannot change the event type of an event. Panicked during event mapping.");
                 } else {
-                    utils::warn_once("ERROR: cannot change the event type of an event. If you see this message, this is a bug.");
+                    utils::warn_once("Internal error: cannot change the event type of an event. If you see this message, this is a bug.");
                 }
             }
         };
@@ -135,6 +145,7 @@ impl KeyProperty {
         match *self {
             KeyProperty::Code(value) => (cap.code == value).into(),
             KeyProperty::Domain(value) => (cap.domain == value).into(),
+            KeyProperty::Type(value) => (cap.code.ev_type() == value).into(),
             KeyProperty::VirtualType(value) => (cap.code.virtual_ev_type() == value).into(),
             KeyProperty::Namespace(value) => (cap.namespace == value).into(),
             KeyProperty::Value(range) => {
@@ -157,11 +168,11 @@ impl KeyProperty {
             KeyProperty::Namespace(value) => cap.namespace = value,
             KeyProperty::Value(range) => cap.value_range = range.bound_range(&cap.value_range),
             KeyProperty::PreviousValue(_range) => {},
-            KeyProperty::VirtualType(_) => {
+            KeyProperty::VirtualType(_) | KeyProperty::Type(_) => {
                 if cfg!(debug_assertions) {
                     panic!("Cannot change the event type of an event. Panicked during capability propagation.");
                 } else {
-                    utils::warn_once("ERROR: cannot change the event type of an event. If you see this message, this is a bug.");
+                    utils::warn_once("Internal error: cannot change the event type of an event. If you see this message, this is a bug.");
                 }
             }
         };
