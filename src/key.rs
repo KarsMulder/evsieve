@@ -173,8 +173,11 @@ impl KeyProperty {
 #[allow(non_snake_case)]
 pub struct KeyParser<'a> {
     pub default_value: &'a str,
+    /// Whether event values like the :1 in "key:a:1" are allowed.
+    pub allow_values: bool,
     pub allow_transitions: bool,
     pub allow_ranges: bool,
+    /// Whether keys with only a type like "key", "btn", "abs", and such without an event code, are allowed.
     pub allow_types: bool,
     /// If this true, then only event types of type EV_KEY (i.e. key:something or btn:something) are
     /// allowed to parse.
@@ -188,6 +191,7 @@ impl<'a> KeyParser<'a> {
     pub fn default_filter() -> KeyParser<'static> {
         KeyParser {
             default_value: "",
+            allow_values: true,
             allow_ranges: true,
             allow_transitions: true,
             allow_types: true,
@@ -201,6 +205,7 @@ impl<'a> KeyParser<'a> {
     pub fn default_mask() -> KeyParser<'static> {
         KeyParser {
             default_value: "",
+            allow_values: true,
             allow_ranges: false,
             allow_transitions: false,
             allow_types: false,
@@ -241,6 +246,7 @@ pub fn resembles_key(key_str: &str) -> bool {
         // Check if it is an actual key.
         KeyParser {
             default_value: "",
+            allow_values: true,
             allow_ranges: true,
             allow_transitions: true,
             allow_types: true,
@@ -332,7 +338,16 @@ fn interpret_key(key_str: &str, parser: &KeyParser) -> Result<Key, ArgumentError
     };
     
     let event_value_str = match parts.next() {
-        Some(value) => value,
+        Some(value) => {
+            if parser.allow_values {
+                value
+            } else {
+                return Err(ArgumentError::new(format!(
+                    "This argument does not allow you to specify values for its events. Try removing the \":{}\" part.",
+                    value
+                )))
+            }
+        },
         None => match parser.default_value {
             "" => return Ok(key),
             _ => &parser.default_value,

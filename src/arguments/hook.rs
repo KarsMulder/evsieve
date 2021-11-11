@@ -28,6 +28,7 @@ impl HookArg {
         let toggle_action = HookToggleAction::parse(arg_group.has_flag("toggle"), arg_group.get_clauses("toggle"))?;
         let hold_keys = KeyParser {
             allow_transitions: false,
+            allow_values: true,
             allow_ranges: true,
             allow_types: false,
             default_value: "1~",

@@ -19,9 +19,16 @@ impl MergeArg {
             true,
         )?;
 
-        // TODO: ban value indications because they make no sense.
-        let mut parser = KeyParser::default_filter();
-        parser.restrict_to_EV_KEY = false; // TODO
+        let parser = KeyParser {
+            default_value: "",
+            allow_values: false,
+            allow_ranges: false,
+            allow_transitions: false,
+            allow_types: true,
+            restrict_to_EV_KEY: false,
+            namespace: crate::event::Namespace::User,
+        };
+
         let keys = parser.parse_all(&arg_group.get_keys_or_empty_key())?;
 
         Ok(MergeArg { keys })
