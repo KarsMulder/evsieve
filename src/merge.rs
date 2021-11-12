@@ -23,7 +23,7 @@ impl Merge {
     #[allow(clippy::needless_return)]
     fn apply(&mut self, event: Event, output_events: &mut Vec<Event>) {
         // If this merge is not applicable to this event, silently pass it on.
-        if ! self.keys.iter().any(|key| key.matches(&event)) {
+        if ! event.ev_type().is_key() || ! self.keys.iter().any(|key| key.matches(&event)) {
             output_events.push(event);
             return;
         }
