@@ -4,7 +4,6 @@ use crate::error::ArgumentError;
 use crate::arguments::lib::ComplexArgGroup;
 use crate::key::{Key, KeyParser};
 use crate::merge::Merge;
-use crate::event::{EventType, Namespace};
 
 /// Represents a --merge argument.
 pub(super) struct MergeArg {
@@ -20,21 +19,17 @@ impl MergeArg {
             true,
         )?;
 
-        let keys = if arg_group.keys.is_empty() {
-            vec![Key::from_ev_type_and_namespace(EventType::KEY, Namespace::User)]
-        } else {
-            let parser = KeyParser {
-                default_value: "",
-                allow_values: false,
-                allow_ranges: false,
-                allow_transitions: false,
-                allow_types: true,
-                restrict_to_EV_KEY: true,
-                namespace: crate::event::Namespace::User,
-            };
-
-            parser.parse_all(&arg_group.keys)?
+        let parser = KeyParser {
+            default_value: "",
+            allow_values: false,
+            allow_ranges: false,
+            allow_transitions: false,
+            allow_types: true,
+            restrict_to_EV_KEY: false,
+            namespace: crate::event::Namespace::User,
         };
+
+        let keys = parser.parse_all(&arg_group.get_keys_or_empty_key())?;
 
         Ok(MergeArg { keys })
     }
