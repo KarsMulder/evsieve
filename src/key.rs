@@ -331,10 +331,10 @@ fn interpret_key(key_str: &str, parser: &KeyParser) -> Result<Key, ArgumentError
             if ! parser.allow_types {
                 return Err(ArgumentError::new(format!("No event code provided for the key \"{}\".", key_str)));
             }
-            // TODO: consider refactoring.
+
             let virtual_type = match event_type_name {
-                "key" => VirtualEventType::Key,
-                "btn" => VirtualEventType::Button,
+                VirtualEventType::KEY => VirtualEventType::Key,
+                VirtualEventType::BUTTON => VirtualEventType::Button,
                 _ => VirtualEventType::Other(event_type),
             };
             key.add_property(KeyProperty::VirtualType(virtual_type));
