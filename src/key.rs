@@ -2,7 +2,7 @@
 
 use crate::domain;
 use crate::domain::Domain;
-use crate::event::{Event, Namespace, VirtualEventType};
+use crate::event::{Event, EventType, Namespace, VirtualEventType};
 use crate::utils;
 use crate::error::ArgumentError;
 use crate::capability::{Capability, CapMatch};
@@ -86,6 +86,23 @@ impl Key {
 
     fn add_property(&mut self, property: KeyProperty) {
         self.properties.push(property);
+    }
+
+    /// Returns Some(EventType) if this Key will only ever accept events of a certain type.
+    /// If it may accept different types of events, returns None.
+    pub fn requires_event_type(&self) -> Option<EventType> {
+        for property in &self.properties {
+            match property {
+                KeyProperty::Code(code) => return Some(code.ev_type()),
+                KeyProperty::VirtualType(v_type) => return Some(v_type.ev_type()),
+                KeyProperty::Domain(_)
+                | KeyProperty::Namespace(_)
+                | KeyProperty::Value(_)
+                | KeyProperty::PreviousValue(_)
+                => (),
+            }
+        }
+        None
     }
 }
 

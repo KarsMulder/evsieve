@@ -108,6 +108,13 @@ pub enum VirtualEventType {
 impl VirtualEventType {
     pub const KEY: &'static str = "key";
     pub const BUTTON: &'static str = "btn";
+
+    pub fn ev_type(self) -> EventType {
+        match self {
+            VirtualEventType::Key | VirtualEventType::Button => EventType::KEY,
+            VirtualEventType::Other(ev_type) => ev_type,
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, Clone, Copy)]
