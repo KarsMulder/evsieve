@@ -2,7 +2,7 @@
 
 use crate::domain;
 use crate::domain::Domain;
-use crate::event::{Event, EventType, Namespace, VirtualEventType};
+use crate::event::{Event, Namespace, VirtualEventType};
 use crate::utils;
 use crate::error::ArgumentError;
 use crate::capability::{Capability, CapMatch};
@@ -176,7 +176,6 @@ impl KeyProperty {
 }
 
 /// Represents the options for how a key can be parsed in different contexts.
-#[allow(non_snake_case)]
 pub struct KeyParser<'a> {
     pub default_value: &'a str,
     /// Whether event values like the :1 in "key:a:1" are allowed.
@@ -185,9 +184,6 @@ pub struct KeyParser<'a> {
     pub allow_ranges: bool,
     /// Whether keys with only a type like "key", "btn", "abs", and such without an event code, are allowed.
     pub allow_types: bool,
-    /// If this true, then only event types of type EV_KEY (i.e. key:something or btn:something) are
-    /// allowed to parse.
-    pub restrict_to_EV_KEY: bool,
     pub namespace: Namespace,
 }
 
@@ -201,7 +197,6 @@ impl<'a> KeyParser<'a> {
             allow_ranges: true,
             allow_transitions: true,
             allow_types: true,
-            restrict_to_EV_KEY: false,
             namespace: Namespace::User,
         }
     }
@@ -215,7 +210,6 @@ impl<'a> KeyParser<'a> {
             allow_ranges: false,
             allow_transitions: false,
             allow_types: false,
-            restrict_to_EV_KEY: false,
             namespace: Namespace::User,
         }
     }
@@ -256,7 +250,6 @@ pub fn resembles_key(key_str: &str) -> bool {
             allow_ranges: true,
             allow_transitions: true,
             allow_types: true,
-            restrict_to_EV_KEY: false,
             namespace: Namespace::User,
         }.parse(key_str).is_ok()
         // Otherwise, check if it contains some of the key-like characters.
@@ -284,13 +277,7 @@ fn interpret_key(key_str: &str, parser: &KeyParser) -> Result<Key, ArgumentError
     let mut key = Key::new();
     key.add_property(KeyProperty::Namespace(parser.namespace));
 	if key_str == "" {
-        if ! parser.restrict_to_EV_KEY {
-            return Ok(key)
-        } else {
-            return Err(ArgumentError::new(
-                "This argument can only apply to events with type EV_KEY (i.e. key:something and btn:something), and therefore does not accept the empty string as filter."
-            .to_owned()));
-        }
+        return Ok(key)
     }
 	
 	let mut parts = key_str.split(':');
@@ -304,12 +291,6 @@ fn interpret_key(key_str: &str, parser: &KeyParser) -> Result<Key, ArgumentError
     )?;
     if event_type.is_syn() {
         return Err(ArgumentError::new("Cannot use event type \"syn\": it is impossible to manipulate synchronisation events because synchronisation is automatically taken care of by evsieve."));
-    }
-
-    if parser.restrict_to_EV_KEY && event_type != EventType::KEY {
-        return Err(ArgumentError::new(format!(
-            "This argument can only apply to events with type EV_KEY (i.e. key:something and btn:something), and therefore cannot filter to events with type \"{}\".", event_type_name
-        )));
     }
 
     // Extract the event code, or return a key that matches on type only.

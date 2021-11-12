@@ -25,7 +25,6 @@ impl MergeArg {
             allow_ranges: false,
             allow_transitions: false,
             allow_types: true,
-            restrict_to_EV_KEY: false,
             namespace: crate::event::Namespace::User,
         };
 
