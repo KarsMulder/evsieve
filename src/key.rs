@@ -167,7 +167,7 @@ impl KeyProperty {
                 if cfg!(debug_assertions) {
                     panic!("Cannot change the event type of an event. Panicked during capability propagation.");
                 } else {
-                    utils::warn_once("ERROR: cannot change the event type of an event. If you see this message, this is a bug.");
+                    utils::warn_once("Internal error: cannot change the event type of an event. If you see this message, this is a bug.");
                 }
             }
         };
