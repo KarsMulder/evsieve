@@ -150,13 +150,6 @@ impl From<io::Error> for RuntimeError {
     }
 }
 
-pub struct InterruptError {}
-impl InterruptError {
-    pub fn new() -> InterruptError {
-        InterruptError {}
-    }
-}
-
 impl<T, E> Context for Result<T, E> where E: Context {
     fn with_context<S: Into<String>>(self, context: S) -> Self {
         match self {
