@@ -6,7 +6,7 @@ use crate::io::internal_pipe::{Sender, Receiver};
 use crate::persist::blueprint::Blueprint;
 use crate::persist::inotify::Inotify;
 use crate::persist::interface::HostInterface;
-use crate::error::{Context, InterruptError, RuntimeError, SystemError};
+use crate::error::{Context, RuntimeError, SystemError};
 use crate::io::epoll::{Epoll, Message};
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -104,7 +104,8 @@ fn poll(epoll: &mut Epoll<Pollable>) -> Result<(Vec<Command>, Vec<Report>), Runt
     let mut reports: Vec<Report> = Vec::new();
 
     match epoll.poll() {
-        Err(InterruptError {}) => {
+        Err(error) => {
+            error.with_context("While the persistence subsystem was polling for events:").print_err();
             commands.push(Command::Shutdown);
         },
         Ok(messages) => for message in messages {

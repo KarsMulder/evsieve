@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use crate::error::{InterruptError, SystemError};
-use crate::sysexit;
-use crate::error::Context;
+use crate::error::{Context, SystemError};
 use std::collections::HashMap;
 use std::os::unix::io::{AsRawFd, RawFd};
 
@@ -155,27 +153,13 @@ impl<T: AsRawFd> Epoll<T> {
 
     /// Tries to read all events from all ready devices. Returns a vector containing all events read.
     /// If a device reports an error, said device is removed from self and also returned.
-    pub fn poll(&mut self) -> Result<impl Iterator<Item=Message>, InterruptError> {
+    pub fn poll(&mut self) -> Result<impl Iterator<Item=Message>, SystemError> {
         let events = loop {
             match self.poll_raw() {
                 Ok(events) => break events,
                 Err(error) => match error.kind() {
-                    std::io::ErrorKind::Interrupted => {
-                        if sysexit::should_exit() {
-                            return Err(InterruptError::new())
-                        } else {
-                            continue;
-                        }
-                    },
-                    _ => {
-                        if self.is_empty() {
-                            // TODO
-                            eprintln!("No input devices to poll events from; evsieve will exit now.");
-                        } else {
-                            eprintln!("Fatal error while polling for events: {}", error);
-                        }
-                        return Err(InterruptError::new());
-                    }
+                    std::io::ErrorKind::Interrupted => continue,
+                    _ => return Err(error.into())
                 }
             }
         };
