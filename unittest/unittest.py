@@ -627,6 +627,9 @@ def unittest_merge():
                 (e.EV_KEY, e.KEY_C, 1),
                 (e.EV_KEY, e.KEY_A, 0),
                 (e.EV_KEY, e.KEY_C, 0),
+
+                (e.EV_ABS, e.ABS_X, 10),
+                (e.EV_ABS, e.ABS_X, 0),
             ],
         },
         {
@@ -645,6 +648,9 @@ def unittest_merge():
                 (e.EV_KEY, e.KEY_C, 1),
                 (e.EV_KEY, e.KEY_A, 0),
                 (e.EV_KEY, e.KEY_C, 0),
+
+                (e.EV_ABS, e.ABS_X, 10),
+                (e.EV_ABS, e.ABS_X, 0),
             ],
         },
     )
