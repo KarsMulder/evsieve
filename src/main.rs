@@ -28,7 +28,6 @@ pub mod capability;
 pub mod range;
 pub mod stream;
 pub mod ecodes;
-pub mod sysexit;
 pub mod hook;
 pub mod predevice;
 pub mod print;
