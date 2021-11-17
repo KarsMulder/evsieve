@@ -15,6 +15,7 @@
 
 // Disallowed for code uniformity.
 #![warn(clippy::explicit_iter_loop)]
+#![warn(clippy::explicit_iter_loop)]
 
 pub mod event;
 pub mod key;
