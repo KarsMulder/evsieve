@@ -17,6 +17,7 @@
 #![warn(clippy::explicit_iter_loop)]
 #![warn(clippy::explicit_iter_loop)]
 
+pub mod activity;
 pub mod event;
 pub mod key;
 pub mod map;
