@@ -13,6 +13,9 @@
 //! ActivityLinks do not block Evsieve from exiting; it will still exit if asked to (e.g. because
 //! of Ctrl+C), in merely block an automatic exit.
 
+// TODO: consider adding ActivityLinks to running subcommands.
+// TODO: the persistence subsystem should wake up the main thread if a blueprint is dropped.
+
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 static NUM_ACTIVE_LINKS: AtomicUsize = AtomicUsize::new(0);
@@ -39,4 +42,9 @@ impl Drop for ActivityLink {
 
 pub fn num_active_links() -> usize {
     NUM_ACTIVE_LINKS.load(Ordering::SeqCst)
+}
+
+/// Returns true if evsieve should automatically exit due to lack of any activity.
+pub fn should_exit() -> bool {
+    num_active_links() == 0
 }

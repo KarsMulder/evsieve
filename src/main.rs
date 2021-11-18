@@ -170,9 +170,8 @@ fn run() -> Result<(), RuntimeError> {
     daemon::notify_ready();
 
     // Make sure evsieve has something to do.
-    if count_remaining_input_devices(&program.epoll) == 0 {
-        // TODO: consider making this logic less fragile.
-        println!("Warning: no input devices were specified. Evsieve will exit now.");
+    if activity::should_exit() {
+        println!("Warning: no input devices available. Evsieve will exit now.");
         return Ok(());
     }
 
@@ -321,23 +320,10 @@ fn handle_broken_file(program: &mut Program, index: FileIndex) -> Action {
         },
     }
 
-    if count_remaining_input_devices(&program.epoll) == 0 {
+    if activity::should_exit() {
         println!("No devices to poll events from. Evsieve will exit now.");
         Action::Exit
     } else {
         Action::Continue
     }
-}
-
-fn count_remaining_input_devices(epoll: &Epoll<Pollable>) -> usize {
-    // TODO: Improve
-    let mut result = 0;
-    for file in epoll.files() {
-        match file {
-            Pollable::InputDevice(_) => result += 1,
-            Pollable::PersistSubsystem(_) => result += 1,
-            Pollable::SignalFd(_) => {},
-        }
-    }
-    result
 }
