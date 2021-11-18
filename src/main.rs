@@ -254,32 +254,7 @@ fn handle_ready_file(program: &mut Program, index: FileIndex) -> Result<Action, 
         },
         Pollable::PersistSubsystem(ref mut interface) => {
             let report = interface.recv().with_context("While polling the persistence subsystem from the main thread:")?;
-            let mut device = match report {
-                Report::DeviceOpened(device) => device,
-                Report::Shutdown => {
-                    let _ = program.epoll.remove(index);
-                    program.persist_subsystem.mark_as_shutdown();
-                    return Ok(Action::Continue);
-                }
-            };
-
-            if let Err(error) = device.grab_if_desired() {
-                error.with_context(format!("While grabbing the device {}:", device.path().display()))
-                    .print_err();
-                eprintln!("Warning: unable to reopen device {}. The device is most likely grabbed by another program.", device.path().display());
-                return Ok(Action::Continue)
-            }
-
-            let device_path = device.path().to_owned();
-            match unsafe { program.epoll.add_file(Pollable::InputDevice(device)) }
-            {
-                Ok(_) => println!("The device {} has been reconnected.", device_path.display()),
-                Err(error) => {
-                    error.with_context("While adding a newly opened device to the epoll:").print_err();
-                },
-            }
-
-            Ok(Action::Continue)
+            Ok(handle_persist_subsystem_report(program, index, report))
         },
     }
 }
@@ -325,5 +300,42 @@ fn handle_broken_file(program: &mut Program, index: FileIndex) -> Action {
         Action::Exit
     } else {
         Action::Continue
+    }
+}
+
+fn handle_persist_subsystem_report(program: &mut Program, index: FileIndex, report: Report) -> Action {
+    match report {
+        Report::Shutdown => {
+            let _ = program.epoll.remove(index);
+            program.persist_subsystem.mark_as_shutdown();
+            Action::Continue
+        },
+        Report::BlueprintDropped => {
+            if activity::should_exit() {
+                println!("No devices remaining that can possibly generate events. Evsieve will exit now.");
+                Action::Exit
+            } else {
+                Action::Continue
+            }
+        },
+        Report::DeviceOpened(mut device) => {
+            if let Err(error) = device.grab_if_desired() {
+                error.with_context(format!("While grabbing the device {}:", device.path().display()))
+                    .print_err();
+                eprintln!("Warning: unable to reopen device {}. The device is most likely grabbed by another program.", device.path().display());
+                return Action::Continue
+            }
+
+            let device_path = device.path().to_owned();
+            match unsafe { program.epoll.add_file(Pollable::InputDevice(device)) }
+            {
+                Ok(_) => println!("The device {} has been reconnected.", device_path.display()),
+                Err(error) => {
+                    error.with_context("While adding a newly opened device to the epoll:").print_err();
+                },
+            }
+
+            Action::Continue
+        }
     }
 }

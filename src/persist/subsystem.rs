@@ -1,5 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+//! The persistence subsystem is in charge of taking Blueprints of unavailable InputDevices and waiting
+//! until those devices become available so that the Blueprint can be opened. This happens in a separate
+//! thread which communicates with the main thread through message passing.
+//!
+//! The system does not need to be launched until you actually want to open a blueprint, and ideally
+//! should not be launched before then either, as that would waste system resources by having a useless
+//! thread hanging around.
+
 use crate::io::input::InputDevice;
 use crate::io::internal_pipe;
 use crate::io::internal_pipe::{Sender, Receiver};
@@ -20,9 +28,12 @@ pub enum Command {
     Shutdown,
 }
 
+/// Reports that this subsystem sends back to the main thread.
 pub enum Report {
     /// A device has been opened.
     DeviceOpened(InputDevice),
+    /// A blueprint has been deemed unopenable and has been dropped.
+    BlueprintDropped,
     /// This subsystem has shut down or almost shut down. There are no ongoing processes or destructors
     /// left to run that could cause trouble if the program were to exit() now.
     Shutdown,
@@ -46,6 +57,7 @@ pub struct Daemon {
     inotify: Inotify,
 }
 
+/// Launches the persistence subsystem and returns an interface to communicate with the main thread.
 pub fn launch() -> Result<HostInterface, SystemError> {
     let (commander, comm_in) = internal_pipe::channel()?;
     let (mut comm_out, reporter) = internal_pipe::channel()?;
@@ -69,7 +81,6 @@ pub fn launch() -> Result<HostInterface, SystemError> {
 
     Ok(HostInterface { commander, reporter, join_handle })
 }
-
 
 
 fn start_worker(comm_in: Receiver<Command>, comm_out: &mut Sender<Report>) -> Result<(), RuntimeError> {
@@ -113,8 +124,19 @@ fn poll(epoll: &mut Epoll<Pollable>) -> Result<(Vec<Command>, Vec<Report>), Runt
                 Message::Broken(_index) => return Err(SystemError::new("Persistence daemon broken.").into()),
                 Message::Ready(index) => match &mut epoll[index] {
                     Pollable::Daemon(daemon) => {
-                        let new_devices = daemon.try_open()?;
-                        reports.extend(new_devices.into_iter().map(Report::DeviceOpened))
+                        let TryOpenResult {
+                            opened_devices,
+                            broken_blueprints,
+                            error_encountered,
+                        } = daemon.try_open();
+                        
+                        reports.extend(opened_devices.into_iter().map(Report::DeviceOpened));
+                        reports.extend(broken_blueprints.into_iter().map(|_| Report::BlueprintDropped));
+
+                        if let Some(error) = error_encountered {
+                            // TODO: actually dispatch the reports even in case of error?
+                            return Err(error);
+                        }
                     },
                     Pollable::Command(receiver) => {
                         match receiver.recv() {
@@ -127,6 +149,12 @@ fn poll(epoll: &mut Epoll<Pollable>) -> Result<(Vec<Command>, Vec<Report>), Runt
         }
     }
     Ok((commands, reports))
+}
+
+struct TryOpenResult {
+    opened_devices: Vec<InputDevice>,
+    broken_blueprints: Vec<Blueprint>,
+    error_encountered: Option<RuntimeError>,
 }
 
 impl Daemon {
@@ -143,37 +171,57 @@ impl Daemon {
         Ok(())
     }
 
-    pub fn try_open(&mut self) -> Result<Vec<InputDevice>, RuntimeError> {
+    /// Checks whether it is possible to open some of the blueprints registered with this daemon,
+    /// and opens them if it is.
+    /// 
+    /// Returns three things:
+    /// 1. A Vec of all devices that were successfully opened and should be sent to the main thread.
+    /// 2. A Vec of all blueprints that are considered "broken" and should not be tried to be opened again.
+    /// 3. If something went wrong, an error. The Result<> wrapper is not used because we don't want
+    ///    successfully opened devices to just disappear if an error happened later.
+    fn try_open(&mut self) -> TryOpenResult {
         const MAX_TRIES: usize = 5;
-        let mut opened_devices: Vec<InputDevice> = Vec::new();
-        self.inotify.poll()?;
+        let mut result = TryOpenResult {
+            opened_devices: Vec::new(),
+            broken_blueprints: Vec::new(),
+            error_encountered: None,
+        };
+
+        if let Err(error) = self.inotify.poll() {
+            result.error_encountered = Some(error.into());
+            return result;
+        }
 
         for _ in 0 .. MAX_TRIES {
             // Try to open the devices.
-            self.blueprints.retain(|blueprint| {
+            let mut remaining_blueprints = Vec::new();
+            for blueprint in self.blueprints.drain(..) {
                 match blueprint.try_open() {
-                    Ok(Some(device)) => {
-                        opened_devices.push(device);
-                        false
-                    },
-                    Ok(None) => true,
+                    Ok(Some(device)) => result.opened_devices.push(device),
+                    Ok(None) => remaining_blueprints.push(blueprint),
                     Err(error) => {
                         error.print_err();
-                        false
+                        result.broken_blueprints.push(blueprint);
                     }
                 }
-            });
+            }
+            self.blueprints = remaining_blueprints;
             
             // Just in case the relevant paths change between now and when we actually watch them
             // thanks to a race-condition, we do this within a loop until the paths are identical
             // for two iterations.
-            if ! self.update_watches()? {
-                return Ok(opened_devices);
+            match self.update_watches() {
+                Ok(false) => return result, // The paths are identical.
+                Ok(true) => (),             // The paths changed, we should re-scan.
+                Err(error) => {             // Something went seriously wrong.
+                    result.error_encountered = Some(error);
+                    return result;
+                }
             }
         }
 
         crate::utils::warn_once("Warning: maximum try count exceeded while listening for new devices.");
-        Ok(opened_devices)
+        result
     }
 
     /// Find out which paths may cause a change, then watch them.
