@@ -46,12 +46,9 @@ different licenses. See "licenses/thirdparty/rust/COPYRIGHT" for a file
 taken from the Rust project describing their legal situation.
 
 Once compiled, this program will statically link against the third-party
-Cargo crates "lazy_static", "libc", "signal-hook", "signal-hook-registry".
-These are dual-licensed under the MIT license and the Apache 2.0 license.
-Copies of the licenses for these crates can be found in the "licenses/
-thirdparty/crates" directory. The crates "signal-hook" and "signal-hook-registry"
-are both under the same license which can be found in "licenses/thirdparty/
-crates/signal-hook".
+Cargo crates "lazy_static" and "libc". These are dual-licensed under the
+MIT license and the Apache 2.0 license. Copies of the licenses for these
+crates can be found in the "licenses/thirdparty/crates" directory.
 
 During compilation, the third-party Cargo crate "pkg-config" is used, but
 the compiled program does not link against this crate. For the sake of

@@ -22,7 +22,6 @@ license = "GPL-2.0-or-later AND MIT AND GPL-2.0-only WITH Linux-syscall-note"
 [dependencies]
 lazy_static = "1.4.0"
 libc = "0.2.82"
-signal-hook = "0.3.3"
 
 [build-dependencies]
 pkg-config = "0.3.19"

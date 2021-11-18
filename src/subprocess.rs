@@ -1,8 +1,9 @@
 use std::process::{Command, Stdio, Child};
 use std::io;
 use std::sync::Mutex;
-use signal_hook::iterator::Signals;
+use crate::signal::{SigMask, SignalFd};
 use crate::error::{Context, SystemError};
+use crate::io::epoll::{Epoll, Message};
 
 lazy_static! {
     /// Keeps track of all subprocess we've spawned so we can terminate them when evsieve exits.
@@ -133,14 +134,36 @@ impl Subprocess {
 }
 
 fn start_cleanup_thread() -> Result<(), io::Error> {
-    let mut signals = Signals::new(&[libc::SIGCHLD])?;
     std::thread::spawn(move || {
-        for signal in signals.forever() {
-            match signal {
-                libc::SIGCHLD => {
-                    MANAGER.lock().expect("Internal lock poisoned.").cleanup();
-                },
-                _ => unreachable!(),
+        // This thread waits until a SIGCHLD signal is received and then tries to clean up lingering
+        // subprocesses.
+        let mut sigmask = SigMask::new();
+        sigmask.add(libc::SIGCHLD);
+        let signal_fd = SignalFd::new(&sigmask);
+
+        // Using an Epoll to wait for signal information to become available is necessary because
+        // reading the SignalFd directly results in a WouldBlock I/O error.
+        let mut epoll: Epoll<SignalFd> = Epoll::new()
+            .expect("Subprocess cleanup thread failed to create an epoll.");
+        unsafe { epoll.add_file(signal_fd) }
+            .expect("Subprocess cleanup thread failed to register a signal fd with an epoll.");
+
+        loop {
+            for message in epoll.poll().expect("Failed to poll an epoll.") {
+                match message {
+                    Message::Ready(index) => {
+                        // If we get here, then the SignalFd should have a SIGCHLD signal ready.
+                        // Any other situation is a bug.
+                        let siginfo = epoll[index].read_raw()
+                            .expect("Subprocess cleanup thread failed to read its signal fd.");
+                        let signal_no = siginfo.ssi_signo as i32;
+                        assert!(signal_no == libc::SIGCHLD);
+                        MANAGER.lock().expect("Internal lock poisoned.").cleanup();
+                    },
+                    Message::Broken(_index) => {
+                        panic!("Signal fd in subprocess cleanup thread broken.");
+                    }
+                }
             }
         }
     });
