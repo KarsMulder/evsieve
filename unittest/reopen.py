@@ -10,6 +10,8 @@ import time
 
 EVSIEVE_PROGRAM = ["target/debug/evsieve"]
 
+# Part 1. Test whether evsieve reopens devices.
+
 output_path = "/dev/input/by-id/evsieve-unittest-reopen-out"
 symlink_chain = [
     "/dev/input/by-id/evsieve-unittest-reopen",
@@ -86,8 +88,88 @@ time.sleep(0.1)
 
 test_send_events()
 
-print("Unittest successful.")
+print("Unittest part 1 successful.")
 
 subprocess.terminate()
 input_device.close()
 output_device.close()
+time.sleep(0.2)
+
+# Part 2: testing whether input devices are closed at the right time.
+
+# First, we test whether evsieve exits when all devices are closed with persist=none.
+output_path = "/dev/input/by-id/evsieve-unittest-reopen-out"
+assert(not os.path.islink(output_path))
+
+symlink_chain = [
+    "/tmp/evsieve-unittest/link1",
+    "/tmp/evsieve-unittest/link2",
+]
+
+capabilities_A = {e.EV_KEY: [e.KEY_A]}
+capabilities_B = {e.EV_KEY: [e.KEY_B]}
+input_device_1 = None
+input_device_2 = None
+input_device_1_path = "/tmp/evsieve-unittest/link1"
+input_device_2_path = "/tmp/evsieve-unittest/link2"
+
+def link_to_device(device, link):
+    if os.path.exists(link) or os.path.islink(link):
+        os.unlink(link)
+    os.makedirs(os.path.dirname(link), exist_ok=True)
+    os.symlink(device.device, link)
+
+def create_input_devices(capabilities):
+    global input_device_1
+    global input_device_2
+    input_device_1 = evdev.UInput(capabilities)
+    input_device_2 = evdev.UInput(capabilities)
+    link_to_device(input_device_1, input_device_1_path)
+    link_to_device(input_device_2, input_device_2_path)
+
+create_input_devices(capabilities_A)
+
+
+subprocess = sp.Popen(EVSIEVE_PROGRAM + [
+    "--input", input_device_1_path, "persist=none",
+    "--input", input_device_2_path, "persist=none",
+    "--output", f"create-link={output_path}"
+])
+
+time.sleep(0.2)
+assert(os.path.exists(output_path))
+
+input_device_1.close()
+time.sleep(0.2)
+assert(os.path.exists(output_path))
+
+# Make sure evsieve exits when all input devices disappear.
+input_device_2.close()
+time.sleep(0.2)
+assert(not os.path.exists(output_path) and not os.path.islink(output_path))
+
+# Now we test whether evsieve exits when all devices are closed with persist=reopen if reopening the devices
+# is considered hopeless.
+create_input_devices(capabilities_A)
+subprocess = sp.Popen(EVSIEVE_PROGRAM + [
+    "--input", input_device_1_path, "persist=reopen",
+    "--input", input_device_2_path, "persist=reopen",
+    "--output", f"create-link={output_path}"
+])
+
+time.sleep(0.2)
+assert(os.path.exists(output_path))
+
+input_device_1.close()
+input_device_2.close()
+assert(os.path.exists(output_path))
+
+# When the devices are recreated with different capabilities, evsieve should close the devices instead
+# of trying to reopen them.
+create_input_devices(capabilities_B)
+time.sleep(0.2)
+assert(not os.path.exists(output_path) and not os.path.islink(output_path))
+
+input_device_1.close()
+input_device_2.close()
+print("Unittest part 2 successful.")
