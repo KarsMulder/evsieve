@@ -31,6 +31,7 @@ pub fn try_spawn(program: String, args: Vec<String>) -> Result<(), SystemError> 
         }
     )).collect::<Vec<String>>().join(" ");
 
+    // I checked the stdlib source code: the process' signal mask will be reset for the child process.
     let child_res: Result<Child, io::Error> =
         Command::new(program)
         .args(args)
