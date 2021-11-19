@@ -75,9 +75,8 @@ impl SubprocessManager {
         self.processes.push(process);
 
         if ! self.cleanup_thread_is_running {
-            if start_cleanup_thread().is_ok() {
-                self.cleanup_thread_is_running = true;
-            }
+            start_cleanup_thread();
+            self.cleanup_thread_is_running = true;
         }
     }
 
@@ -133,7 +132,7 @@ impl Subprocess {
     }
 }
 
-fn start_cleanup_thread() -> Result<(), io::Error> {
+fn start_cleanup_thread() {
     std::thread::spawn(move || {
         // This thread waits until a SIGCHLD signal is received and then tries to clean up lingering
         // subprocesses.
@@ -167,5 +166,4 @@ fn start_cleanup_thread() -> Result<(), io::Error> {
             }
         }
     });
-    Ok(())
 }
