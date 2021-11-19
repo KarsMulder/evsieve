@@ -144,7 +144,7 @@ fn run() -> Result<(), RuntimeError> {
     // Listen for signals sent to this program.
     let mut sigmask = SigMask::new();
     sigmask.add(libc::SIGPIPE);
-    for signal in TERMINATION_SIGNALS {
+    for &signal in &TERMINATION_SIGNALS {
         sigmask.add(signal);
     }
     let signal_fd = signal::SignalFd::new(&sigmask);

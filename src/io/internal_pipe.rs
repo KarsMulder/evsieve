@@ -108,7 +108,7 @@ pub fn channel<T: 'static>() -> Result<(Sender<T>, Receiver<T>), SystemError> {
     const PIPE_FLAGS: i32 = libc::O_CLOEXEC | libc::O_DIRECT | libc::O_NONBLOCK;
 
     let mut pipe_fds: [RawFd; 2] = [-1; 2];
-    if unsafe { libc::pipe2(&mut pipe_fds as *mut RawFd, PIPE_FLAGS) } < 0 {
+    if unsafe { libc::pipe2(&mut pipe_fds as *mut _ as *mut RawFd, PIPE_FLAGS) } < 0 {
         return Err(SystemError::os_with_context("While trying to create internal communication pipes:"));
     };
 
