@@ -565,7 +565,7 @@ All names that evsieve uses for events are derived from the names used by the Li
 
 In case you're wondering what the kernel calls a certain button on your device, we recommend using the third-party program `evtest`, which is probably shipped by your favourite distribution.
 
-There is one notable exceptions to the above scheme. There are events with type EV_KEY and a code of form BTN_*. These are called btn:something by evsieve even though though there is no EV_BTN event type. For example:
+There is one notable exception to the above scheme. There are events with type EV_KEY and a code of form BTN_*. These are called btn:something by evsieve even though though there is no EV_BTN event type. For example:
 
 ```
     EV_KEY, BTN_RIGHT -> btn:right
