@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 use crate::error::{Context, SystemError};
+use crate::io::fd::{OwnedFd, AsFd};
 use std::collections::HashMap;
-use std::os::unix::io::{AsRawFd, RawFd};
+use std::os::unix::io::{AsRawFd};
+
 
 /// Like a file descriptor, that identifies a file registered in this Epoll.
 #[derive(Clone, Copy, Hash, PartialEq, Eq)]
@@ -14,7 +16,7 @@ pub struct FileIndex(u64);
 /// 
 /// It also keeps track of when input devices unexpectedly close.
 pub struct Epoll<T: AsRawFd> {
-    fd: RawFd,
+    fd: OwnedFd,
     files: HashMap<FileIndex, T>,
     /// A counter, so every file registered can get an unique index in the files map.
     counter: u64,
@@ -29,11 +31,9 @@ pub enum Message {
 impl<T: AsRawFd> Epoll<T> {
     pub fn new() -> Result<Epoll<T>, SystemError> {
         let epoll_fd = unsafe {
-            libc::epoll_create1(libc::EPOLL_CLOEXEC)
+            OwnedFd::from_syscall(libc::epoll_create1(libc::EPOLL_CLOEXEC))
+                .with_context("While trying to create an epoll instance:")?
         };
-        if epoll_fd < 0 {
-            return Err(SystemError::os_with_context("While trying to create an epoll instance:"));
-        }
 
         Ok(Epoll {
             fd: epoll_fd,
@@ -66,7 +66,7 @@ impl<T: AsRawFd> Epoll<T> {
         };
 
         let result = libc::epoll_ctl(
-            self.fd,
+            self.fd.as_raw_fd(),
             libc::EPOLL_CTL_ADD,
             file_fd,
             &mut event,
@@ -104,7 +104,7 @@ impl<T: AsRawFd> Epoll<T> {
         };
 
         let result = unsafe { libc::epoll_ctl(
-            self.fd,
+            self.fd.as_raw_fd(),
             libc::EPOLL_CTL_DEL,
             file.as_raw_fd(),
             std::ptr::null_mut(),
@@ -136,7 +136,7 @@ impl<T: AsRawFd> Epoll<T> {
 
         let result = unsafe {
             libc::epoll_wait(
-                self.fd,
+                self.fd.as_raw_fd(),
                 events.as_mut_ptr(),
                 max_events,
                 -1, // timeout, -1 means it will wait indefinitely
@@ -197,17 +197,5 @@ impl<T: AsRawFd> std::ops::Index<FileIndex> for Epoll<T> {
 impl<T: AsRawFd> std::ops::IndexMut<FileIndex> for Epoll<T> {
     fn index_mut(&mut self, index: FileIndex) -> &mut Self::Output {
         self.files.get_mut(&index).expect("Internal error: attempt to retrieve a file that does not belong to this epoll.")
-    }
-}
-
-
-impl<T: AsRawFd> Drop for Epoll<T> {
-    fn drop(&mut self) {
-        let res = unsafe {
-            libc::close(self.fd)
-        };
-        if res < 0 {
-            SystemError::os_with_context("While closing an epoll file descriptor:").print_err();
-        }
     }
 }
