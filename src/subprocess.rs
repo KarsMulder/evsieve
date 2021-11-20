@@ -139,7 +139,8 @@ fn start_cleanup_thread() {
         // subprocesses.
         let mut sigmask = SigMask::new();
         sigmask.add(libc::SIGCHLD);
-        let signal_fd = SignalFd::new(&sigmask);
+        let signal_fd = SignalFd::new(&sigmask)
+            .expect("Subprocess cleanup thread failed to create a signal fd.");
 
         // Using an Epoll to wait for signal information to become available is necessary because
         // reading the SignalFd directly results in a WouldBlock I/O error.

@@ -3,11 +3,12 @@
 use std::mem::MaybeUninit;
 use std::os::unix::prelude::{AsRawFd, RawFd};
 
+use crate::error::{SystemError, Context};
+use crate::io::fd::{HasFixedFd, OwnedFd};
+
 /// As long as a SignalBlock exists, this program will not receive any signals unless it asks
 /// for them. Only one SignalBlock should ever exist simultaneously, having more of them is
 /// a logical error that can permanently destroy the program's ability to receive signals.
-///
-/// Use signal::block() to get a SingleTon of this struct.
 pub struct SignalBlock {
     orig_sigmask: libc::sigset_t,
 }
@@ -79,19 +80,24 @@ impl Drop for SignalBlock {
 pub type SignalNumber = libc::c_int;
 
 pub struct SignalFd {
-    fd: RawFd,
+    /// The signal fd to communicate with the OS. Beware: SignalFd implements HasFixedFd.
+    fd: OwnedFd,
 }
 
 impl SignalFd {
-    pub fn new(sigmask: &SigMask) -> SignalFd {
-        let fd: RawFd = unsafe { libc::signalfd(-1, sigmask.as_ref(), libc::SFD_NONBLOCK | libc::SFD_CLOEXEC) };
-        SignalFd { fd }
+    pub fn new(sigmask: &SigMask) -> Result<SignalFd, SystemError> {
+        let fd: OwnedFd = unsafe {
+            OwnedFd::from_syscall(
+                libc::signalfd(-1, sigmask.as_ref(), libc::SFD_NONBLOCK | libc::SFD_CLOEXEC)
+            ).with_context("While creating a signal fd:")?
+        };
+        Ok(SignalFd { fd })
     }
 
     pub fn read_raw(&mut self) -> Result<libc::signalfd_siginfo, std::io::Error> {
         const SIGNAL_INFO_SIZE: usize = std::mem::size_of::<libc::signalfd_siginfo>();
         let mut signal_info: MaybeUninit<libc::signalfd_siginfo> = MaybeUninit::uninit();
-        let result = unsafe { libc::read(self.fd, signal_info.as_mut_ptr() as *mut libc::c_void, SIGNAL_INFO_SIZE) };
+        let result = unsafe { libc::read(self.as_raw_fd(), signal_info.as_mut_ptr() as *mut libc::c_void, SIGNAL_INFO_SIZE) };
         
         if result == SIGNAL_INFO_SIZE as isize {
             Ok(unsafe { signal_info.assume_init() })
@@ -107,12 +113,7 @@ impl SignalFd {
 
 impl AsRawFd for SignalFd {
     fn as_raw_fd(&self) -> RawFd {
-        self.fd
+        self.fd.as_raw_fd()
     }
 }
-
-impl Drop for SignalFd {
-    fn drop(&mut self) {
-        unsafe { libc::close(self.fd) };
-    }
-}
+unsafe impl HasFixedFd for SignalFd {}

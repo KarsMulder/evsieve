@@ -16,6 +16,8 @@ use crate::predevice::{GrabMode, PersistMode, PreInputDevice};
 use crate::error::{SystemError, Context};
 use crate::persist::blueprint::Blueprint;
 
+use super::fd::HasFixedFd;
+
 pub fn open_and_query_capabilities(pre_input_devices: Vec<PreInputDevice>)
     -> Result<(Vec<InputDevice>, Vec<Capability>), SystemError>
 {
@@ -46,6 +48,7 @@ pub fn open_and_query_capabilities(pre_input_devices: Vec<PreInputDevice>)
 pub type InputDeviceName = CString;
 
 pub struct InputDevice {
+    /// The file owns the file descriptor to the input device. Beware: InputDevice implements HasFixedFd.
     file: File,
     path: PathBuf,
     evdev: *mut libevdev::libevdev,
@@ -340,6 +343,7 @@ impl AsRawFd for InputDevice {
         self.file.as_raw_fd()
     }
 }
+unsafe impl HasFixedFd for InputDevice {}
 
 impl Drop for InputDevice {
     fn drop(&mut self) {

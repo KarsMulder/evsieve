@@ -56,6 +56,19 @@ impl Drop for OwnedFd {
 }
 
 /// An unsafe marker trait: if a structure implements this trait, it promises that its file descriptor
-/// will not change throughout the lifetime of the structure. Changing the file descriptor of a struct
-/// with this trait may invoke undefined behaviour.
+/// will cannot be changed by functions that do not own the structure, i.e. no function that takes a
+/// (mutable) reference is allowed to modify the structure in a way that makes as_raw_fd() return a
+/// different value.
+///
+/// Changing the file descriptor of a struct with this trait through a reference may invoke undefined
+/// behaviour. Unsafe code may assume that the file descriptor does not change even if it hands out an
+/// &mut reference to a structure with HasFixedFd.
+///
+/// To be clear: just because a certain structure X implements this trait, does not mean that any
+/// structure containing X has that trait as well. For example, OwnedFd implements it because there
+/// is no (safe) function that modifies OwnedFd in a way that changes its file descriptor, but any
+/// struct containing OwnedFd still needs to implement it to guarantee that it will not swap out its
+/// OwnedFd for another OwnedFd.
 pub unsafe trait HasFixedFd : AsRawFd {}
+
+unsafe impl HasFixedFd for OwnedFd {}

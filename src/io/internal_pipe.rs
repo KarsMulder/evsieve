@@ -9,9 +9,11 @@ use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 use std::os::unix::io::{RawFd, AsRawFd};
 use crate::error::SystemError;
+use crate::io::fd::{OwnedFd, HasFixedFd};
 
 pub struct Sender<T: 'static> {
-    fd: RawFd,
+    /// The file descriptor of the internal pipe. Beware: Sender<T> implements HasFixedFd.
+    fd: OwnedFd,
     _phantom: PhantomData<T>,
 }
 
@@ -26,7 +28,7 @@ impl<T: 'static> Sender<T> {
 
         loop {
             let result = unsafe { libc::write(
-                self.fd, &data as *const _ as *const libc::c_void, data_size
+                self.as_raw_fd(), &data as *const _ as *const libc::c_void, data_size
             )};
             if result < 0 {
                 let error = std::io::Error::last_os_error();
@@ -47,19 +49,15 @@ impl<T: 'static> Sender<T> {
 
 impl<T: 'static> AsRawFd for Sender<T> {
     fn as_raw_fd(&self) -> RawFd {
-        self.fd
+        self.fd.as_raw_fd()
     }
 }
-
-impl<T: 'static> Drop for Sender<T> {
-    fn drop(&mut self) {
-        unsafe { libc::close(self.fd) };
-    }
-}
+unsafe impl<T: 'static> HasFixedFd for Sender<T> {}
 
 
 pub struct Receiver<T: 'static> {
-    fd: RawFd,
+    /// The file descriptor of the internal pipe. Beware: Receiver<T> implements HasFixedFd.
+    fd: OwnedFd,
     _phantom: PhantomData<T>,
 }
 
@@ -71,7 +69,7 @@ impl<T: 'static> Receiver<T> {
 
         loop {
             let result = unsafe { libc::read(
-                self.fd, &mut data as *mut _ as *mut libc::c_void, data_size
+                self.as_raw_fd(), &mut data as *mut _ as *mut libc::c_void, data_size
             )};
             if result < 0 {
                 let error = std::io::Error::last_os_error();
@@ -92,15 +90,10 @@ impl<T: 'static> Receiver<T> {
 
 impl<T: 'static> AsRawFd for Receiver<T> {
     fn as_raw_fd(&self) -> RawFd {
-        self.fd
+        self.fd.as_raw_fd()
     }
 }
-
-impl<T: 'static> Drop for Receiver<T> {
-    fn drop(&mut self) {
-        unsafe { libc::close(self.fd) };
-    }
-}
+unsafe impl<T: 'static> HasFixedFd for Receiver<T> {}
 
 
 pub fn channel<T: 'static>() -> Result<(Sender<T>, Receiver<T>), SystemError> {
@@ -113,9 +106,11 @@ pub fn channel<T: 'static>() -> Result<(Sender<T>, Receiver<T>), SystemError> {
     };
 
     let [read_fd, write_fd] = pipe_fds;
+    let owned_read_fd  = unsafe { OwnedFd::new(read_fd) };
+    let owned_write_fd = unsafe { OwnedFd::new(write_fd) };
 
     Ok((
-        Sender { fd: write_fd, _phantom: PhantomData },
-        Receiver { fd: read_fd, _phantom: PhantomData },
+        Sender   { fd: owned_write_fd, _phantom: PhantomData },
+        Receiver { fd: owned_read_fd,  _phantom: PhantomData },
     ))
 }

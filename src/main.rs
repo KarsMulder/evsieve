@@ -148,7 +148,7 @@ fn run() -> Result<(), RuntimeError> {
     for &signal in &TERMINATION_SIGNALS {
         sigmask.add(signal);
     }
-    let signal_fd = signal::SignalFd::new(&sigmask);
+    let signal_fd = signal::SignalFd::new(&sigmask)?;
     let mut epoll = Epoll::new()?;
     unsafe { epoll.add_file(Pollable::SignalFd(signal_fd))? };
 
