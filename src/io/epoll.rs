@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use crate::error::{Context, SystemError};
-use crate::io::fd::{OwnedFd, HasFixedFd};
+use crate::error::{SystemError};
+use crate::io::fd::{HasFixedFd};
 use std::collections::HashMap;
-use std::os::unix::io::{AsRawFd};
 
 
 /// Like a file descriptor, that identifies a file registered in this Epoll.
@@ -16,7 +15,6 @@ pub struct FileIndex(u64);
 /// 
 /// It also keeps track of when input devices unexpectedly close.
 pub struct Epoll<T: HasFixedFd> {
-    fd: OwnedFd,
     files: HashMap<FileIndex, T>,
     /// A counter, so every file registered can get an unique index in the files map.
     counter: u64,
@@ -30,13 +28,7 @@ pub enum Message {
 
 impl<T: HasFixedFd> Epoll<T> {
     pub fn new() -> Result<Epoll<T>, SystemError> {
-        let epoll_fd = unsafe {
-            OwnedFd::from_syscall(libc::epoll_create1(libc::EPOLL_CLOEXEC))
-                .with_context("While trying to create an epoll instance:")?
-        };
-
         Ok(Epoll {
-            fd: epoll_fd,
             files: HashMap::new(),
             counter: 0,
         })
@@ -58,25 +50,7 @@ impl<T: HasFixedFd> Epoll<T> {
             return Err(SystemError::new("Cannot add a file to an epoll that already belongs to said epoll."));
         }
         self.files.insert(index, file);
-
-        // We set the data to the index of said file, so we know which file is ready for reading.
-        let mut event = libc::epoll_event {
-            events: libc::EPOLLIN as u32,
-            u64: index.0,
-        };
-
-        let result = libc::epoll_ctl(
-            self.fd.as_raw_fd(),
-            libc::EPOLL_CTL_ADD,
-            file_fd,
-            &mut event,
-        );
-
-        if result < 0 {
-            Err(SystemError::os_with_context("While adding a device to an epoll instance:"))
-        } else {
-            Ok(index)
-        }
+        Ok(index) // TODO: this function is infallible.
     }
 
     /// Returns an iterator over all files belonging to this epoll.
@@ -103,51 +77,33 @@ impl<T: HasFixedFd> Epoll<T> {
             None => return None,
         };
 
-        let result = unsafe { libc::epoll_ctl(
-            self.fd.as_raw_fd(),
-            libc::EPOLL_CTL_DEL,
-            file.as_raw_fd(),
-            std::ptr::null_mut(),
-        )};
-
-        if result < 0 {
-            match std::io::Error::last_os_error().raw_os_error()
-                    .expect("An unknown error occurred while removing a file from an epoll.") {
-                // This file was not registered by this epoll.
-                libc::ENOENT => eprintln!("Internal error: attempted to remove a device from an epoll that's not registered with it."),
-                // There was not enough memory to carry out this operation.
-                libc::ENOMEM => panic!("Out of kernel memory."),
-                // The other error codes should never happen or indicate fundamentally broken invariants.
-                _ => panic!("Failed to remove a file from an epoll: {}", std::io::Error::last_os_error()),
-            }
-        }
-
         Some(file)
     }
 
-    fn poll_raw(&mut self) -> Result<Vec<libc::epoll_event>, std::io::Error> {
-        // The number 8 was chosen arbitrarily.
-        let max_events: i32 = std::cmp::min(self.files.len(), 8) as i32;
-        let mut events: Vec<libc::epoll_event> = (0 .. max_events).map(|_| libc::epoll_event {
-            // The following values don't matter since the kernel will overwrite them anyway.
-            // We're just initialzing them to make the compiler happy.
-            events: 0, u64: 0
+    fn poll_raw(&mut self) -> Result<Vec<(FileIndex, i16)>, std::io::Error> {
+        let mut poll_fds: Vec<libc::pollfd> = self.files().map(|file| {
+            libc::pollfd {
+                fd: file.as_raw_fd(),
+                events: libc::POLLIN,
+                revents: 0,
+            }
         }).collect();
 
         let result = unsafe {
-            libc::epoll_wait(
-                self.fd.as_raw_fd(),
-                events.as_mut_ptr(),
-                max_events,
-                -1, // timeout, -1 means it will wait indefinitely
+            libc::poll(
+                poll_fds.as_mut_ptr(),
+                poll_fds.len() as libc::nfds_t,
+                -1, // Timeout, -1 means indefinitely.
             )
         };
 
         if result < 0 {
             Err(std::io::Error::last_os_error())
         } else {
-            let num_fds = result as usize;
-            Ok(events[0..num_fds].to_owned())
+            // TODO: Refactor this monstrosity.
+            Ok(self.files.iter().zip(poll_fds.into_iter()).map(|((index, _), poll_fd)| {
+                (*index, poll_fd.revents)
+            }).collect())
         }
     }
 
@@ -168,12 +124,12 @@ impl<T: HasFixedFd> Epoll<T> {
         let mut messages: Vec<Message> = Vec::new();
 
         for event in events {
-            let file_index = FileIndex(event.u64);
+            let file_index: FileIndex = event.0;
 
-            if event.events & libc::EPOLLIN as u32 != 0 {
+            if event.1 & libc::POLLIN != 0 {
                 messages.push(Message::Ready(file_index));
             }
-            if event.events & libc::EPOLLERR as u32 != 0 || event.events & libc::EPOLLHUP as u32 != 0 {
+            if event.1 & libc::POLLERR != 0 || event.1 & libc::POLLHUP != 0 {
                 messages.push(Message::Broken(file_index));
             }
         }
