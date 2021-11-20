@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 use crate::error::{Context, SystemError};
-use crate::io::fd::OwnedFd;
+use crate::io::fd::{OwnedFd, HasFixedFd};
 use std::collections::HashMap;
 use std::os::unix::io::{AsRawFd};
 
@@ -15,7 +15,7 @@ pub struct FileIndex(u64);
 /// some input device has events available.
 /// 
 /// It also keeps track of when input devices unexpectedly close.
-pub struct Epoll<T: AsRawFd> {
+pub struct Epoll<T: HasFixedFd> {
     fd: OwnedFd,
     files: HashMap<FileIndex, T>,
     /// A counter, so every file registered can get an unique index in the files map.
@@ -28,7 +28,7 @@ pub enum Message {
     Broken(FileIndex),
 }
 
-impl<T: AsRawFd> Epoll<T> {
+impl<T: HasFixedFd> Epoll<T> {
     pub fn new() -> Result<Epoll<T>, SystemError> {
         let epoll_fd = unsafe {
             OwnedFd::from_syscall(libc::epoll_create1(libc::EPOLL_CLOEXEC))
@@ -187,14 +187,14 @@ impl<T: AsRawFd> Epoll<T> {
     }
 }
 
-impl<T: AsRawFd> std::ops::Index<FileIndex> for Epoll<T> {
+impl<T: HasFixedFd> std::ops::Index<FileIndex> for Epoll<T> {
     type Output = T;
     fn index(&self, index: FileIndex) -> &Self::Output {
         &self.files[&index]
     }
 }
 
-impl<T: AsRawFd> std::ops::IndexMut<FileIndex> for Epoll<T> {
+impl<T: HasFixedFd> std::ops::IndexMut<FileIndex> for Epoll<T> {
     fn index_mut(&mut self, index: FileIndex) -> &mut Self::Output {
         self.files.get_mut(&index).expect("Internal error: attempt to retrieve a file that does not belong to this epoll.")
     }

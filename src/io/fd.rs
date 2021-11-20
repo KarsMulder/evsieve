@@ -64,6 +64,21 @@ impl Drop for OwnedFd {
 /// behaviour. Unsafe code may assume that the file descriptor does not change even if it hands out an
 /// &mut reference to a structure with HasFixedFd.
 ///
+/// This constraint is unfortunately unsound, because even if in a given module there is no code that
+/// allows changing a file descriptor through &mut, it is always possible to construct a second instance
+/// of a certain struct and then std::men::swap() them. This could happen anywhere in safe code.
+///
+/// I really don't like this current approach and of course this attitude towards unsafety
+/// would be unacceptable in a library, but I don't see a way around it other than (1) moving away from
+/// epoll() towards poll(), possibly introducing a performance regression, (2) decoupling the file
+/// descriptors from the surrounding data, which increases code complexity and probably introduces a
+/// lot more potential for unsafety, (3) adding additional verification code to the `Epoll`class,
+/// which comes at a performance penalty.
+///
+/// Maybe one day I'll start using poll() if benchmarks show that it has no measurable performance
+/// impact. Other than that, I think that putting up with this trait is just the least of the many
+/// possible evils.
+///
 /// To be clear: just because a certain structure X implements this trait, does not mean that any
 /// structure containing X has that trait as well. For example, OwnedFd implements it because there
 /// is no (safe) function that modifies OwnedFd in a way that changes its file descriptor, but any

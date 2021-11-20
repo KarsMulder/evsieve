@@ -77,6 +77,7 @@ use std::os::unix::prelude::{AsRawFd, RawFd};
 
 use error::{RuntimeError, Context};
 use io::epoll::{Epoll, FileIndex, Message};
+use io::fd::HasFixedFd;
 use io::input::InputDevice;
 use persist::interface::{HostInterfaceState};
 use stream::Setup;
@@ -115,6 +116,7 @@ pub enum Pollable {
     SignalFd(SignalFd),
     PersistSubsystem(persist::interface::HostInterface),
 }
+unsafe impl HasFixedFd for Pollable {}
 
 impl AsRawFd for Pollable {
     fn as_raw_fd(&self) -> RawFd {

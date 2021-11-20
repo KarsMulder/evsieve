@@ -8,6 +8,7 @@
 //! should not be launched before then either, as that would waste system resources by having a useless
 //! thread hanging around.
 
+use crate::io::fd::HasFixedFd;
 use crate::io::input::InputDevice;
 use crate::io::internal_pipe;
 use crate::io::internal_pipe::{Sender, Receiver};
@@ -43,6 +44,7 @@ enum Pollable {
     Command(Receiver<Command>),
     Daemon(Daemon),
 }
+
 impl AsRawFd for Pollable {
     fn as_raw_fd(&self) -> RawFd {
         match self {
@@ -51,6 +53,7 @@ impl AsRawFd for Pollable {
         }
     }
 }
+unsafe impl HasFixedFd for Pollable {}
 
 pub struct Daemon {
     blueprints: Vec<Blueprint>,
