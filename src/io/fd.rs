@@ -1,6 +1,5 @@
 use crate::error::SystemError;
-use std::os::unix::io::FromRawFd;
-pub use std::os::unix::io::RawFd;
+use std::os::unix::io::{FromRawFd, AsRawFd, RawFd};
 
 /// A wrapper around a file descriptor that calls `libc::close` on the descriptor when it is dropped.
 /// Guarantees that the file descriptor it owns is valid for the lifetime of this structure.
@@ -44,22 +43,7 @@ impl FromRawFd for OwnedFd {
     }
 }
 
-// I would split this trait into two: AsOwnedFd and AsRawFd, but that runs afoul of Rust's orphan rules
-// because `impl AsRawFd for T where T: AsOwnedFd` does not guarantee that T is a local type.
-pub trait AsFd {
-    fn as_owned_fd(&self) -> &OwnedFd;
-
-    fn as_raw_fd(&self) -> RawFd {
-        // Has a specialised implementation for OwnedFd.
-        self.as_owned_fd().as_raw_fd()
-    }
-}
-
-impl AsFd for OwnedFd {
-    fn as_owned_fd(&self) -> &OwnedFd {
-        self
-    }
-
+impl AsRawFd for OwnedFd {
     fn as_raw_fd(&self) -> RawFd {
         self.0
     }
@@ -70,3 +54,8 @@ impl Drop for OwnedFd {
         unsafe { libc::close(self.as_raw_fd()) };
     }
 }
+
+/// An unsafe marker trait: if a structure implements this trait, it promises that its file descriptor
+/// will not change throughout the lifetime of the structure. Changing the file descriptor of a struct
+/// with this trait may invoke undefined behaviour.
+pub unsafe trait HasFixedFd : AsRawFd {}

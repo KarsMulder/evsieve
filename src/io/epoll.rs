@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 use crate::error::{Context, SystemError};
-use crate::io::fd::{OwnedFd, AsFd};
+use crate::io::fd::OwnedFd;
 use std::collections::HashMap;
 use std::os::unix::io::{AsRawFd};
 
