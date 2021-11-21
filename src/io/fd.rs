@@ -60,6 +60,9 @@ impl Drop for OwnedFd {
 /// (mutable) reference is allowed to modify the structure in a way that makes as_raw_fd() return a
 /// different value.
 ///
+/// Furthermore, the result returned by AsRawFd must be guaranteed to be valid for the duration of the
+/// structure.
+///
 /// Changing the file descriptor of a struct with this trait through a reference may invoke undefined
 /// behaviour. Unsafe code may assume that the file descriptor does not change even if it hands out an
 /// &mut reference to a structure with HasFixedFd.

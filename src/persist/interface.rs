@@ -73,7 +73,7 @@ impl HostInterfaceState {
                     return None;
                 }
             };
-            let index = match unsafe { epoll.add_file(crate::Pollable::PersistSubsystem(interface)) } {
+            let index = match epoll.add_file(crate::Pollable::PersistSubsystem(interface)) {
                 Ok(index) => index,
                 Err(error) => {
                     error.with_context("While adding the persistence subsystem interface to an epoll:").print_err();

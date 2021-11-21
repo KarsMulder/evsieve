@@ -49,7 +49,7 @@ impl<T: HasFixedFd> Epoll<T> {
 
     /// # Safety
     /// The file must return a valid raw file descriptor.
-    pub unsafe fn add_file(&mut self, file: T) -> Result<FileIndex, SystemError> {
+    pub fn add_file(&mut self, file: T) -> Result<FileIndex, SystemError> {
         let index = self.get_unique_index();
         let file_fd = file.as_raw_fd();
 
@@ -65,12 +65,12 @@ impl<T: HasFixedFd> Epoll<T> {
             u64: index.0,
         };
 
-        let result = libc::epoll_ctl(
+        let result = unsafe { libc::epoll_ctl(
             self.fd.as_raw_fd(),
             libc::EPOLL_CTL_ADD,
             file_fd,
             &mut event,
-        );
+        ) };
 
         if result < 0 {
             Err(SystemError::os_with_context("While adding a device to an epoll instance:"))

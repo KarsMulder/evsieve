@@ -152,7 +152,7 @@ fn run() -> Result<(), RuntimeError> {
     }
     let signal_fd = signal::SignalFd::new(&sigmask)?;
     let mut epoll = Epoll::new()?;
-    unsafe { epoll.add_file(Pollable::SignalFd(signal_fd))? };
+    epoll.add_file(Pollable::SignalFd(signal_fd))?;
 
     // Additionally block SIGCHLD because another thread listens for it.
     sigmask.add(libc::SIGCHLD);
@@ -161,7 +161,7 @@ fn run() -> Result<(), RuntimeError> {
     // Parse the arguments and set up the input/output devices.
     let (setup, input_devices) = arguments::parser::implement(args)?;
     for device in input_devices {
-        unsafe { epoll.add_file(Pollable::InputDevice(device))? };
+        epoll.add_file(Pollable::InputDevice(device))?;
     }
 
     // If the persistence subsystem is running, this shall keep track of its index in the epoll.
@@ -330,7 +330,7 @@ fn handle_persist_subsystem_report(program: &mut Program, index: FileIndex, repo
             }
 
             let device_path = device.path().to_owned();
-            match unsafe { program.epoll.add_file(Pollable::InputDevice(device)) }
+            match program.epoll.add_file(Pollable::InputDevice(device))
             {
                 Ok(_) => println!("The device {} has been reconnected.", device_path.display()),
                 Err(error) => {

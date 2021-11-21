@@ -89,12 +89,8 @@ pub fn launch() -> Result<HostInterface, SystemError> {
 fn start_worker(comm_in: Receiver<Command>, comm_out: &mut Sender<Report>) -> Result<(), RuntimeError> {
     let daemon = Daemon::new()?;
     let mut epoll = Epoll::new()?;
-    let daemon_index = unsafe {
-        epoll.add_file(Pollable::Daemon(daemon))?
-    };
-    unsafe {
-        epoll.add_file(Pollable::Command(comm_in))?
-    };
+    let daemon_index = epoll.add_file(Pollable::Daemon(daemon))?;
+    epoll.add_file(Pollable::Command(comm_in))?;
     
     loop {
         let (commands, reports) = poll(&mut epoll)?;

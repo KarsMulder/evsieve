@@ -146,7 +146,7 @@ fn start_cleanup_thread() {
         // reading the SignalFd directly results in a WouldBlock I/O error.
         let mut epoll: Epoll<SignalFd> = Epoll::new()
             .expect("Subprocess cleanup thread failed to create an epoll.");
-        unsafe { epoll.add_file(signal_fd) }
+        epoll.add_file(signal_fd)
             .expect("Subprocess cleanup thread failed to register a signal fd with an epoll.");
 
         loop {
