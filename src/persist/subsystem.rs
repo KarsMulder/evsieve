@@ -8,6 +8,7 @@
 //! should not be launched before then either, as that would waste system resources by having a useless
 //! thread hanging around.
 
+use crate::io::fd::HasFixedFd;
 use crate::io::input::InputDevice;
 use crate::io::internal_pipe;
 use crate::io::internal_pipe::{Sender, Receiver};
@@ -15,7 +16,7 @@ use crate::persist::blueprint::Blueprint;
 use crate::persist::inotify::Inotify;
 use crate::persist::interface::HostInterface;
 use crate::error::{Context, RuntimeError, SystemError};
-use crate::io::epoll::PollMessage;
+use crate::io::epoll::{Epoll, Message};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::os::unix::io::{AsRawFd, RawFd};
@@ -39,12 +40,12 @@ pub enum Report {
     Shutdown,
 }
 
-enum Pollable<'a> {
-    Command(&'a mut Receiver<Command>),
-    Daemon(&'a mut Daemon),
+enum Pollable {
+    Command(Receiver<Command>),
+    Daemon(Daemon),
 }
 
-impl<'a> AsRawFd for Pollable<'a> {
+impl AsRawFd for Pollable {
     fn as_raw_fd(&self) -> RawFd {
         match self {
             Pollable::Command(receiver) => receiver.as_raw_fd(),
@@ -52,6 +53,7 @@ impl<'a> AsRawFd for Pollable<'a> {
         }
     }
 }
+unsafe impl HasFixedFd for Pollable {}
 
 pub struct Daemon {
     blueprints: Vec<Blueprint>,
@@ -84,15 +86,25 @@ pub fn launch() -> Result<HostInterface, SystemError> {
 }
 
 
-fn start_worker(mut comm_in: Receiver<Command>, comm_out: &mut Sender<Report>) -> Result<(), RuntimeError> {
-    let mut daemon = Daemon::new()?;
+fn start_worker(comm_in: Receiver<Command>, comm_out: &mut Sender<Report>) -> Result<(), RuntimeError> {
+    let daemon = Daemon::new()?;
+    let mut epoll = Epoll::new()?;
+    let daemon_index = unsafe {
+        epoll.add_file(Pollable::Daemon(daemon))?
+    };
+    unsafe {
+        epoll.add_file(Pollable::Command(comm_in))?
+    };
     
     loop {
-        let (commands, reports) = poll(&mut comm_in, &mut daemon)?;
+        let (commands, reports) = poll(&mut epoll)?;
         for command in commands {
             match command {
                 Command::Shutdown => return Ok(()),
-                Command::AddBlueprint(blueprint) => daemon.add_blueprint(blueprint)?,
+                Command::AddBlueprint(blueprint) => match &mut epoll[daemon_index] {
+                    Pollable::Daemon(daemon) => daemon.add_blueprint(blueprint)?,
+                    _ => unreachable!(),
+                }
             }
         }
         for report in reports {
@@ -101,41 +113,39 @@ fn start_worker(mut comm_in: Receiver<Command>, comm_out: &mut Sender<Report>) -
     }
 }
 
-fn poll(comm_in: &mut Receiver<Command>, daemon: &mut Daemon)
-        -> Result<(Vec<Command>, Vec<Report>), RuntimeError>
-{
+fn poll(epoll: &mut Epoll<Pollable>) -> Result<(Vec<Command>, Vec<Report>), RuntimeError> {
     let mut commands: Vec<Command> = Vec::new();
     let mut reports: Vec<Report> = Vec::new();
 
-    let mut pollables = [Pollable::Daemon(daemon), Pollable::Command(comm_in)];
-    let poll_result = crate::io::epoll::poll(&pollables)
-        .with_context("While the persistence subsystem was polling for events:")?
-        .collect::<Vec<PollMessage>>(); //TODO: needless collect?
+    match epoll.poll() {
+        Err(error) => {
+            error.with_context("While the persistence subsystem was polling for events:").print_err();
+            commands.push(Command::Shutdown);
+        },
+        Ok(messages) => for message in messages {
+            match message {
+                Message::Broken(_index) => return Err(SystemError::new("Persistence daemon broken.").into()),
+                Message::Ready(index) => match &mut epoll[index] {
+                    Pollable::Daemon(daemon) => {
+                        let TryOpenResult {
+                            opened_devices,
+                            broken_blueprints,
+                            error_encountered,
+                        } = daemon.try_open();
+                        
+                        reports.extend(opened_devices.into_iter().map(Report::DeviceOpened));
+                        reports.extend(broken_blueprints.into_iter().map(|_| Report::BlueprintDropped));
 
-    for (mut pollable, message) in pollables.iter_mut().zip(poll_result) {
-        match message {
-            PollMessage::Waiting => (),
-            PollMessage::Broken => return Err(SystemError::new("Persistence daemon broken.").into()),
-            PollMessage::Ready => match &mut pollable {
-                Pollable::Daemon(daemon) => {
-                    let TryOpenResult {
-                        opened_devices,
-                        broken_blueprints,
-                        error_encountered,
-                    } = daemon.try_open();
-
-                    reports.extend(opened_devices.into_iter().map(Report::DeviceOpened));
-                    reports.extend(broken_blueprints.into_iter().map(|_| Report::BlueprintDropped));
-
-                    if let Some(error) = error_encountered {
-                        // TODO: actually dispatch the reports even in case of error?
-                        return Err(error);
-                    }
-                },
-                Pollable::Command(receiver) => {
-                    match receiver.recv() {
-                        Ok(command) => commands.push(command),
-                        Err(error) => return Err(error.into()),
+                        if let Some(error) = error_encountered {
+                            // TODO: actually dispatch the reports even in case of error?
+                            return Err(error);
+                        }
+                    },
+                    Pollable::Command(receiver) => {
+                        match receiver.recv() {
+                            Ok(command) => commands.push(command),
+                            Err(error) => return Err(error.into()),
+                        }
                     }
                 }
             }
