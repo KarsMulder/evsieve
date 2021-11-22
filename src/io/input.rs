@@ -166,21 +166,34 @@ impl InputDevice {
         Ok(events)
     }
 
+    /// Given an event code and value, creates an `Event` that has all entries filled
+    /// out as if it was a real event that was received by this input device. Updates
+    /// the state of `self` as if this event was really received. The resulting event
+    /// shall be directly returned by this function; it will not be queried to be
+    /// returned by `poll()`.
+    ///
+    /// This function is public and is callable from both this class' member functions
+    /// to process real events, as well as from other parts in the code to simulate
+    /// having received events.
+    pub fn synthesize_event(&mut self, code: EventCode, value: EventValue) -> Event {
+        let previous_value_mut: &mut EventValue = self.state.entry(code).or_insert(0);
+        let previous_value: EventValue = *previous_value_mut;
+        *previous_value_mut = value;
+        Event::new(
+            code, value, previous_value, self.domain, Namespace::Input,
+        )
+    }
+
     /// Reads the raw events from the device and attached additional information such as the
     /// domain of this device and whatever value this event had the last time it was seen.
     pub fn poll(&mut self) -> Result<Vec<Event>, SystemError> {
-        let mut result: Vec<Event> = Vec::new();
-        for (code, value) in self.read_raw()? {
-            let previous_value_mut: &mut EventValue = self.state.entry(code).or_insert(0);
-            let previous_value: EventValue = *previous_value_mut;
-            *previous_value_mut = value;
-            result.push(Event::new(
-                code, value, previous_value, self.domain, Namespace::Input,
-            ));
-        }
+        let events: Vec<Event> = self.read_raw()?
+            .into_iter()
+            .map(|(code, value)| self.synthesize_event(code, value))
+            .collect();
 
         self.grab_if_desired()?;
-        Ok(result)
+        Ok(events)
     }
 
     /// Tries to grab the device if grab_mode says we should.
@@ -206,10 +219,10 @@ impl InputDevice {
     }
 
     /// Returns an iterator of all EV_KEY codes that are currently pressed.
-    pub fn get_pressed_keys(&self) -> impl Iterator<Item=(EventCode, EventValue)> + '_ {
+    pub fn get_pressed_keys(&self) -> impl Iterator<Item=EventCode> + '_ {
         self.state.iter()
             .filter(|(code, value)| code.ev_type().is_key() && **value > 0)
-            .map(|(&code, &value)| (code, value))
+            .map(|(&code, &_value)| code)
     }
 
     fn grab(&mut self) -> Result<(), SystemError> {

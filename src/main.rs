@@ -83,7 +83,7 @@ use persist::interface::{HostInterfaceState};
 use stream::Setup;
 use signal::{SigMask, SignalFd};
 
-use crate::event::Event;
+use crate::event::EventCode;
 use crate::persist::subsystem::Report;
 use crate::predevice::PersistMode;
 
@@ -272,13 +272,13 @@ fn handle_broken_file(program: &mut Program, index: FileIndex) -> Action {
         }
     };
     match broken_device {
-        Pollable::InputDevice(device) => {
+        Pollable::InputDevice(mut device) => {
             eprintln!("The device {} has been disconnected.", device.path().display());
             // Release all keys that this device had pressed, so we don't end up with a key stuck on
             // an output device.
-            for (key_code, value) in device.get_pressed_keys() {
-                // TODO: consider moving this snippet elsewhere.
-                let release_event = Event::new(key_code, 0, value, device.domain(), event::Namespace::Input);
+            let pressed_keys: Vec<EventCode> = device.get_pressed_keys().collect();
+            for key_code in pressed_keys {
+                let release_event = device.synthesize_event(key_code, 0);
                 stream::run(&mut program.setup, release_event);
             }
 
