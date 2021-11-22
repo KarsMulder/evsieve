@@ -197,14 +197,19 @@ impl InputDevice {
             GrabMode::Force => self.grab(),
             GrabMode::Auto => {
                 // Grab if no key is currently pressed.
-                for (event_code, value) in &self.state {
-                    if event_code.ev_type().is_key() && *value > 0 {
-                        return Ok(());
-                    }
+                if self.get_pressed_keys().count() > 0 {
+                    return Ok(());
                 }
                 self.grab()
             }
         }
+    }
+
+    /// Returns an iterator of all EV_KEY codes that are currently pressed.
+    pub fn get_pressed_keys(&self) -> impl Iterator<Item=(EventCode, EventValue)> + '_ {
+        self.state.iter()
+            .filter(|(code, value)| code.ev_type().is_key() && **value > 0)
+            .map(|(&code, &value)| (code, value))
     }
 
     fn grab(&mut self) -> Result<(), SystemError> {
