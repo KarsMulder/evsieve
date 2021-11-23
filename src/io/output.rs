@@ -103,6 +103,8 @@ pub struct OutputDevice {
     /// If false, all repeat events sent to this device will be dropped.
     /// Does not prevent the kernel from generating repeat events.
     allows_repeat: bool,
+    /// The capabilities of this output device.
+    capabilities: Capabilities,
 }
 
 impl OutputDevice {
@@ -172,7 +174,13 @@ impl OutputDevice {
                 return Err(SystemError::new("Failed to create an UInput device. Does evsieve have enough permissions?").into());
             }
 
-            Ok(OutputDevice { device: uinput_dev, should_syn: false, symlink: None, allows_repeat: true })
+            Ok(OutputDevice {
+                device: uinput_dev,
+                should_syn: false,
+                symlink: None,
+                allows_repeat: true,
+                capabilities: caps,
+            })
         }
     }
 
