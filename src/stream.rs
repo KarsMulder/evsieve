@@ -21,7 +21,6 @@ pub enum StreamEntry {
 
 pub struct Setup {
     stream: Vec<StreamEntry>,
-    pre_output: Vec<PreOutputDevice>,
     output: OutputSystem,
     state: State,
     /// A vector of events that have been "sent" to an output device but are not actually written
@@ -38,7 +37,7 @@ impl Setup {
     ) -> Result<Setup, RuntimeError> {
         let capabilities_out = run_caps(&stream, capabilities_in);
         let output = OutputSystem::create(pre_output, capabilities_out)?;
-        Ok(Setup { stream, pre_output, output, state, staged_events: Vec::new() })
+        Ok(Setup { stream, output, state, staged_events: Vec::new() })
     }
 }
 

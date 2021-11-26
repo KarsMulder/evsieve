@@ -17,6 +17,7 @@ use crate::error::{InternalError, RuntimeError, SystemError, Context};
 use crate::predevice::{PreOutputDevice, RepeatMode};
 
 pub struct OutputSystem {
+    pre_devices: Vec<PreOutputDevice>,
     devices: HashMap<Domain, OutputDevice>,
 }
 
@@ -34,7 +35,7 @@ impl OutputSystem {
 
         // Create domains with capabilities.
         let mut devices: HashMap<Domain, OutputDevice> = HashMap::new();
-        for pre_device in pre_devices {
+        for pre_device in &pre_devices {
             let domain = pre_device.domain;
 
             if devices.contains_key(&domain) {
@@ -62,7 +63,7 @@ impl OutputSystem {
                 RepeatMode::Disable  => false,
                 RepeatMode::Enable   => false,
             });
-            if let Some(path) = pre_device.create_link {
+            if let Some(ref path) = pre_device.create_link {
                 device.set_link(path.clone())
                     .map_err(SystemError::from)
                     .with_context(format!("While creating a symlink at \"{}\":", path.display()))?;
@@ -71,7 +72,7 @@ impl OutputSystem {
             devices.insert(domain, device);
         }
 
-        Ok(OutputSystem { devices })
+        Ok(OutputSystem { pre_devices, devices })
     }
 
     /// Writes all events to their respective output devices.
