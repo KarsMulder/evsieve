@@ -27,11 +27,7 @@ impl OutputSystem {
             capabilities: Vec<Capability>
     ) -> Result<OutputSystem, RuntimeError> {
         // Sort the capabilities based on domain.
-        let mut capability_map: HashMap<Domain, Capabilities> = HashMap::new();
-        for capability in capabilities {
-            let domain_capabilities = capability_map.entry(capability.domain).or_insert_with(Capabilities::new);
-            domain_capabilities.add_capability(capability);
-        }
+        let mut capability_map = capabilites_by_device(&capabilities, &pre_devices);
 
         // Create domains with capabilities.
         let mut devices: HashMap<Domain, OutputDevice> = HashMap::new();
@@ -41,13 +37,8 @@ impl OutputSystem {
             if devices.contains_key(&domain) {
                 return Err(InternalError::new("Multiple output devices with the same domain have been created.").into());
             }
-
-            let mut capabilities = capability_map.get(&domain).cloned().unwrap_or_else(Capabilities::new);
-            match pre_device.repeat_mode {
-                RepeatMode::Disable => capabilities.remove_ev_rep(),
-                RepeatMode::Passive => capabilities.remove_ev_rep(),
-                RepeatMode::Enable  => capabilities.require_ev_rep(),
-            };
+    
+            let capabilities = capability_map.remove(&pre_device.domain).expect("Internal invariant violated: capabilites_by_device() did not create a capability entry for each output device.");
             if capabilities.is_empty() {
                 eprintln!("Warning: an output device has been specified to which no events can possibly be routed.");
             }
@@ -286,4 +277,27 @@ impl Drop for Symlink {
     fn drop(&mut self) {
         let _ = fs::remove_file(&self.location);
     }
+}
+
+/// Sorts a vector of capabilities by domain and adjusts them based on explicit flags/clauses specified
+/// for the output devices. Guarantees that an entry exists for each pre-output device.
+fn capabilites_by_device(capabilities: &[Capability], pre_devices: &[PreOutputDevice])
+        -> HashMap<Domain, Capabilities>
+{
+    let mut capability_map: HashMap<Domain, Capabilities> = HashMap::new();
+    for capability in capabilities.iter().copied() {
+        let domain_capabilities = capability_map.entry(capability.domain).or_insert_with(Capabilities::new);
+        domain_capabilities.add_capability(capability);
+    }
+
+    for device in pre_devices {
+        let device_caps = capability_map.entry(device.domain).or_insert_with(Capabilities::new);
+        match device.repeat_mode {
+            RepeatMode::Disable => device_caps.remove_ev_rep(),
+            RepeatMode::Passive => device_caps.remove_ev_rep(),
+            RepeatMode::Enable  => device_caps.require_ev_rep(),
+        };
+    }
+
+    capability_map
 }
