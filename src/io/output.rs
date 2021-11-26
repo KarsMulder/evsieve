@@ -43,27 +43,76 @@ impl OutputSystem {
                 eprintln!("Warning: an output device has been specified to which no events can possibly be routed.");
             }
 
-            let mut device = OutputDevice::with_name_and_capabilities(pre_device.name.clone(), capabilities)
-                .with_context(match pre_device.create_link.clone() {
-                    Some(path) => format!("While creating the output device \"{}\":", path.display()),
-                    None => "While creating an output device:".to_string(),
-                })?;
-
-            device.allow_repeat(match pre_device.repeat_mode {
-                RepeatMode::Passive  => true,
-                RepeatMode::Disable  => false,
-                RepeatMode::Enable   => false,
-            });
-            if let Some(ref path) = pre_device.create_link {
-                device.set_link(path.clone())
-                    .map_err(SystemError::from)
-                    .with_context(format!("While creating a symlink at \"{}\":", path.display()))?;
-            };
+            let device = create_output_device(pre_device, capabilities)?;
             
             devices.insert(domain, device);
         }
 
         Ok(OutputSystem { pre_devices, devices })
+    }
+
+    /// Tries to make sure that all output devices have at least the given capabilities. The output 
+    /// devices may or may not end up with more capabilities than specified.
+    ///
+    /// This may cause output devices to be destroyed and recreated.
+    pub fn set_capabilities(&mut self, new_capabilities: Vec<Capability>) {
+        // Sort the capabilities based on domain.
+        let mut capability_map = capabilites_by_device(&new_capabilities, &self.pre_devices);
+
+        let old_output_devices = std::mem::take(&mut self.devices);
+        for (domain, mut old_device) in old_output_devices {
+            // Find the new capabilities for this domain.
+            let capabilities = match capability_map.remove(&domain) {
+                Some(caps) => caps,
+                None => {
+                    eprintln!("Internal invariant violated: capability_map does not contain capabilities for all output devices. This is a bug.");
+                    self.devices.insert(domain, old_device);
+                    continue;
+                },
+            };
+
+            // Find the pre_output_device with the same domain.
+            let pre_device: &PreOutputDevice = match self.pre_devices.iter().find(
+                |pre_device| pre_device.domain == domain
+            ) {
+                Some(pre_device) => pre_device,
+                None => {
+                    eprintln!("Internal invariant violated: OutputDeviceSystem contains an output device with a domain for which it does not have a PreOutputDevice. This is a bug.");
+                    self.devices.insert(domain, old_device);
+                    continue;
+                },
+            };
+
+            // TODO: check whether the new capabilities are less than or equal to the old capabilities.
+            if old_device.capabilities == capabilities {
+                self.devices.insert(domain, old_device);
+                continue;
+            }
+
+            // The device is supposed to have more capabilities than it used to. We must recreate it.
+            // Free up the old symlink so the new device can create a symlink in its place.
+            let symlink = old_device.take_symlink();
+            drop(symlink); // TODO: make this operation atomical with its recreation.
+
+            let new_device = match create_output_device(pre_device, capabilities) {
+                Ok(device) => device,
+                Err(error) => {
+                    eprintln!("Error: failed to recreate an output device. The remaining output devices may have incorrect capabilities.");
+                    error.print_err();
+                    // Try to restore the old link if possible.
+                    if let Some(ref path) = pre_device.create_link {
+                        old_device.set_link(path.clone()).print_err();
+                    }
+                    self.devices.insert(domain, old_device);
+                    continue;
+                }
+            };
+
+            old_device.syn_if_required();
+            drop(old_device);
+
+            self.devices.insert(domain, new_device);
+        }
     }
 
     /// Writes all events to their respective output devices.
@@ -220,9 +269,24 @@ impl OutputDevice {
         )?;
         let my_path = Path::new(my_path_str).to_owned();
 
-        // Creaet the actual link.
+        // Drop the old link before creating a new one, in case the old and new link are both at the
+        // same location.
+        drop(self.take_symlink());
         self.symlink = Some(Symlink::create(my_path, path)?);
         Ok(())
+    }
+
+    /// Decouples this device from the symlink pointing to it.
+    fn take_symlink(&mut self) -> Option<Symlink> {
+        self.symlink.take()
+    }
+
+    fn set_repeat_mode(&mut self, mode: RepeatMode) {
+        self.allow_repeat(match mode {
+            RepeatMode::Passive  => true,
+            RepeatMode::Disable  => false,
+            RepeatMode::Enable   => false,
+        });
     }
 
     fn allow_repeat(&mut self, value: bool) {
@@ -300,4 +364,22 @@ fn capabilites_by_device(capabilities: &[Capability], pre_devices: &[PreOutputDe
     }
 
     capability_map
+}
+
+fn create_output_device(pre_device: &PreOutputDevice, capabilities: Capabilities) -> Result<OutputDevice, RuntimeError> {
+    let mut device = OutputDevice::with_name_and_capabilities(pre_device.name.clone(), capabilities)
+        .with_context(match pre_device.create_link.clone() {
+            Some(path) => format!("While creating the output device \"{}\":", path.display()),
+            None => "While creating an output device:".to_string(),
+        })?;
+
+    device.set_repeat_mode(pre_device.repeat_mode);
+
+    if let Some(ref path) = pre_device.create_link {
+        device.set_link(path.clone())
+            .map_err(SystemError::from)
+            .with_context(format!("While creating a symlink at \"{}\":", path.display()))?;
+    };
+
+    Ok(device)
 }
