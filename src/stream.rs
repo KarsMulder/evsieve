@@ -3,11 +3,13 @@
 use crate::map::{Map, Toggle};
 use crate::hook::Hook;
 use crate::merge::Merge;
+use crate::predevice::PreOutputDevice;
 use crate::state::State;
 use crate::event::{Event, Namespace};
 use crate::print::EventPrinter;
 use crate::capability::Capability;
 use crate::io::output::OutputSystem;
+use crate::error::RuntimeError;
 
 pub enum StreamEntry {
     Map(Map),
@@ -19,6 +21,7 @@ pub enum StreamEntry {
 
 pub struct Setup {
     stream: Vec<StreamEntry>,
+    pre_output: Vec<PreOutputDevice>,
     output: OutputSystem,
     state: State,
     /// A vector of events that have been "sent" to an output device but are not actually written
@@ -27,8 +30,15 @@ pub struct Setup {
 }
 
 impl Setup {
-    pub fn new(stream: Vec<StreamEntry>, output: OutputSystem, state: State) -> Setup {
-        Setup { stream, output, state, staged_events: Vec::new() }
+    pub fn create(
+        stream: Vec<StreamEntry>,
+        pre_output: Vec<PreOutputDevice>,
+        state: State,
+        capabilities_in: Vec<Capability>,
+    ) -> Result<Setup, RuntimeError> {
+        let capabilities_out = run_caps(&stream, capabilities_in);
+        let output = OutputSystem::create(pre_output, capabilities_out)?;
+        Ok(Setup { stream, pre_output, output, state, staged_events: Vec::new() })
     }
 }
 
