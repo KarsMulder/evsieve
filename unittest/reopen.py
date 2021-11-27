@@ -95,9 +95,7 @@ input_device.close()
 output_device.close()
 time.sleep(0.2)
 
-# Part 2: testing whether input devices are closed at the right time.
-
-# First, we test whether evsieve exits when all devices are closed with persist=none.
+# Part 2: testing whether evsieve exits when all devices are closed with persist=none.
 output_path = "/dev/input/by-id/evsieve-unittest-reopen-out"
 assert(not os.path.islink(output_path))
 
@@ -230,6 +228,7 @@ test_events(input_device_2, output_device,
 
 input_device_1.close()
 input_device_2.close()
+output_device.close()
 subprocess.terminate()
 os.unlink(input_device_1_path)
 os.unlink(input_device_2_path)
