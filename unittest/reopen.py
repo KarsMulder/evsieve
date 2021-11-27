@@ -108,6 +108,9 @@ symlink_chain = [
 
 capabilities_A = {e.EV_KEY: [e.KEY_A]}
 capabilities_B = {e.EV_KEY: [e.KEY_B]}
+capabilities_C = {e.EV_KEY: [e.KEY_C]}
+capabilities_AB = {e.EV_KEY: [e.KEY_A, e.KEY_B]}
+
 input_device_1 = None
 input_device_2 = None
 input_device_1_path = "/tmp/evsieve-unittest/link1"
@@ -122,6 +125,12 @@ def link_to_device(device, link):
 def create_input_devices(capabilities):
     global input_device_1
     global input_device_2
+    # The links need to be deleted before output devices are created, otherwise a race condition happens:
+    # Upon creating input_device_1, evsieve may create a virtual output device that just happens to be
+    # at the location that input_device_2_path points to before input_device_2 is created.
+    for link in [input_device_1_path, input_device_2_path]:
+        if os.path.exists(link) or os.path.islink(link):
+            os.unlink(link)
     input_device_1 = evdev.UInput(capabilities)
     input_device_2 = evdev.UInput(capabilities)
     link_to_device(input_device_1, input_device_1_path)
@@ -131,8 +140,8 @@ create_input_devices(capabilities_A)
 
 
 subprocess = sp.Popen(EVSIEVE_PROGRAM + [
-    "--input", input_device_1_path, "persist=none",
-    "--input", input_device_2_path, "persist=none",
+    "--input", input_device_1_path, "persist=none", "grab=force",
+    "--input", input_device_2_path, "persist=none", "grab=force",
     "--output", f"create-link={output_path}"
 ])
 
@@ -148,28 +157,81 @@ input_device_2.close()
 time.sleep(0.2)
 assert(not os.path.exists(output_path) and not os.path.islink(output_path))
 
-# Now we test whether evsieve exits when all devices are closed with persist=reopen if reopening the devices
-# is considered hopeless.
-create_input_devices(capabilities_A)
+print("Unittest part 2 successful.")
+
+# Part 3: test whether evsieve handles devices with changing capabilities properly.
+
+create_input_devices(capabilities_AB)
 subprocess = sp.Popen(EVSIEVE_PROGRAM + [
-    "--input", input_device_1_path, "persist=reopen",
-    "--input", input_device_2_path, "persist=reopen",
+    "--input", input_device_1_path, "persist=reopen", "grab=force",
+    "--input", input_device_2_path, "persist=reopen", "grab=force",
     "--output", f"create-link={output_path}"
 ])
+time.sleep(0.1)
+output_device = evdev.InputDevice(output_path)
+output_device.grab()
 
-time.sleep(0.2)
-assert(os.path.exists(output_path))
+def test_events(input_device, output_device, events):
+    for event in events:
+        input_device.write(event[0], event[1], event[2])
+    time.sleep(0.01)
+
+    received_events = 0
+    for expected_event, real_event in zip(events, output_device.read()):
+        event = (real_event.type, real_event.code, real_event.value)
+        assert(expected_event == event)
+        received_events += 1
+    assert(received_events == len(events))
+
+test_events(input_device_2, output_device,
+    [(e.EV_KEY, e.KEY_A, 1), (e.EV_SYN, 0, 0), (e.EV_KEY, e.KEY_A, 0), (e.EV_SYN, 0, 0)]
+)
+
+# Upon closing an input device, all pressed keys should be released.
+input_device_1.write(e.EV_KEY, e.KEY_A, 1)
+input_device_1.write(e.EV_SYN, 0, 0)
+input_device_1.close()
+
+time.sleep(0.05)
+expected_output = [(e.EV_KEY, e.KEY_A, 1), (e.EV_SYN, 0, 0), (e.EV_KEY, e.KEY_A, 0), (e.EV_SYN, 0, 0)]
+real_output = [(event.type, event.code, event.value) for event in output_device.read()]
+assert(expected_output == real_output)
+
+# Upon recreating a device with the same capabilities, the output device should not be recreated.
+os.unlink(input_device_1_path)
+input_device_1 = evdev.UInput(capabilities_AB)
+link_to_device(input_device_1, input_device_1_path)
+
+time.sleep(0.1)
+test_events(input_device_1, output_device,
+    [(e.EV_KEY, e.KEY_A, 1), (e.EV_SYN, 0, 0), (e.EV_KEY, e.KEY_A, 0), (e.EV_SYN, 0, 0)]
+)
+test_events(input_device_2, output_device,
+    [(e.EV_KEY, e.KEY_B, 1), (e.EV_SYN, 0, 0), (e.EV_KEY, e.KEY_B, 0), (e.EV_SYN, 0, 0)]
+)
+
+# Upon recreating a device with more capabilities, the output device should be recreated.
+input_device_1.close()
+os.unlink(input_device_1_path)
+input_device_1 = evdev.UInput(capabilities_C)
+link_to_device(input_device_1, input_device_1_path)
+time.sleep(0.1)
+
+output_device.close()
+output_device = evdev.InputDevice(output_path)
+output_device.grab()
+
+test_events(input_device_1, output_device,
+    [(e.EV_KEY, e.KEY_C, 1), (e.EV_SYN, 0, 0), (e.EV_KEY, e.KEY_C, 0), (e.EV_SYN, 0, 0)]
+)
+test_events(input_device_2, output_device,
+    [(e.EV_KEY, e.KEY_B, 1), (e.EV_SYN, 0, 0), (e.EV_KEY, e.KEY_B, 0), (e.EV_SYN, 0, 0)]
+)
 
 input_device_1.close()
 input_device_2.close()
-assert(os.path.exists(output_path))
+subprocess.terminate()
+os.unlink(input_device_1_path)
+os.unlink(input_device_2_path)
 
-# When the devices are recreated with different capabilities, evsieve should close the devices instead
-# of trying to reopen them.
-create_input_devices(capabilities_B)
-time.sleep(0.2)
-assert(not os.path.exists(output_path) and not os.path.islink(output_path))
-
-input_device_1.close()
-input_device_2.close()
-print("Unittest part 2 successful.")
+print("Unittest part 3 successful.")

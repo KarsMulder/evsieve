@@ -56,7 +56,6 @@ impl Setup {
         );
         // TODO: check for <= instead of ==.
         if Some(new_device.capabilities()) == old_caps.as_ref() {
-            println!("Warning: the capabilities of the reconnected device {} were different than expected.", new_device.path().display());
             return;
         }
 

@@ -22,19 +22,21 @@ impl Blueprint {
         }
         let input_device = InputDevice::open(self.pre_device.clone())?;
 
-        // Do sanity checks so we don't accidentally re-open the wrong device.
+        // Do sanity checks.
         if input_device.name() != &self.name {
-            return Err(SystemError::new(format!(
-                "Cannot reopen input device \"{}\": the reattached device's name differs from the original name. Original: {}, new: {}",
+            eprintln!(
+                "Warning: the reconnected device \"{}\" has a different name than expected. Expected name: \"{}\", new name: \"{}\".",
                 self.pre_device.path.display(),
-                self.name.to_string_lossy(), input_device.name().to_string_lossy()
-            )))
+                self.name.to_string_lossy(),
+                input_device.name().to_string_lossy(),
+            );
         }
+
         if *input_device.capabilities() != self.capabilities {
-            return Err(SystemError::new(format!(
-                "Cannot reopen input device \"{}\": the reattached device's capabilities are different from the original device that disconnected.",
+            eprintln!(
+                "Warning: the capabilities of the reconnected device \"{}\" are different than expected.",
                 self.pre_device.path.display()
-            )));
+            );
         }
         
         Ok(Some(input_device))
