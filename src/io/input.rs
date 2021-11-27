@@ -10,7 +10,7 @@ use crate::activity::ActivityLink;
 use crate::bindings::libevdev;
 use crate::event::{Event, EventType, EventValue, EventCode, Namespace};
 use crate::domain::Domain;
-use crate::capability::{Capability, Capabilities, AbsInfo, RepeatInfo};
+use crate::capability::{AbsInfo, Capabilities, InputCapabilites, RepeatInfo};
 use crate::ecodes;
 use crate::predevice::{GrabMode, PersistMode, PreInputDevice};
 use crate::error::{SystemError, Context};
@@ -19,7 +19,7 @@ use crate::persist::blueprint::Blueprint;
 use super::fd::HasFixedFd;
 
 pub fn open_and_query_capabilities(pre_input_devices: Vec<PreInputDevice>)
-    -> Result<(Vec<InputDevice>, Vec<Capability>), SystemError>
+    -> Result<(Vec<InputDevice>, InputCapabilites), SystemError>
 {
     let mut input_devices = pre_input_devices.into_iter().map(
         |device| {
@@ -35,13 +35,13 @@ pub fn open_and_query_capabilities(pre_input_devices: Vec<PreInputDevice>)
     }
 
     // Precompute the capabilities of the input devices.
-    let mut capabilities_vec: Vec<Capability> = Vec::new();
+    let mut capabilities: InputCapabilites = InputCapabilites::new();
     for device in &input_devices {
-        let mut device_capabilities_vec = device.capabilities.to_vec_from_domain_and_namespace(device.domain, Namespace::Input);
-        capabilities_vec.append(&mut device_capabilities_vec);
+        // TODO: Consider using an Rc instead of a clone.
+        capabilities.insert(device.domain, device.capabilities.clone());
     }
 
-    Ok((input_devices, capabilities_vec))
+    Ok((input_devices, capabilities))
 }
 
 // Represents a name as reported by libevdev_get_name().

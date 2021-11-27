@@ -55,7 +55,7 @@ impl OutputSystem {
     /// devices may or may not end up with more capabilities than specified.
     ///
     /// This may cause output devices to be destroyed and recreated.
-    pub fn set_capabilities(&mut self, new_capabilities: Vec<Capability>) {
+    pub fn update_caps(&mut self, new_capabilities: Vec<Capability>) {
         // Sort the capabilities based on domain.
         let mut capability_map = capabilites_by_device(&new_capabilities, &self.pre_devices);
 

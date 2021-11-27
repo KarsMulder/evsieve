@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+use crate::capability::InputCapabilites;
 use crate::domain;
 use crate::error::{ArgumentError, RuntimeError, Context};
 use crate::key::Key;
@@ -112,7 +113,17 @@ fn parse(args: Vec<String>) -> Result<Vec<Argument>, RuntimeError> {
     )).collect::<Result<Vec<Argument>, RuntimeError>>()
 }
 
-pub fn implement(args_str: Vec<String>) -> Result<(Setup, Vec<crate::io::input::InputDevice>), RuntimeError> {
+pub struct Implementation {
+    pub setup: Setup,
+    pub input_devices: Vec<crate::io::input::InputDevice>,
+    pub input_capabilities: InputCapabilites,
+}
+
+/// This function does most of the work of turning the input arguments into the components of a
+/// runnable program.
+pub fn implement(args_str: Vec<String>)
+        -> Result<Implementation, RuntimeError>
+{
     let args: Vec<Argument> = parse(args_str)?;
     let mut input_devices: Vec<PreInputDevice> = Vec::new();
     let mut output_devices: Vec<PreOutputDevice> = Vec::new();
@@ -250,9 +261,10 @@ pub fn implement(args_str: Vec<String>) -> Result<(Setup, Vec<crate::io::input::
     }
 
     // Compute the capabilities of the output devices.
-    let (input_devices, capabilities_in) = crate::io::input::open_and_query_capabilities(input_devices)?;
+    let (input_devices, input_capabilities) = crate::io::input::open_and_query_capabilities(input_devices)?;
+    let setup = Setup::create(stream, output_devices, state, &input_capabilities)?;
 
-    Ok((Setup::create(stream, output_devices, state, capabilities_in)?, input_devices))
+    Ok(Implementation { setup, input_devices, input_capabilities })
 }
 
 /// Returns true if all items in the iterator are unique, otherwise returns false.

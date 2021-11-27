@@ -7,7 +7,7 @@ use crate::predevice::PreOutputDevice;
 use crate::state::State;
 use crate::event::{Event, Namespace};
 use crate::print::EventPrinter;
-use crate::capability::Capability;
+use crate::capability::{Capability, InputCapabilites};
 use crate::io::output::OutputSystem;
 use crate::error::RuntimeError;
 
@@ -33,11 +33,18 @@ impl Setup {
         stream: Vec<StreamEntry>,
         pre_output: Vec<PreOutputDevice>,
         state: State,
-        capabilities_in: Vec<Capability>,
+        caps_in: &InputCapabilites,
     ) -> Result<Setup, RuntimeError> {
-        let capabilities_out = run_caps(&stream, capabilities_in);
-        let output = OutputSystem::create(pre_output, capabilities_out)?;
+        let caps_vec: Vec<Capability> = crate::capability::input_caps_to_vec(caps_in);
+        let caps_out = run_caps(&stream, caps_vec);
+        let output = OutputSystem::create(pre_output, caps_out)?;
         Ok(Setup { stream, output, state, staged_events: Vec::new() })
+    }
+
+    pub fn update_caps(&mut self, caps_in: &InputCapabilites) {
+        let caps_vec: Vec<Capability> = crate::capability::input_caps_to_vec(caps_in);
+        let caps_out = run_caps(&self.stream, caps_vec);
+        self.output.update_caps(caps_out);
     }
 }
 
