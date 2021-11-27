@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use crate::activity::ActivityLink;
 use crate::io::input::{InputDevice, InputDeviceName};
 use crate::predevice::PreInputDevice;
 use crate::capability::Capabilities;
@@ -11,9 +10,6 @@ pub struct Blueprint {
     pub pre_device: PreInputDevice,
     pub capabilities: Capabilities,
     pub name: InputDeviceName,
-
-    /// Prevents evsieve from automatically exiting as long as a viable Blueprint remains.
-    pub activity_link: ActivityLink,
 }
 
 impl Blueprint {

@@ -17,7 +17,6 @@
 #![warn(clippy::explicit_iter_loop)]
 #![warn(clippy::explicit_iter_loop)]
 
-pub mod activity;
 pub mod event;
 pub mod key;
 pub mod map;
@@ -175,7 +174,7 @@ fn run() -> Result<(), RuntimeError> {
     daemon::notify_ready();
 
     // Make sure evsieve has something to do.
-    if activity::should_exit() {
+    if has_no_activity(&program.epoll) {
         println!("Warning: no input devices available. Evsieve will exit now.");
         return Ok(());
     }
@@ -309,7 +308,7 @@ fn handle_broken_file(program: &mut Program, index: FileIndex) -> Action {
         },
     }
 
-    if activity::should_exit() {
+    if has_no_activity(&program.epoll) {
         println!("No devices to poll events from. Evsieve will exit now.");
         Action::Exit
     } else {
@@ -325,7 +324,7 @@ fn handle_persist_subsystem_report(program: &mut Program, index: FileIndex, repo
             Action::Continue
         },
         Report::BlueprintDropped => {
-            if activity::should_exit() {
+            if has_no_activity(&program.epoll) {
                 println!("No devices remaining that can possibly generate events. Evsieve will exit now.");
                 Action::Exit
             } else {
@@ -354,4 +353,16 @@ fn handle_persist_subsystem_report(program: &mut Program, index: FileIndex, repo
             Action::Continue
         }
     }
+}
+
+/// Returns true if evsieve has nothing to do and should just exit.
+fn has_no_activity(epoll: &Epoll<Pollable>) -> bool {
+    for file in epoll.files() {
+        match file {
+            Pollable::InputDevice(_) => return false,
+            Pollable::PersistSubsystem(_) => return false,
+            Pollable::SignalFd(_) => (),
+        }
+    }
+    true
 }

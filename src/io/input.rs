@@ -6,7 +6,6 @@ use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use crate::activity::ActivityLink;
 use crate::bindings::libevdev;
 use crate::event::{Event, EventType, EventValue, EventCode, Namespace};
 use crate::domain::Domain;
@@ -72,9 +71,6 @@ pub struct InputDevice {
 
     /// What should happen if this device disconnects.
     persist_mode: PersistMode,
-
-    /// Prevents automatic exit of evsieve as long as one InputDevice exists.
-    _activity_link: ActivityLink,
 }
 
 impl InputDevice {
@@ -119,7 +115,6 @@ impl InputDevice {
             file, path, evdev, domain, capabilities, state, name,
             grab_mode: pre_device.grab_mode, grabbed: false,
             persist_mode: pre_device.persist_mode,
-            _activity_link: ActivityLink::new(),
         })
     }
 
@@ -280,7 +275,6 @@ impl InputDevice {
                 domain: self.domain,
                 persist_mode: self.persist_mode,
             },
-            activity_link: ActivityLink::new(),
         }
     }
 }
