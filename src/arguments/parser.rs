@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use crate::capability::InputCapabilites;
 use crate::domain;
 use crate::error::{ArgumentError, RuntimeError, Context};
 use crate::key::Key;
@@ -116,7 +115,6 @@ fn parse(args: Vec<String>) -> Result<Vec<Argument>, RuntimeError> {
 pub struct Implementation {
     pub setup: Setup,
     pub input_devices: Vec<crate::io::input::InputDevice>,
-    pub input_capabilities: InputCapabilites,
 }
 
 /// This function does most of the work of turning the input arguments into the components of a
@@ -262,9 +260,9 @@ pub fn implement(args_str: Vec<String>)
 
     // Compute the capabilities of the output devices.
     let (input_devices, input_capabilities) = crate::io::input::open_and_query_capabilities(input_devices)?;
-    let setup = Setup::create(stream, output_devices, state, &input_capabilities)?;
+    let setup = Setup::create(stream, output_devices, state, input_capabilities)?;
 
-    Ok(Implementation { setup, input_devices, input_capabilities })
+    Ok(Implementation { setup, input_devices })
 }
 
 /// Returns true if all items in the iterator are unique, otherwise returns false.

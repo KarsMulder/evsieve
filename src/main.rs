@@ -76,7 +76,6 @@ extern crate lazy_static;
 use std::os::unix::prelude::{AsRawFd, RawFd};
 
 use arguments::parser::Implementation;
-use capability::InputCapabilites;
 use error::{RuntimeError, Context};
 use io::epoll::{Epoll, FileIndex, Message};
 use io::fd::HasFixedFd;
@@ -135,10 +134,6 @@ struct Program {
     epoll: Epoll<Pollable>,
     setup: Setup,
     persist_subsystem: HostInterfaceState,
-    /// The capabilities all input devices are capable of, and the tentative capabilites of devices that
-    /// may be (re)opened in the future. Make sure that you update this struct each time you open a new
-    /// input device.
-    input_capabilities: InputCapabilites,
 }
 
 const TERMINATION_SIGNALS: [libc::c_int; 3] = [libc::SIGTERM, libc::SIGINT, libc::SIGHUP];
@@ -166,7 +161,7 @@ fn run() -> Result<(), RuntimeError> {
     let _signal_block = unsafe { signal::SignalBlock::new(&sigmask)? };
 
     // Parse the arguments and set up the input/output devices.
-    let Implementation { setup, input_devices, input_capabilities } = arguments::parser::implement(args)?;
+    let Implementation { setup, input_devices } = arguments::parser::implement(args)?;
     for device in input_devices {
         epoll.add_file(Pollable::InputDevice(device))?;
     }
@@ -175,7 +170,7 @@ fn run() -> Result<(), RuntimeError> {
     let persist_subsystem: HostInterfaceState = HostInterfaceState::new();
 
     let mut program = Program {
-        epoll, setup, persist_subsystem, input_capabilities
+        epoll, setup, persist_subsystem
     };
     daemon::notify_ready();
 
@@ -346,14 +341,7 @@ fn handle_persist_subsystem_report(program: &mut Program, index: FileIndex, repo
             }
 
             let device_path = device.path().to_owned();
-
-            // If the reattached capabilities are different from what they used to be, we may need to
-            // recreate some output devices.
-            let old_caps = program.input_capabilities.insert(device.domain(), device.capabilities().clone());
-            if old_caps.as_ref() != Some(device.capabilities()) { // TODO: make Blueprint not break on unexpected capabilities.
-                println!("Warning: the capabilities of the reconnected device {} were different than expected.", device_path.display());
-                program.setup.update_caps(&program.input_capabilities);
-            }
+            program.setup.update_caps(&device);
 
             match program.epoll.add_file(Pollable::InputDevice(device))
             {
