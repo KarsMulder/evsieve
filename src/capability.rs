@@ -244,6 +244,28 @@ impl Capabilities {
             .map(|code| code.ev_type())
             .collect()
     }
+
+    /// Given a device that has output capabilities `other`, can we properly write all events corrosponding
+    /// to the capabilities of `self` to that device? Returns true if we can, false if there may be issues.
+    ///
+    /// To be true, `other` must have all event codes of `self` and identical absolute axes.
+    pub fn is_compatible_with(&self, other: &Capabilities) -> bool {
+        if ! self.codes.is_subset(&other.codes) {
+            return false;
+        }
+        for (code, info) in &self.abs_info {
+            if let Some(other_info) = other.abs_info.get(code) {
+                if info != other_info {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        // We don't care about self.rep_info because the kernel doesn't either.
+
+        true
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]

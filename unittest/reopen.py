@@ -195,9 +195,9 @@ expected_output = [(e.EV_KEY, e.KEY_A, 1), (e.EV_SYN, 0, 0), (e.EV_KEY, e.KEY_A,
 real_output = [(event.type, event.code, event.value) for event in output_device.read()]
 assert(expected_output == real_output)
 
-# Upon recreating a device with the same capabilities, the output device should not be recreated.
+# Upon recreating a device with the same or lesser capabilities, the output device should not be recreated.
 os.unlink(input_device_1_path)
-input_device_1 = evdev.UInput(capabilities_AB)
+input_device_1 = evdev.UInput(capabilities_A)
 link_to_device(input_device_1, input_device_1_path)
 
 time.sleep(0.1)

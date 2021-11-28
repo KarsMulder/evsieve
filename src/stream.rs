@@ -12,6 +12,21 @@ use crate::capability::{Capability, InputCapabilites};
 use crate::io::output::OutputSystem;
 use crate::error::RuntimeError;
 
+/// An enum of everything that can be part of the event processing stream.
+///
+/// There is no formal interface of what these entries need to be capable of, but they need to have
+/// rhoughly two functions:
+///
+/// * `apply_to_all()`, which takes as input a buffer of events, processes them, and then writes
+///   them to an output buffer. Events that are left untouched must be written to the output buffer
+///   as well, because anything not written to the output buffer is dropped.
+/// * `apply_to_all_caps()`, which is like the previous function, but applies to capabilities instead.
+///   Given all events (capabilities) that can possibly enter this entry, it must write all
+///   events/capabilities that can leave this entry to an output buffer.
+///
+/// Note that `apply_to_all()` is allowed to take an `&mut self` to change event handling logic at
+/// runtime, but it should never modify `self` in a way that the output of `apply_to_all_caps()` changes.
+/// The output of `apply_to_all_caps()` must be agnostic of the entry's current runtime state.
 pub enum StreamEntry {
     Map(Map),
     Hook(Hook),
@@ -50,13 +65,15 @@ impl Setup {
     /// it has been reopened after the program started. If the new capabilities are incompatible with
     /// its previous capabilities, then output devices may be recreated.
     pub fn update_caps(&mut self, new_device: &InputDevice) {
-        let old_caps = self.input_caps.insert(
+        let old_caps_opt = self.input_caps.insert(
             new_device.domain(),
             new_device.capabilities().clone()
         );
-        // TODO: check for <= instead of ==.
-        if Some(new_device.capabilities()) == old_caps.as_ref() {
-            return;
+
+        if let Some(old_caps) = old_caps_opt {
+            if new_device.capabilities().is_compatible_with(&old_caps) {
+                return;
+            }
         }
 
         let caps_vec: Vec<Capability> = crate::capability::input_caps_to_vec(&self.input_caps);

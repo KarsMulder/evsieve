@@ -83,8 +83,7 @@ impl OutputSystem {
                 },
             };
 
-            // TODO: check whether the new capabilities are less than or equal to the old capabilities.
-            if old_device.capabilities == capabilities {
+            if capabilities.is_compatible_with(&old_device.capabilities) {
                 self.devices.insert(domain, old_device);
                 continue;
             }
