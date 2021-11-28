@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+use std::fmt::Error;
 use std::io;
 use std::fs;
 use std::ffi::{CString};
@@ -7,6 +8,7 @@ use std::ptr;
 use std::collections::HashMap;
 use std::path::{Path};
 use std::path::PathBuf;
+use std::fmt::Write;
 use crate::event::EventType;
 use crate::bindings::libevdev;
 use crate::capability::{Capability, Capabilities};
@@ -60,6 +62,8 @@ impl OutputSystem {
         let mut capability_map = capabilites_by_device(&new_capabilities, &self.pre_devices);
 
         let old_output_devices = std::mem::take(&mut self.devices);
+        let mut recreated_output_devices: Vec<&PreOutputDevice> = Vec::new();
+
         for (domain, mut old_device) in old_output_devices {
             // Find the new capabilities for this domain.
             let capabilities = match capability_map.remove(&domain) {
@@ -111,6 +115,16 @@ impl OutputSystem {
             drop(old_device);
 
             self.devices.insert(domain, new_device);
+            recreated_output_devices.push(pre_device);
+        }
+
+        if ! recreated_output_devices.is_empty() {
+            if let Ok(warning_msg) = format_output_device_recreation_warning(&recreated_output_devices) {
+                println!("{}", warning_msg);
+            } else {
+                println!("Warning: output devices have been recreated.");
+                eprintln!("Internal error: an unknown error occured in our error formatting logic. This is a bug.");
+            }
         }
     }
 
@@ -381,4 +395,43 @@ fn create_output_device(pre_device: &PreOutputDevice, capabilities: Capabilities
     };
 
     Ok(device)
+}
+
+fn format_output_device_recreation_warning(recreated_devices: &[&PreOutputDevice]) -> Result<String, Error>  {
+    if recreated_devices.is_empty() {
+        return Ok("".to_owned());
+    }
+    let named_recreated_devices: Vec<String> = recreated_devices.iter().filter_map(
+        |device| device.create_link.as_ref().map(
+            |path| format!("\"{}\"", path.display())
+        )
+    ).collect();
+    let num_unnamed_recreated_devices = recreated_devices.len() - named_recreated_devices.len();
+
+    let mut msg: String = "Warning: due to a change in the capabilities of the input devices, ".to_string();
+    if named_recreated_devices.is_empty() {
+        match num_unnamed_recreated_devices {
+            1 => write!(&mut msg, "an output device ")?,
+            n => write!(&mut msg, "{} output devices ", n)?,
+        };
+    } else {
+        match named_recreated_devices.len() {
+            1 => write!(&mut msg, "the output device ")?,
+            _ => write!(&mut msg, "the output devices ")?,
+        };
+        write!(&mut msg, "{}", named_recreated_devices.join(", "))?;
+        match num_unnamed_recreated_devices {
+            0 => write!(&mut msg, " ")?,
+            1 => write!(&mut msg, ", and an unnamed output device ")?,
+            n => write!(&mut msg, ", and {} unnamed output devices ", n)?,
+        };
+    };
+
+    match recreated_devices.len() {
+        1 => write!(&mut msg, "has been destroyed and recreated. ")?,
+        _ => write!(&mut msg, "have been destroyed and recreated. ")?,
+    }
+    write!(&mut msg, "This may cause other programs that have grabbed the output devices to lose track of them.")?;
+
+    Ok(msg)
 }

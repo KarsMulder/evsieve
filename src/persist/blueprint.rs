@@ -24,7 +24,7 @@ impl Blueprint {
 
         // Do sanity checks.
         if input_device.name() != &self.name {
-            eprintln!(
+            println!(
                 "Warning: the reconnected device \"{}\" has a different name than expected. Expected name: \"{}\", new name: \"{}\".",
                 self.pre_device.path.display(),
                 self.name.to_string_lossy(),
@@ -33,7 +33,7 @@ impl Blueprint {
         }
 
         if *input_device.capabilities() != self.capabilities {
-            eprintln!(
+            println!(
                 "Warning: the capabilities of the reconnected device \"{}\" are different than expected.",
                 self.pre_device.path.display()
             );
