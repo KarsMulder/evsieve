@@ -59,9 +59,37 @@ impl InputDevice {
             }
         };
 
+        let paths = arg_group.require_paths()?;
+
+        match persist_mode {
+            PersistMode::None => {},
+            PersistMode::Reopen => {
+                if paths.iter().any(|path| is_direct_event_device(path)) {
+                    println!("Warning: it is a bad idea to enable persistence on paths like /dev/input/event* because the kernel does not guarantee that the number of each event device remains constant. If such a device were to de disattached and reattached, it may show up under a different number. We recommend identifying event devices through their links in /dev/input/by-id/.");
+                }
+            }
+        }
+
         Ok(InputDevice {
-            domain, grab_mode, persist_mode,
-            paths: arg_group.require_paths()?,
+            domain, grab_mode, persist_mode, paths
         })
     }
+}
+
+/// Returns true if `path` is of the form `^/dev/input/event[0-9]+$`.
+fn is_direct_event_device(path: &str) -> bool {
+    let path = match path.strip_prefix("/dev/input/event") {
+        Some(string) => string,
+        None => return false,
+    };
+
+    path.chars().all(char::is_numeric)
+}
+
+#[test]
+fn unittest() {
+    assert!(is_direct_event_device("/dev/input/event1"));
+    assert!(is_direct_event_device("/dev/input/event23"));
+    assert!(! is_direct_event_device("/dev/input/by-id/event23"));
+    assert!(! is_direct_event_device("/dev/input/event1foo"));
 }
