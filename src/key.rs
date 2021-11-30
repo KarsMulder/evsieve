@@ -472,11 +472,15 @@ fn interpret_relative_value(value_str: &str) -> Result<Option<KeyProperty>, Argu
     match value_str.strip_suffix("delta") {
         None => Ok(None),
         Some(factor_str) => {
-            let factor: f64 = match factor_str.parse() {
-                Ok(factor) => factor,
-                Err(err) => return Err(ArgumentError::new(format!(
-                    "Cannot interpret {} as a float: {}", factor_str, err,
-                ))),
+            let factor: f64 = if factor_str.is_empty() {
+                1.0
+            } else {
+                match factor_str.parse() {
+                    Ok(factor) => factor,
+                    Err(err) => return Err(ArgumentError::new(format!(
+                        "Cannot interpret {} as a float: {}", factor_str, err,
+                    ))),
+                }
             };
             Ok(Some(KeyProperty::DeltaFactor(factor)))
         }
