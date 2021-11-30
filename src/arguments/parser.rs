@@ -15,10 +15,10 @@ use crate::arguments::output::OutputDevice;
 use crate::arguments::toggle::ToggleArg;
 use crate::arguments::map::{MapArg, BlockArg};
 use crate::arguments::print::PrintArg;
+use crate::arguments::abs_to_rel::AbsToRelArg;
+use crate::arguments::merge::MergeArg;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
-
-use super::merge::MergeArg;
 
 const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 const USAGE_MSG: &str = 
@@ -41,6 +41,7 @@ enum Argument {
     ToggleArg(ToggleArg),
     PrintArg(PrintArg),
     MergeArg(MergeArg),
+    AbsToRelArg(AbsToRelArg),
 }
 
 impl Argument {
@@ -56,6 +57,7 @@ impl Argument {
             "--block" => Ok(Argument::BlockArg(BlockArg::parse(args)?)),
             "--print" => Ok(Argument::PrintArg(PrintArg::parse(args)?)),
             "--merge" => Ok(Argument::MergeArg(MergeArg::parse(args)?)),
+            "--abs-to-rel" => Ok(Argument::AbsToRelArg(AbsToRelArg::parse(args)?)),
             _ => Err(ArgumentError::new(format!("Encountered unknown argument: {}", first_arg)).into()),
         }
     }
@@ -250,6 +252,9 @@ pub fn implement(args_str: Vec<String>)
             Argument::MergeArg(merge_arg) => {
                 stream.push(StreamEntry::Merge(merge_arg.compile()));
             },
+            Argument::AbsToRelArg(abs_to_rel_arg) => {
+                unimplemented!();
+            }
         }
     }
 
