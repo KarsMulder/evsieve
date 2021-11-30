@@ -259,8 +259,8 @@ pub fn implement(args_str: Vec<String>)
                 let abs_y_key = KeyParser::default_filter().parse("abs:y").unwrap();
                 let rel_x_key = KeyParser::default_mask().parse("rel:x").unwrap();
                 let rel_y_key = KeyParser::default_mask().parse("rel:y").unwrap();
-                stream.push(StreamEntry::AbsToRel(AbsToRel::new(abs_x_key, rel_x_key, abs_to_rel_arg.reset_keys.clone())));
-                stream.push(StreamEntry::AbsToRel(AbsToRel::new(abs_y_key, rel_y_key, abs_to_rel_arg.reset_keys.clone())));
+                stream.push(StreamEntry::AbsToRel(AbsToRel::new(abs_x_key, rel_x_key, abs_to_rel_arg.reset_keys.clone(), abs_to_rel_arg.speed)));
+                stream.push(StreamEntry::AbsToRel(AbsToRel::new(abs_y_key, rel_y_key, abs_to_rel_arg.reset_keys.clone(), abs_to_rel_arg.speed)));
             }
         }
     }

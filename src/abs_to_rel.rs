@@ -11,23 +11,25 @@ pub struct AbsToRel {
     input_key: Key,
     output_key: Key,
     reset_keys: Vec<Key>,
+    speed: f64,
 
     // The following parameters are stateful.
     /// The amount of movement that has been made but not been written to the output yet, for example
     /// because of fuzz or rounding errors.
-    _residual: f64,
+    residual: f64,
     /// If true, then the next ABS_X event received will not cause an EV_REL event to be generated.
     /// This is handy if the user lifts his finger/pen/whatever off the surface and places it elsewhere.
     reset: bool,
 }
 
 impl AbsToRel {
-    pub fn new(input_key: Key, output_key: Key, reset_keys: Vec<Key>) -> Self {
+    pub fn new(input_key: Key, output_key: Key, reset_keys: Vec<Key>, speed: f64) -> Self {
         Self {
             input_key,
             output_key,
             reset_keys,
-            _residual: 0.0,
+            speed,
+            residual: 0.0,
             reset: true,
         }
     }
@@ -48,7 +50,11 @@ impl AbsToRel {
         }
 
         let mut event_out = self.output_key.merge(event_in);
-        event_out.value = event_in.value.saturating_sub(event_in.previous_value);
+        let distance = event_in.value.saturating_sub(event_in.previous_value);
+        let scaled_distance = self.speed * (distance as f64) + self.residual;
+        event_out.value = scaled_distance.trunc() as i32;
+        self.residual = scaled_distance.fract();
+
         output_events.push(event_out);
     }
 
