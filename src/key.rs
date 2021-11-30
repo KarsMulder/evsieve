@@ -227,7 +227,12 @@ pub struct KeyParser<'a> {
     pub allow_transitions: bool,
     pub allow_ranges: bool,
     /// Whether keys with only a type like "key", "btn", "abs", and such without an event code, are allowed.
+    /// Only ever set this to true for filter keys.
     pub allow_types: bool,
+    /// Whether keys with an event value that depends on which event is getting masked, are allowed.
+    /// Only ever set this to true for mask keys.
+    pub allow_relative_values: bool,
+
     pub namespace: Namespace,
 }
 
@@ -241,6 +246,7 @@ impl<'a> KeyParser<'a> {
             allow_ranges: true,
             allow_transitions: true,
             allow_types: true,
+            allow_relative_values: false,
             namespace: Namespace::User,
         }
     }
@@ -254,6 +260,7 @@ impl<'a> KeyParser<'a> {
             allow_ranges: false,
             allow_transitions: false,
             allow_types: false,
+            allow_relative_values: true,
             namespace: Namespace::User,
         }
     }
@@ -294,6 +301,7 @@ pub fn resembles_key(key_str: &str) -> bool {
             allow_ranges: true,
             allow_transitions: true,
             allow_types: true,
+            allow_relative_values: true,
             namespace: Namespace::User,
         }.parse(key_str).is_ok()
         // Otherwise, check if it contains some of the key-like characters.
@@ -385,6 +393,18 @@ fn interpret_key(key_str: &str, parser: &KeyParser) -> Result<Key, ArgumentError
         },
     };
 
+    // Check if it is a relative value.
+    if let Some(property) = interpret_relative_value(event_value_str)? {
+        if parser.allow_relative_values {
+            key.add_property(property);
+            return Ok(key);
+        } else {
+            return Err(ArgumentError::new(format!(
+                "It is not possible to specify relative values for the key {}.", key_str,
+            )))
+        }
+    }
+
     // Determine what the previous event value (if any) is, and the current event value.
     let (val_1, val_2) = utils::split_once(event_value_str, "..");
     let (previous_value_str_opt, current_value_str) = match val_2 {
@@ -409,7 +429,7 @@ fn interpret_key(key_str: &str, parser: &KeyParser) -> Result<Key, ArgumentError
     Ok(key)
 }
 
-/// Interprets a string like "1" or "0~1" or "5~" or "".
+/// Interprets a string like "1" or "0~1" or "5~" or "". Does not handle relative values.
 fn interpret_event_value(value_str: &str, parser: &KeyParser) -> Result<Range, ArgumentError> {
     if ! parser.allow_ranges && value_str.contains('~') {
         return Err(ArgumentError::new(format!("No ranges are allowed in the value \"{}\".", value_str)));
@@ -441,5 +461,24 @@ fn parse_int_or_wildcard(value_str: &str) -> Result<Option<i32>, ArgumentError> 
             format!("Cannot interpret {} as an integer: {}.", value_str, err)
         ))?;
         Ok(Some(value))
+    }
+}
+
+/// Parses a value like "0.1delta".
+///
+/// Returns Ok(None) if value_str does not look like a relative value. Returns Err if it does look
+/// like a relative value, but its format is unacceptable for some reason.
+fn interpret_relative_value(value_str: &str) -> Result<Option<KeyProperty>, ArgumentError> {
+    match value_str.strip_suffix("delta") {
+        None => Ok(None),
+        Some(factor_str) => {
+            let factor: f64 = match factor_str.parse() {
+                Ok(factor) => factor,
+                Err(err) => return Err(ArgumentError::new(format!(
+                    "Cannot interpret {} as a float: {}", factor_str, err,
+                ))),
+            };
+            Ok(Some(KeyProperty::DeltaFactor(factor)))
+        }
     }
 }

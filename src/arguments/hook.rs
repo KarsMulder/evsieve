@@ -32,6 +32,7 @@ impl HookArg {
             allow_ranges: true,
             allow_types: false,
             default_value: "1~",
+            allow_relative_values: false,
             namespace: Namespace::User,
         }.parse_all(&arg_group.keys)?;
 
