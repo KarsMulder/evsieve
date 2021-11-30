@@ -2,10 +2,11 @@
 
 use crate::domain;
 use crate::error::{ArgumentError, RuntimeError, Context};
-use crate::key::Key;
+use crate::key::{Key, KeyParser};
 use crate::event::Namespace;
 use crate::hook::Hook;
 use crate::map::{Map, Toggle};
+use crate::abs_to_rel::AbsToRel;
 use crate::stream::{StreamEntry, Setup};
 use crate::predevice::{PreInputDevice, PreOutputDevice};
 use crate::state::{State, ToggleIndex};
@@ -253,7 +254,13 @@ pub fn implement(args_str: Vec<String>)
                 stream.push(StreamEntry::Merge(merge_arg.compile()));
             },
             Argument::AbsToRelArg(abs_to_rel_arg) => {
-                unimplemented!();
+                // TODO: refactor.
+                let abs_x_key = KeyParser::default_filter().parse("abs:x").unwrap();
+                let abs_y_key = KeyParser::default_filter().parse("abs:y").unwrap();
+                let rel_x_key = KeyParser::default_mask().parse("rel:x").unwrap();
+                let rel_y_key = KeyParser::default_mask().parse("rel:y").unwrap();
+                stream.push(StreamEntry::AbsToRel(AbsToRel::new(abs_x_key, rel_x_key, abs_to_rel_arg.reset_keys.clone())));
+                stream.push(StreamEntry::AbsToRel(AbsToRel::new(abs_y_key, rel_y_key, abs_to_rel_arg.reset_keys.clone())));
             }
         }
     }

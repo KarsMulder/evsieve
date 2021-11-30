@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+use crate::abs_to_rel::AbsToRel;
 use crate::io::input::InputDevice;
 use crate::map::{Map, Toggle};
 use crate::hook::Hook;
@@ -33,6 +34,7 @@ pub enum StreamEntry {
     Toggle(Toggle),
     Print(EventPrinter),
     Merge(Merge),
+    AbsToRel(AbsToRel),
 }
 
 pub struct Setup {
@@ -113,6 +115,11 @@ pub fn run_event(event_in: Event, events_out: &mut Vec<Event>, stream: &mut [Str
                 events.clear();
                 std::mem::swap(&mut events, &mut buffer);
             },
+            StreamEntry::AbsToRel(abs_to_rel) => {
+                abs_to_rel.apply_to_all(&events, &mut buffer);
+                events.clear();
+                std::mem::swap(&mut events, &mut buffer);
+            }
             StreamEntry::Hook(hook) => {
                 hook.apply_to_all(&events, state);
             },
@@ -137,6 +144,11 @@ pub fn run_caps(stream: &[StreamEntry], capabilities: Vec<Capability>) -> Vec<Ca
         match entry {
             StreamEntry::Map(map) => {
                 map.apply_to_all_caps(&caps, &mut buffer);
+                caps.clear();
+                std::mem::swap(&mut caps, &mut buffer);
+            },
+            StreamEntry::AbsToRel(abs_to_rel) => {
+                abs_to_rel.apply_to_all_caps(&caps, &mut buffer);
                 caps.clear();
                 std::mem::swap(&mut caps, &mut buffer);
             },

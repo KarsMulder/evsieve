@@ -35,6 +35,7 @@ pub mod print;
 pub mod subprocess;
 pub mod daemon;
 pub mod merge;
+pub mod abs_to_rel;
 
 pub mod io {
     pub mod input;
