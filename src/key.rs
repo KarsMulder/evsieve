@@ -99,6 +99,7 @@ impl Key {
                 | KeyProperty::Namespace(_)
                 | KeyProperty::Value(_)
                 | KeyProperty::PreviousValue(_)
+                | KeyProperty::DeltaFactor(_)
                 => (),
             }
         }
@@ -110,10 +111,15 @@ impl Key {
 enum KeyProperty {
     Code(EventCode),
     Domain(Domain),
-    VirtualType(VirtualEventType),
     Namespace(Namespace),
     Value(Range),
     PreviousValue(Range),
+    /// Only valid for filter keys.
+    VirtualType(VirtualEventType),
+    /// Designates that the value of the output event should be a given factor of
+    /// (event_in.value - event_in.previous_value). Only valid for mask keys.
+    DeltaFactor(f64),
+    // TODO: consider adding a ValueFactor as well.
 }
 
 impl KeyProperty {
@@ -126,6 +132,12 @@ impl KeyProperty {
             KeyProperty::Namespace(value) => event.namespace == value,
             KeyProperty::Value(range) => range.contains(event.value),
             KeyProperty::PreviousValue(range) => range.contains(event.previous_value),
+            KeyProperty::DeltaFactor(_) => {
+                if cfg!(debug_assertions) {
+                    panic!("Cannot filter events based on delta values. Panicked during event mapping.");
+                }
+                false
+            },
         }
     }
 
@@ -137,6 +149,14 @@ impl KeyProperty {
             KeyProperty::Namespace(value) => event.namespace = value,
             KeyProperty::Value(range) => event.value = range.bound(event.value),
             KeyProperty::PreviousValue(range) => event.previous_value = range.bound(event.previous_value),
+            KeyProperty::DeltaFactor(factor) => {
+                // Putting the `floor()` calls at these specific places makes this algorithm more
+                // resistant to rounding errors than doing it the straightforward way.
+                event.value = (
+                    (event.value as f64 * factor).floor()
+                    - (event.previous_value as f64 * factor).floor()
+                ) as i32;
+            }
             KeyProperty::VirtualType(_) => {
                 if cfg!(debug_assertions) {
                     panic!("Cannot change the event type of an event. Panicked during event mapping.");
@@ -170,6 +190,9 @@ impl KeyProperty {
                 }
             },
             KeyProperty::PreviousValue(_range) => CapMatch::Maybe,
+            KeyProperty::DeltaFactor(_) => {
+                panic!("Internal invariant violated: cannot filter events based on delta values.");
+            },
         }
     }
 
@@ -180,13 +203,17 @@ impl KeyProperty {
             KeyProperty::Namespace(value) => cap.namespace = value,
             KeyProperty::Value(range) => cap.value_range = range.bound_range(&cap.value_range),
             KeyProperty::PreviousValue(_range) => {},
+            KeyProperty::DeltaFactor(_factor) => {
+                // TODO: Fix this dumb "formula"
+                cap.value_range = Range::new(None, None);
+            },
             KeyProperty::VirtualType(_) => {
                 if cfg!(debug_assertions) {
                     panic!("Cannot change the event type of an event. Panicked during capability propagation.");
                 } else {
                     utils::warn_once("Internal error: cannot change the event type of an event. If you see this message, this is a bug.");
                 }
-            }
+            },
         };
         cap
     }
