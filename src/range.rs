@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+use std::cmp::Ord;
 use std::cmp::Ordering;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
@@ -54,6 +55,26 @@ impl ExtendedInteger {
                         Some(ExtendedInteger::NegativeInfinity)
                     }
                 }
+            }
+        }
+    }
+
+    /// Multiplies self with an f64 and truncates the result.
+    pub fn mul_f64_trunc(self, other: f64) -> ExtendedInteger {
+        match other.partial_cmp(&0.0) {
+            None => self, // other is NaN
+            Some(Ordering::Equal) => ExtendedInteger::Discrete(0),
+            Some(Ordering::Greater) => match self {
+                ExtendedInteger::Discrete(value) => ExtendedInteger::Discrete(
+                    (value as f64 * other).trunc() as i32
+                ),
+                _ => self,
+            },
+            Some(Ordering::Less) => match self {
+                ExtendedInteger::Discrete(value) => ExtendedInteger::Discrete(
+                    (value as f64 * other).trunc() as i32
+                ),
+                _ => -self,
             }
         }
     }
@@ -316,8 +337,17 @@ fn unittest() {
     assert_eq!(
         Range::new(None, Some(7)).delta_range(),
         Range::new(None, None)
-    );assert_eq!(
+    );
+    assert_eq!(
         Range::new(None, None).delta_range(),
         Range::new(None, None)
     );
+
+    assert_eq!(ExtendedInteger::Discrete(5).mul_f64_trunc(0.5), ExtendedInteger::Discrete(2));
+    assert_eq!(ExtendedInteger::Discrete(-7).mul_f64_trunc(0.3), ExtendedInteger::Discrete(-2));
+    assert_eq!(ExtendedInteger::PositiveInfinity.mul_f64_trunc(0.3), ExtendedInteger::PositiveInfinity);
+    assert_eq!(ExtendedInteger::NegativeInfinity.mul_f64_trunc(0.3), ExtendedInteger::NegativeInfinity);
+    assert_eq!(ExtendedInteger::PositiveInfinity.mul_f64_trunc(-0.3), ExtendedInteger::NegativeInfinity);
+    assert_eq!(ExtendedInteger::NegativeInfinity.mul_f64_trunc(-0.3), ExtendedInteger::PositiveInfinity);
+    
 }
