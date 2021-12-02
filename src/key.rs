@@ -203,9 +203,13 @@ impl KeyProperty {
             KeyProperty::Namespace(value) => cap.namespace = value,
             KeyProperty::Value(range) => cap.value_range = range.bound_range(&cap.value_range),
             KeyProperty::PreviousValue(_range) => {},
-            KeyProperty::DeltaFactor(_factor) => {
-                // TODO: Fix this dumb "formula"
-                cap.value_range = Range::new(None, None);
+            KeyProperty::DeltaFactor(factor) => {
+                // This floor rounding matches the algorithm used for event propagation.
+                let bound_1 = cap.value_range.max.mul_f64_floor(factor);
+                let bound_2 = cap.value_range.min.mul_f64_floor(factor);
+                let max = std::cmp::max(bound_1, bound_2);
+                let min = std::cmp::min(bound_1, bound_2);
+                cap.value_range = Range { max, min };
             },
             KeyProperty::VirtualType(_) => {
                 if cfg!(debug_assertions) {
