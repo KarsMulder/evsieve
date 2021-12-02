@@ -60,19 +60,19 @@ impl ExtendedInteger {
     }
 
     /// Multiplies self with an f64 and truncates the result.
-    pub fn mul_f64_trunc(self, other: f64) -> ExtendedInteger {
+    pub fn mul_f64_floor(self, other: f64) -> ExtendedInteger {
         match other.partial_cmp(&0.0) {
             None => self, // other is NaN
             Some(Ordering::Equal) => ExtendedInteger::Discrete(0),
             Some(Ordering::Greater) => match self {
                 ExtendedInteger::Discrete(value) => ExtendedInteger::Discrete(
-                    (value as f64 * other).trunc() as i32
+                    (value as f64 * other).floor() as i32
                 ),
                 _ => self,
             },
             Some(Ordering::Less) => match self {
                 ExtendedInteger::Discrete(value) => ExtendedInteger::Discrete(
-                    (value as f64 * other).trunc() as i32
+                    (value as f64 * other).floor() as i32
                 ),
                 _ => -self,
             }
@@ -343,11 +343,11 @@ fn unittest() {
         Range::new(None, None)
     );
 
-    assert_eq!(ExtendedInteger::Discrete(5).mul_f64_trunc(0.5), ExtendedInteger::Discrete(2));
-    assert_eq!(ExtendedInteger::Discrete(-7).mul_f64_trunc(0.3), ExtendedInteger::Discrete(-2));
-    assert_eq!(ExtendedInteger::PositiveInfinity.mul_f64_trunc(0.3), ExtendedInteger::PositiveInfinity);
-    assert_eq!(ExtendedInteger::NegativeInfinity.mul_f64_trunc(0.3), ExtendedInteger::NegativeInfinity);
-    assert_eq!(ExtendedInteger::PositiveInfinity.mul_f64_trunc(-0.3), ExtendedInteger::NegativeInfinity);
-    assert_eq!(ExtendedInteger::NegativeInfinity.mul_f64_trunc(-0.3), ExtendedInteger::PositiveInfinity);
+    assert_eq!(ExtendedInteger::Discrete(5).mul_f64_floor(0.5), ExtendedInteger::Discrete(2));
+    assert_eq!(ExtendedInteger::Discrete(-7).mul_f64_floor(0.3), ExtendedInteger::Discrete(-3));
+    assert_eq!(ExtendedInteger::PositiveInfinity.mul_f64_floor(0.3), ExtendedInteger::PositiveInfinity);
+    assert_eq!(ExtendedInteger::NegativeInfinity.mul_f64_floor(0.3), ExtendedInteger::NegativeInfinity);
+    assert_eq!(ExtendedInteger::PositiveInfinity.mul_f64_floor(-0.3), ExtendedInteger::NegativeInfinity);
+    assert_eq!(ExtendedInteger::NegativeInfinity.mul_f64_floor(-0.3), ExtendedInteger::PositiveInfinity);
     
 }
