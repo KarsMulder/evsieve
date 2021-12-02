@@ -30,6 +30,33 @@ impl ExtendedInteger {
             _ => false,
         }
     }
+
+    // Returns None for infinity minus infinity cases, otherwise subtracts two numbers. Overflows to Infinity.
+    pub fn checked_sub(self, other: ExtendedInteger) -> Option<ExtendedInteger> {
+        match self {
+            ExtendedInteger::PositiveInfinity => match other {
+                ExtendedInteger::PositiveInfinity => None,
+                ExtendedInteger::Discrete(_) | ExtendedInteger::NegativeInfinity => Some(ExtendedInteger::PositiveInfinity),
+            },
+            ExtendedInteger::NegativeInfinity => match other {
+                ExtendedInteger::NegativeInfinity => None,
+                ExtendedInteger::Discrete(_) | ExtendedInteger::PositiveInfinity => Some(ExtendedInteger::NegativeInfinity),
+            },
+            ExtendedInteger::Discrete(value) => match other {
+                ExtendedInteger::PositiveInfinity => Some(ExtendedInteger::NegativeInfinity),
+                ExtendedInteger::NegativeInfinity => Some(ExtendedInteger::PositiveInfinity),
+                ExtendedInteger::Discrete(other_value) => match value.checked_sub(other_value) {
+                    Some(difference) => Some(ExtendedInteger::Discrete(difference)),
+                    // If there is an integer overflow while substracting discrete values, wrap to infinity.
+                    None => if self > other {
+                        Some(ExtendedInteger::PositiveInfinity)
+                    } else {
+                        Some(ExtendedInteger::NegativeInfinity)
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl From<i32> for ExtendedInteger {
@@ -64,9 +91,39 @@ impl Ord for ExtendedInteger {
     }
 }
 
+impl std::ops::Neg for ExtendedInteger {
+    type Output = ExtendedInteger;
+    fn neg(self) -> Self::Output {
+        match self {
+            ExtendedInteger::PositiveInfinity => ExtendedInteger::NegativeInfinity,
+            ExtendedInteger::NegativeInfinity => ExtendedInteger::PositiveInfinity,
+            ExtendedInteger::Discrete(value) => ExtendedInteger::Discrete(-value),
+        }
+    }
+}
+
+impl std::ops::Sub<i32> for ExtendedInteger {
+    type Output = ExtendedInteger;
+    fn sub(self, rhs: i32) -> Self::Output {
+        match self {
+            ExtendedInteger::PositiveInfinity => self,
+            ExtendedInteger::NegativeInfinity => self,
+            ExtendedInteger::Discrete(value) => match value.checked_sub(rhs) {
+                Some(result) => ExtendedInteger::Discrete(result),
+                None => if rhs > 0 {
+                    ExtendedInteger::NegativeInfinity
+                } else {
+                    ExtendedInteger::PositiveInfinity
+                }
+            }
+        }
+    }
+}
+
 /// A bound for the values of an Event's current value or previous value.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub struct Range {
+    /// The values min and max are inclusive bounds.
     pub min: ExtendedInteger,
     pub max: ExtendedInteger,
 }
@@ -104,6 +161,26 @@ impl Range {
             }
         }
         value
+    }
+
+    /// The maximum difference between two event values that can fall in this range, which is one less
+    /// than the total amount of event values that can fall in this range.
+    ///
+    /// Returns zero for (infinity, infinity) or (-infinity, -infinity) ranges because there is not a
+    /// single event value that fall in that range.
+    pub fn span(&self) -> ExtendedInteger {
+        match self.max.checked_sub(self.min) {
+            None => ExtendedInteger::Discrete(0),
+            Some(value) => value,
+        }
+    }
+
+    /// A range that contains every possible difference between two event codes that fall in this range.
+    pub fn delta_range(&self) -> Range {
+        Range {
+            min: -self.span(),
+            max: self.span(),
+        }
     }
 
     /// Returns the range that would be generated if we bounded every value in the other range.
