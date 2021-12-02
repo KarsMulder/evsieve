@@ -299,4 +299,25 @@ fn unittest() {
         Range::new(Some(3), None).bound_range(&Range::new(Some(-2), Some(1))),
         Range::new(Some(3), Some(3))
     );
+
+    // Delta-range tests.
+    assert_eq!(
+        Range::new(Some(3), Some(7)).delta_range(),
+        Range::new(Some(-4), Some(4))
+    );
+    assert_eq!(
+        Range::new(Some(-12), Some(2)).delta_range(),
+        Range::new(Some(-14), Some(14))
+    );
+    assert_eq!(
+        Range::new(Some(3), None).delta_range(),
+        Range::new(None, None)
+    );
+    assert_eq!(
+        Range::new(None, Some(7)).delta_range(),
+        Range::new(None, None)
+    );assert_eq!(
+        Range::new(None, None).delta_range(),
+        Range::new(None, None)
+    );
 }
