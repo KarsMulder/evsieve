@@ -481,14 +481,24 @@ fn interpret_relative_value(value_str: &str) -> Result<Option<KeyProperty>, Argu
             let factor: f64 = if factor_str.is_empty() {
                 1.0
             } else {
-                match factor_str.parse() {
-                    Ok(factor) => factor,
-                    Err(err) => return Err(ArgumentError::new(format!(
-                        "Cannot interpret {} as a float: {}", factor_str, err,
+                match parse_number(factor_str) {
+                    Some(factor) => factor,
+                    None => return Err(ArgumentError::new(format!(
+                        "Cannot interpret {} as a float.", factor_str
                     ))),
                 }
             };
             Ok(Some(KeyProperty::DeltaFactor(factor)))
         }
+    }
+}
+
+/// Like str::parse, but a bit more stringent, in that it also rejects floats containing e+ or NaN.
+fn parse_number(string: &str) -> Option<f64> {
+    const ALLOWED_CHARS: &str = "0123456789-.";
+    if string.chars().all(|c| ALLOWED_CHARS.contains(c)) {
+        string.parse().ok()
+    } else {
+        None
     }
 }
