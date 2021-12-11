@@ -475,8 +475,6 @@ fn parse_int_or_wildcard(value_str: &str) -> Result<Option<i32>, ArgumentError> 
 fn interpret_relative_value(value_str: &str) -> Result<Option<KeyProperty>, ArgumentError> {
     match value_str.strip_suffix('d') {
         None => Ok(None),
-        // TODO: Make sure the factor is of the form "-?[0-9]+(\.[0-9]+)?".
-        // Right now, nonsensical values like "1.4e+2" and "NaN" are getting accepted as well.
         Some(factor_str) => {
             let factor: f64 = if factor_str.is_empty() {
                 1.0
