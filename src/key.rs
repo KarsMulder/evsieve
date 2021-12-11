@@ -468,13 +468,15 @@ fn parse_int_or_wildcard(value_str: &str) -> Result<Option<i32>, ArgumentError> 
     }
 }
 
-/// Parses a value like "0.1delta".
+/// Parses a value like "0.1d".
 ///
 /// Returns Ok(None) if value_str does not look like a relative value. Returns Err if it does look
 /// like a relative value, but its format is unacceptable for some reason.
 fn interpret_relative_value(value_str: &str) -> Result<Option<KeyProperty>, ArgumentError> {
-    match value_str.strip_suffix("delta") {
+    match value_str.strip_suffix('d') {
         None => Ok(None),
+        // TODO: Make sure the factor is of the form "-?[0-9]+(\.[0-9]+)?".
+        // Right now, nonsensical values like "1.4e+2" and "NaN" are getting accepted as well.
         Some(factor_str) => {
             let factor: f64 = if factor_str.is_empty() {
                 1.0
