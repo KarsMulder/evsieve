@@ -655,6 +655,29 @@ def unittest_merge():
         },
     )
 
+def unittest_delta():
+    run_unittest(
+        ["--input", "/dev/input/by-id/unittest-delta-in", "grab=force",
+        "--map", "abs:x", "rel:x:0.5d",
+        "--output", "create-link=/dev/input/by-id/unittest-delta-out"],
+        {
+            "/dev/input/by-id/unittest-delta-in": [
+                # Test evsieve's resistance to rounding errors: the first movement should be
+                # rounded down, the second rounded up.
+                (e.EV_ABS, e.ABS_X, 7),
+                (e.EV_ABS, e.ABS_X, 10),
+                (e.EV_ABS, e.ABS_X, 0),
+            ],
+        },
+        {
+            "/dev/input/by-id/unittest-delta-out": [
+                (e.EV_REL, e.REL_X, 3),
+                (e.EV_REL, e.REL_X, 2),
+                (e.EV_REL, e.REL_X, -5),
+            ],
+        },
+    )
+
 
 unittest_mirror()
 unittest_capslock()
@@ -670,3 +693,4 @@ unittest_namespace()
 unittest_consistency()
 unittest_type()
 unittest_merge()
+unittest_delta()
