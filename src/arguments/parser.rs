@@ -2,11 +2,10 @@
 
 use crate::domain;
 use crate::error::{ArgumentError, RuntimeError, Context};
-use crate::key::{Key, KeyParser};
+use crate::key::Key;
 use crate::event::Namespace;
 use crate::hook::Hook;
 use crate::map::{Map, Toggle};
-use crate::abs_to_rel::AbsToRel;
 use crate::stream::{StreamEntry, Setup};
 use crate::predevice::{PreInputDevice, PreOutputDevice};
 use crate::state::{State, ToggleIndex};
@@ -16,10 +15,10 @@ use crate::arguments::output::OutputDevice;
 use crate::arguments::toggle::ToggleArg;
 use crate::arguments::map::{MapArg, BlockArg};
 use crate::arguments::print::PrintArg;
-use crate::arguments::abs_to_rel::AbsToRelArg;
-use crate::arguments::merge::MergeArg;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
+
+use super::merge::MergeArg;
 
 const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 const USAGE_MSG: &str = 
@@ -42,7 +41,6 @@ enum Argument {
     ToggleArg(ToggleArg),
     PrintArg(PrintArg),
     MergeArg(MergeArg),
-    AbsToRelArg(AbsToRelArg),
 }
 
 impl Argument {
@@ -58,7 +56,6 @@ impl Argument {
             "--block" => Ok(Argument::BlockArg(BlockArg::parse(args)?)),
             "--print" => Ok(Argument::PrintArg(PrintArg::parse(args)?)),
             "--merge" => Ok(Argument::MergeArg(MergeArg::parse(args)?)),
-            "--abs-to-rel" => Ok(Argument::AbsToRelArg(AbsToRelArg::parse(args)?)),
             _ => Err(ArgumentError::new(format!("Encountered unknown argument: {}", first_arg)).into()),
         }
     }
@@ -253,15 +250,6 @@ pub fn implement(args_str: Vec<String>)
             Argument::MergeArg(merge_arg) => {
                 stream.push(StreamEntry::Merge(merge_arg.compile()));
             },
-            Argument::AbsToRelArg(abs_to_rel_arg) => {
-                // TODO: refactor.
-                let abs_x_key = KeyParser::default_filter().parse("abs:x").unwrap();
-                let abs_y_key = KeyParser::default_filter().parse("abs:y").unwrap();
-                let rel_x_key = KeyParser::default_mask().parse("rel:x").unwrap();
-                let rel_y_key = KeyParser::default_mask().parse("rel:y").unwrap();
-                stream.push(StreamEntry::AbsToRel(AbsToRel::new(abs_x_key, rel_x_key, abs_to_rel_arg.reset_keys.clone(), abs_to_rel_arg.speed)));
-                stream.push(StreamEntry::AbsToRel(AbsToRel::new(abs_y_key, rel_y_key, abs_to_rel_arg.reset_keys.clone(), abs_to_rel_arg.speed)));
-            }
         }
     }
 
