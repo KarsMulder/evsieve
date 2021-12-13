@@ -93,12 +93,18 @@ fn start_worker(comm_in: Receiver<Command>, comm_out: &mut Sender<Report>) -> Re
     epoll.add_file(Pollable::Command(comm_in))?;
     
     loop {
-        let (commands, reports) = poll(&mut epoll)?;
+        let (commands, mut reports) = poll(&mut epoll)?;
         for command in commands {
             match command {
                 Command::Shutdown => return Ok(()),
                 Command::AddBlueprint(blueprint) => match &mut epoll[daemon_index] {
-                    Pollable::Daemon(daemon) => daemon.add_blueprint(blueprint)?,
+                    Pollable::Daemon(daemon) => {
+                        daemon.add_blueprint(blueprint)?;
+                        // Immediately try to open all blueprints after adding one, otherwise it is
+                        // possible to fail to notice an blueprint becoming available if the associated
+                        // events were already fired before it was added to the daemon.
+                        try_open_and_report(daemon, &mut reports)?;
+                    },
                     _ => unreachable!(),
                 }
             }
@@ -123,19 +129,8 @@ fn poll(epoll: &mut Epoll<Pollable>) -> Result<(Vec<Command>, Vec<Report>), Runt
                 Message::Broken(_index) => return Err(SystemError::new("Persistence daemon broken.").into()),
                 Message::Ready(index) => match &mut epoll[index] {
                     Pollable::Daemon(daemon) => {
-                        let TryOpenResult {
-                            opened_devices,
-                            broken_blueprints,
-                            error_encountered,
-                        } = daemon.try_open();
-                        
-                        reports.extend(opened_devices.into_iter().map(Report::DeviceOpened));
-                        reports.extend(broken_blueprints.into_iter().map(|_| Report::BlueprintDropped));
-
-                        if let Some(error) = error_encountered {
-                            // TODO: actually dispatch the reports even in case of error?
-                            return Err(error);
-                        }
+                        daemon.poll()?;
+                        try_open_and_report(daemon, &mut reports)?
                     },
                     Pollable::Command(receiver) => {
                         match receiver.recv() {
@@ -148,6 +143,25 @@ fn poll(epoll: &mut Epoll<Pollable>) -> Result<(Vec<Command>, Vec<Report>), Runt
         }
     }
     Ok((commands, reports))
+}
+
+/// A wrapper around Daemon::try_open() that conveniently turns opened/broken devices into reports and
+/// has the standard Rust error handling mechanism. Notably, if an error is encountered at some point,
+/// the `reports` vector may still be modified to include progress that was made before the error happened.
+fn try_open_and_report(daemon: &mut Daemon, reports: &mut Vec<Report>) -> Result<(), RuntimeError> {
+    let TryOpenResult {
+        opened_devices,
+        broken_blueprints,
+        error_encountered,
+    } = daemon.try_open();
+
+    reports.extend(opened_devices.into_iter().map(Report::DeviceOpened));
+    reports.extend(broken_blueprints.into_iter().map(|_| Report::BlueprintDropped));
+
+    match error_encountered {
+        Some(err) => Err(err),
+        None => Ok(()),
+    }
 }
 
 struct TryOpenResult {
@@ -170,9 +184,18 @@ impl Daemon {
         Ok(())
     }
 
+    /// Does nothing but clearing out the queued events. Call Daemon::try_open() to try to actually
+    /// open the associated blueprints.
+    pub fn poll(&mut self) -> Result<(), SystemError> {
+        self.inotify.poll()
+    }
+
     /// Checks whether it is possible to open some of the blueprints registered with this daemon,
     /// and opens them if it is.
-    /// 
+    ///
+    /// Does not clear out the associated Inotify's event queue. Make sure to call Daemon::poll() to do
+    /// that as well in case an Epoll identifies this Daemon as ready.
+    ///
     /// Returns three things:
     /// 1. A Vec of all devices that were successfully opened and should be sent to the main thread.
     /// 2. A Vec of all blueprints that are considered "broken" and should not be tried to be opened again.
@@ -185,11 +208,6 @@ impl Daemon {
             broken_blueprints: Vec::new(),
             error_encountered: None,
         };
-
-        if let Err(error) = self.inotify.poll() {
-            result.error_encountered = Some(error.into());
-            return result;
-        }
 
         for _ in 0 .. MAX_TRIES {
             // Try to open the devices.
