@@ -472,6 +472,31 @@ evsieve --input /dev/input/by-id/keyboard grab \
         --output
 ```
 
+## Running evsieve as a systemd service
+
+Since version 1.3, evsieve has optional systemd integration, specifically if evsieve is ran as a systemd service with service type "notify", evsieve will notify systemd when it has created all virtual output devices and is ready to start listening for input events.
+
+The `systemd-run` command makes evsieve easy to integrate in shell scripts where you want to do something with the virtual output devices, for example:
+
+```
+systemd-run --service-type=notify --unit=virtual-keyboard.service --collect evsieve \
+        --input /dev/input/by-id/keyboard \
+        --output create-link=/dev/input/by-id/virtual-keyboard
+
+# After systemd-run returns successfully, /dev/input/by-id/virtual-keyboard exists. You can
+# immediately run any scripts that depend on it existing. There is no need for any kind of
+# `sleep` call here.
+
+# Example: pass the virtual device to Qemu and wait until Qemu exits.
+qemu-system-x86_64 \
+    `# More arguments here` \
+    -object input-linux,id=virtual-keyboard,evdev=/dev/input/by-id/virtual-keyboard
+
+# Finally, after the virtual devices are no longer needed, you can stop evsieve like this.
+systemctl stop virtual-keyboard.service
+```
+
+
 # Usage: In detail
 
 In this section, we'll provide comprehensive documentation about all the arguments evsieve accepts.
