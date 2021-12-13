@@ -814,9 +814,11 @@ There are some questions left surrounding the design of the `auto` mode, so it i
 
 The `persist=` clause tells evsieve what to do in case it somehow fails to read events from input devices, most likely because the USB cable has been disconnected.
 
-Since evsieve version 1.3, the default mode is `persist=reopen`, which tells evsieve to wait until the input device becomes available again and then try to reopen it. Even if `persist=reopen` is used, all input devices must be available when `evsieve` starts. Furthermore, reopening the device may fail for various reasons.
+For the sake of backwards compatibility, the default mode is `persist=none`, which tells evsieve to close any device that it fails to read events from and try to continue without said device. If all input devices have been closed, evsieve will exit.
 
-If `persist=none` is specified, then evsieve will close the input device and try to continue without said device. If all input devices have been closed, evsieve will exit. In evsieve version 1.2 and earlier the `persist=` clause did not exist, but evsieve behaved as if `persist=none` was specified on all input devices.
+If `persist=reopen` has been specified, evsieve will instead wait until the input device becomes available again and then try to reopen it. Even if `persist=reopen` is used, all input devices must be available when `evsieve` starts.
+
+In some rare edge cases, reopening a closed input device may cause virtual output devices to be destroyed and recreated. This is intended behaviour and not a bug. This should not happen as long as the closed and reopened devices are identical.
 
 ## Outputs
 
