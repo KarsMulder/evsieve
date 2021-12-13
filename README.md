@@ -867,7 +867,7 @@ If you specify `format=direct`, then it will print the events using evsieve's st
 key:a:1@/dev/input/by-id/keyboard
 ```
 
-**Beware:** `--print` is intended for human readers, not for scripts. Even if `format=<something>` is specified, evsieve makes absolutely no guarantees about how the events are printed. Future versions of evsieve may change the format of the printed events without warning. It is not recommended to attempt to programmatically parse the output of evsieve.
+Note: `--print` is intended for human readers, not for scripts. Even if `format=<something>` is specified, evsieve makes absolutely no guarantees about how the events are printed. Future versions of evsieve may change the format of the printed events without warning. It is not recommended to attempt to programmatically parse the output of evsieve.
 
 # License
 Most of the content on this repository is licensed under the GPLv2 or later, though the repository does contain some files derived from third-party content with a different license, including some content indirectly derived from Linux kernel headers which, depending on legal interpretation, may or may not effectively render the program GPLv2 only. To the extent of our knowledge, all content on this repository is compatible with the GPLv2. See the COPYING file for more information.
