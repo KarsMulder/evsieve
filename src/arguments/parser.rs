@@ -255,7 +255,7 @@ pub fn implement(args_str: Vec<String>)
 
     // Do sanity checks.
     if ! are_unique(output_devices.iter().filter_map(|device| device.create_link.as_ref())) {
-        return Err(ArgumentError::new("Multiple output devices cannot have create a link at the same location.".to_owned()).into());
+        return Err(ArgumentError::new("Multiple output devices cannot create a link at the same location.".to_owned()).into());
     }
 
     // Compute the capabilities of the output devices.
