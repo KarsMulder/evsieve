@@ -623,6 +623,55 @@ Using `--block` is equivalent to using maps that generate zero output events; th
 
 If no source events are specified, the `--block` argument will drop all events from the processing stream.
 
+**The `--merge` argument**
+
+The `--merge` arguments have the form:
+
+```
+    --merge [SOURCE_EVENT...]
+```
+
+`--merge` is useful if you want to map multiple keys to a single one. For example, consider the following script:
+
+```
+evsieve --input /dev/input/by-id/keyboard \
+        --map key key:enter \
+        --output
+```
+
+This will map every key on the keyboard to the Enter key. If the user were to press two keys simultaneously, e.g. the A and B keys, then the output device would receive two KEY_DOWN events on the Enter key, followed up by two KEY_UP events on the Enter key. This by itself is not a big problem: if a key is already down, all subsequent KEY_DOWN events are ignored. However, it can have a counterintuitive result: as soon as one of the two (A, B) keys is released, the Enter key is released, even if the other key is still held down.
+
+The following table shows an example how a serie of keystrokes on the keyboard would affect the visible state of the output keyboard if the above script were to be used:
+
+Input event | State of input keyboard | Output event | State of output keyboard
+------------|-------------------------|--------------|-------------------------
+`key:a:1`   | The A key is down       | `key:enter:1`| The Enter key is down
+`key:b:1`   | The A,B keys are down   | `key:enter:1`| The Enter key is down
+`key:b:0`   | The A key is down       | `key:enter:0`| The Enter key is up
+`key:c:1`   | The A,C keys are down   | `key:enter:1`| The Enter key is down
+`key:c:0`   | The A key is down       | `key:enter:0`| The Enter key is up
+`key:a:0`   | All keys are up         | `key:enter:0`| The Enter key is up
+
+This is where the `--merge` argument jumps in. `--merge` keeps track of how many events of type KEY_DOWN and KEY_UP it has seen for all keys. It drops KEY_DOWN events for keys that are already down, and also drops KEY_UP events until the amount of KEY_UPs it has seen are equal to or greater than the amount of KEY_DOWNs it has seen. If we amend the previous script to include a `--merge` after the `--map`, the table turns into the following:
+
+```
+evsieve --input /dev/input/by-id/keyboard \
+        --map key key:enter \
+        --merge \
+        --output
+```
+
+Input event | State of input keyboard | Output event | State of output keyboard
+------------|-------------------------|--------------|-------------------------
+`key:a:1`   | The A key is down       | `key:enter:1`| The Enter key is down
+`key:b:1`   | The A,B keys are down   | (none)       | The Enter key is down
+`key:b:0`   | The A key is down       | (none)       | The Enter key is down
+`key:c:1`   | The A,C keys are down   | (none)       | The Enter key is down
+`key:c:0`   | The A key is down       | (none)       | The Enter key is down
+`key:a:0`   | All keys are up         | `key:enter:0`| The Enter key is up
+
+It is possible to specify a filter after the `--merge` argument to make it apply to only a specific set of events, e.g. `--merge key:a` will only merge (EV_KEY, KEY_A) events and leave other events untouched. If no filter is specified, `--merge` will apply to all events of type EV_KEY.
+
 ## Toggles
 
 The `--toggle` argument has the following basic syntax:
