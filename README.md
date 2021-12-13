@@ -818,7 +818,7 @@ For the sake of backwards compatibility, the default mode is `persist=none`, whi
 
 If `persist=reopen` has been specified, evsieve will instead wait until the input device becomes available again and then try to reopen it. Even if `persist=reopen` is used, all input devices must be available when `evsieve` starts.
 
-In some rare edge cases, reopening a closed input device may cause virtual output devices to be destroyed and recreated. This is intended behaviour and not a bug. This should not happen as long as the closed and reopened devices are identical.
+If the closed and reopened input devices are somehow not identical, evsieve may destroy and recreate some virtual output devices if necessary to ensure all virtual output devices have the correct capabilities.
 
 ## Outputs
 
