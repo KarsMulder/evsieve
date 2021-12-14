@@ -78,7 +78,7 @@ impl InputDevice {
 
 /// Returns true if `path` is of the form `^/dev/input/event[0-9]+$`.
 fn is_direct_event_device(path: &str) -> bool {
-    let path = match path.strip_prefix("/dev/input/event") {
+    let path = match crate::utils::strip_prefix(path, "/dev/input/event") {
         Some(string) => string,
         None => return false,
     };

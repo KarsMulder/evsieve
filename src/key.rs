@@ -473,7 +473,7 @@ fn parse_int_or_wildcard(value_str: &str) -> Result<Option<i32>, ArgumentError> 
 /// Returns Ok(None) if value_str does not look like a relative value. Returns Err if it does look
 /// like a relative value, but its format is unacceptable for some reason.
 fn interpret_relative_value(value_str: &str) -> Result<Option<KeyProperty>, ArgumentError> {
-    match value_str.strip_suffix('d') {
+    match utils::strip_suffix(value_str, "d") {
         None => Ok(None),
         Some(factor_str) => {
             let factor = match parse_number(factor_str) {
