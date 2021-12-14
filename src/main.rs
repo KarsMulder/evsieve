@@ -90,6 +90,7 @@ use crate::predevice::PersistMode;
 
 fn main() {
     let result = run_and_interpret_exit_code();
+    daemon::await_completion();
     subprocess::terminate_all();
     std::process::exit(result)
 }
@@ -141,7 +142,7 @@ fn run() -> Result<(), RuntimeError> {
     // Check if the arguments contain --help or --version.
     let args: Vec<String> = std::env::args().collect();
     if arguments::parser::check_help_and_version(&args) {
-        daemon::notify_ready();
+        daemon::notify_ready_async();
         return Ok(());
     }
 
@@ -171,7 +172,7 @@ fn run() -> Result<(), RuntimeError> {
     let mut program = Program {
         epoll, setup, persist_subsystem
     };
-    daemon::notify_ready();
+    daemon::notify_ready_async();
 
     // Make sure evsieve has something to do.
     if has_no_activity(&program.epoll) {

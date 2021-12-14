@@ -4,6 +4,7 @@
 use std::os::raw::{c_int, c_char};
 use std::process::{Command, Stdio};
 use std::io::ErrorKind;
+use std::sync::{Mutex, Barrier, Arc};
 
 /// The systemd feature links against libsystemd instead of falling back on the slower systemd-notify
 /// tool. It is currently unused because it complicates the build process.
@@ -16,6 +17,13 @@ extern "C" {
 fn notify(state: &str) {
     let state_cstring = std::ffi::CString::new(state).unwrap();
     let _result = unsafe { sd_notify(0, state_cstring.as_ptr()) };
+}
+
+lazy_static! {
+    /// This Mutex will be locked as long as an asynchronous attempt to notify systemd that we're ready
+    /// is in progress, and is released when that attempt completes. As such, trying to lock this Mutex
+    /// and then releasing that lock is a way to avoid interrupting notification in progress.
+    static ref DAEMON_NOTIFICATION_IN_PROGRESS: Mutex<()> = Mutex::new(());
 }
 
 #[cfg(not(feature = "systemd"))]
@@ -38,7 +46,16 @@ fn notify(state: &str) {
             }
         },
         Ok(mut child) => {
+            // Use a barrier to wait until the thread notifies us that the notification lock has been
+            // acquired before this function returns.
+            let barrier = Arc::new(Barrier::new(2));
+            let barrier_clone = Arc::clone(&barrier);
+
             std::thread::spawn(move || {
+                // We don't care if the lock returns Err because it is poisoned.
+                let _lock = DAEMON_NOTIFICATION_IN_PROGRESS.lock();
+                barrier_clone.wait();
+
                 let notify_result = child.wait();
                 match notify_result {
                     Ok(return_code) => {
@@ -54,12 +71,21 @@ fn notify(state: &str) {
                     }
                 }
             });
+
+            barrier.wait();
         }
     }
 }
 
+/// Tries to notify the daemon that evsieve is ready. Depending on implementation, this notification may
+/// happen asynchronously.
 pub fn notify_ready() {
     notify("READY=1")
+}
+
+/// If notification is in progress, this function will wait until after it is completed.
+pub fn await_completion() {
+    drop(DAEMON_NOTIFICATION_IN_PROGRESS.lock());
 }
 
 pub fn is_available() -> bool {
