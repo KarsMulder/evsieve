@@ -10,6 +10,7 @@ import time
 
 EVSIEVE_PROGRAM = ["target/debug/evsieve"]
 
+sp.run(["systemctl", "reset-failed"])
 def run_with_args(args):
     sp.run(["systemd-run", "--service-type=notify", "--collect", "--unit=evsieve-unittest.service"] + EVSIEVE_PROGRAM + args)
 
