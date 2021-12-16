@@ -10,6 +10,12 @@ import time
 
 EVSIEVE_PROGRAM = ["target/debug/evsieve"]
 
+def run_with_args(args):
+    sp.run(["systemd-run", "--service-type=notify", "--collect", "--unit=evsieve-unittest.service"] + EVSIEVE_PROGRAM + args)
+
+def terminate_subprocess():
+    sp.run(["systemctl", "stop", "evsieve-unittest.service"])
+
 # Part 1. Test whether evsieve reopens devices.
 
 output_path = "/dev/input/by-id/evsieve-unittest-reopen-out"
@@ -35,12 +41,10 @@ def create_links():
 
 create_links()
 
-subprocess = sp.Popen(EVSIEVE_PROGRAM + [
+run_with_args([
     "--input", symlink_chain[-1], "grab=force", "persist=reopen",
     "--output", f"create-link={output_path}"
 ])
-
-time.sleep(0.5)
 
 output_device = evdev.InputDevice(output_path)
 output_device.grab()
@@ -90,7 +94,7 @@ test_send_events()
 
 print("Unittest part 1 successful.")
 
-subprocess.terminate()
+terminate_subprocess()
 input_device.close()
 output_device.close()
 time.sleep(0.2)
@@ -137,7 +141,7 @@ def create_input_devices(capabilities):
 create_input_devices(capabilities_A)
 
 
-subprocess = sp.Popen(EVSIEVE_PROGRAM + [
+run_with_args([
     "--input", input_device_1_path, "persist=none", "grab=force",
     "--input", input_device_2_path, "persist=none", "grab=force",
     "--output", f"create-link={output_path}"
@@ -160,7 +164,7 @@ print("Unittest part 2 successful.")
 # Part 3: test whether evsieve handles devices with changing capabilities properly.
 
 create_input_devices(capabilities_AB)
-subprocess = sp.Popen(EVSIEVE_PROGRAM + [
+run_with_args([
     "--input", input_device_1_path, "persist=reopen", "grab=force",
     "--input", input_device_2_path, "persist=reopen", "grab=force",
     "--output", f"create-link={output_path}"
@@ -229,7 +233,7 @@ test_events(input_device_2, output_device,
 input_device_1.close()
 input_device_2.close()
 output_device.close()
-subprocess.terminate()
+terminate_subprocess()
 os.unlink(input_device_1_path)
 os.unlink(input_device_2_path)
 
