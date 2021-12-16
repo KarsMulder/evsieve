@@ -177,7 +177,7 @@ output_device.grab()
 def test_events(input_device, output_device, events):
     for event in events:
         input_device.write(event[0], event[1], event[2])
-    time.sleep(0.01)
+    time.sleep(0.05)
 
     received_events = 0
     for expected_event, real_event in zip(events, output_device.read()):
