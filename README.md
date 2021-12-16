@@ -677,7 +677,7 @@ Input event | State of input keyboard | Output event | State of output keyboard
 `key:c:0`   | The A key is down       | `key:enter:0`| The Enter key is up
 `key:a:0`   | All keys are up         | `key:enter:0`| The Enter key is up
 
-This is where the `--merge` argument jumps in. `--merge` keeps track of how many events of type KEY_DOWN and KEY_UP it has seen for all keys. It drops KEY_DOWN events for keys that are already down, and also drops KEY_UP events until the amount of KEY_UPs it has seen are equal to or greater than the amount of KEY_DOWNs it has seen. If we amend the previous script to include a `--merge` after the `--map`, the table turns into the following:
+This is where the `--merge` argument jumps in. `--merge` keeps track of how many events of type KEY_DOWN and KEY_UP it has seen for all keys. It drops KEY_DOWN events for keys that are already down, and also drops KEY_UP events until the amount of KEY_UPs it has seen are equal to the amount of KEY_DOWNs it has seen. If we amend the previous script to include a `--merge` after the `--map`, the table turns into the following:
 
 ```
 evsieve --input /dev/input/by-id/keyboard \
