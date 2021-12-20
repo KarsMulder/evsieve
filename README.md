@@ -474,7 +474,7 @@ evsieve --input /dev/input/by-id/keyboard grab \
 
 ## Change how keys are mapped at runtime
 
-Similar to how domains and toggles can be used to decide to which output device events are written, they can also be used to determine whether maps apply to events. For example, the following script will toggle between using the default (Qwerty) keyboard layout and the Colemak by pressing lctrl+rctrl:
+Similar to how domains and toggles can be used to decide to which output device events are written, they can also be used to determine whether maps apply to events. For example, the following script will toggle between using the default keyboard layout (assumed to be Qwerty) and the Colemak layout by pressing lctrl+rctrl:
 
 ```
 evsieve --input /dev/input/by-id/keyboard grab \
