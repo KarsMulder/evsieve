@@ -90,7 +90,6 @@ use crate::predevice::PersistMode;
 
 fn main() {
     let result = run_and_interpret_exit_code();
-    daemon::await_completion();
     subprocess::terminate_all();
     std::process::exit(result)
 }
