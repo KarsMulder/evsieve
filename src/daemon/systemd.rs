@@ -7,7 +7,7 @@ use std::process::{Command, Stdio};
 use std::io::ErrorKind;
 use std::sync::{Mutex, Barrier, Arc};
 
-use crate::error::SystemError;
+use crate::error::{SystemError, Context};
 
 /// The systemd feature links statically against libsystemd instead of dynamically loading the function at runtime.
 /// It is currently not enabled by default because it complicates the build process.
@@ -28,6 +28,8 @@ fn notify(state: &str) -> Result<(), SystemError> {
 /// future, make sure to optimise it.
 #[cfg(not(feature = "systemd"))]
 fn notify(state: &str) -> Result<(), SystemError> {
+    use crate::error::Context;
+
     // sd_notify() is part of sd-daemon.h and covered by the systemd stability promise.
     // See: https://systemd.io/PORTABILITY_AND_STABILITY/
     type SdNotifyFn = unsafe extern "C" fn(c_int, *const c_char) -> c_int;
@@ -38,16 +40,14 @@ fn notify(state: &str) -> Result<(), SystemError> {
     unsafe {
         let libsystemd = libc::dlopen(libsystemd_name.as_ptr(), libc::RTLD_LAZY);
         if libsystemd.is_null() { // TODO: use dlerr
-            return Err(SystemError::new("Failed to open the libsystemd library."));
+            return dlerror().with_context("While trying to load the libsystemd library:");
         }
 
         // According to the man page, the correct way to check for an error during dlsym() is not to check
         // whether the return value is null, but instead to check whether dlerror() returns not-null.
-        libc::dlerror();
+        let _ = dlerror();
         let sd_notify_ptr = libc::dlsym(libsystemd, sd_notify_name.as_ptr());
-        if ! libc::dlerror().is_null() {
-            return Err(SystemError::new("Failed to load the sd_notify() symbol."))
-        }
+        dlerror().with_context("While trying to load the sd_notify() symbol:")?;
 
         let state_cstring = std::ffi::CString::new(state).unwrap();
 
@@ -62,12 +62,36 @@ fn notify(state: &str) -> Result<(), SystemError> {
     Ok(())
 }
 
+lazy_static! {
+    static ref DLERROR_MUTEX: Mutex<()> = Mutex::new(());
+}
+
+#[cfg(not(feature = "systemd"))]
+fn dlerror() -> Result<(), SystemError> {
+    use std::ffi::CStr;
+
+    // Lock a mutex to make sure the memory allocated to dlerror() is not overwritten by a dlerror()
+    // call from a different thread.
+    let _guard = DLERROR_MUTEX.lock().expect("Internal mutex poisoned.");
+
+    let res = unsafe { libc::dlerror() };
+    if res.is_null() {
+        return Ok(())
+    }
+
+    let description = unsafe { CStr::from_ptr(res) }.to_string_lossy();
+    Err(SystemError::new(description))
+}
+
 /// Tries to notify the daemon that evsieve is ready. Depending on implementation, this notification may
 /// happen asynchronously.
 pub fn notify_ready() {
     match notify("READY=1") {
         Ok(()) => (),
-        Err(_) => eprintln!("Warning: evsieve failed to notify the systemd daemon of being ready."), // TODO
+        Err(error) => {
+            eprintln!("Error: evsieve failed to notify the systemd daemon of being ready.");
+            error.print_err();
+        }
     }
 }
 
