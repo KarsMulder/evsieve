@@ -472,6 +472,37 @@ evsieve --input /dev/input/by-id/keyboard grab \
         --output
 ```
 
+## Change how keys are mapped at runtime
+
+Similar to how domains and toggles can be used to decide to which output device events are written, they can also be used to determine whether maps apply to events. For example, the following script will toggle between using the default (Qwerty) keyboard layout and the Colemak by pressing lctrl+rctrl:
+
+```
+evsieve --input /dev/input/by-id/keyboard grab \
+        --hook key:leftctrl key:rightctrl toggle \
+        --toggle "" @qwerty @colemak \
+        --map yield key:e@colemak key:f \
+        --map yield key:r@colemak key:p \
+        --map yield key:t@colemak key:g \
+        --map yield key:y@colemak key:j \
+        --map yield key:u@colemak key:l \
+        --map yield key:i@colemak key:u \
+        --map yield key:o@colemak key:y \
+        --map yield key:s@colemak key:r \
+        --map yield key:d@colemak key:s \
+        --map yield key:f@colemak key:t \
+        --map yield key:g@colemak key:d \
+        --map yield key:j@colemak key:n \
+        --map yield key:k@colemak key:e \
+        --map yield key:l@colemak key:i \
+        --map yield key:n@colemak key:k \
+        --map yield key:p@colemak key:semicolon \
+        --map yield key:semicolon@colemak key:o \
+        --map yield key:capslock@colemak key:backspace \
+        --output
+```
+
+Based on the state of the toggle, all events either get tagged with the domain `qwerty` or `colemak`. The further maps then only apply to events that are tagged with the domain `colemak`. No matter which domain the events belong to, they get written to the same output device.
+
 # Usage: In detail
 
 In this section, we'll provide comprehensive documentation about all the arguments evsieve accepts.
