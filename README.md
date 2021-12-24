@@ -479,7 +479,7 @@ Since version 1.3, evsieve has optional systemd integration, specifically if evs
 The `systemd-run` command makes evsieve easy to integrate in shell scripts where you want to do something with the virtual output devices, for example:
 
 ```
-systemd-run --service-type=notify --unit=virtual-keyboard.service --collect evsieve \
+systemd-run --service-type=notify --unit=virtual-keyboard.service evsieve \
         --input /dev/input/by-id/keyboard \
         --output create-link=/dev/input/by-id/virtual-keyboard
 
@@ -496,6 +496,23 @@ qemu-system-x86_64 \
 systemctl stop virtual-keyboard.service
 ```
 
+**Error handling with `systemd-run`:**
+
+If evsieve exits with an error status (e.g. invalid argument or input device not available) then the unit name (in the above example, `virtual-keyboard.service`) remains in use. When you try to run the same script again, you will get the following error message:
+
+```
+Failed to start transient service unit: Unit virtual-keyboard.service already exists.
+```
+
+This is a double edged sword: on one hand, this makes it easy to find which part of your shell script broke and allows you to check the status of `virtual-keyboard.service` to see what went wrong. To check the status and error messages, use `systemctl status virtual-keyboard.service` or `journalctl -u virtual-keyboard.service`.
+
+On the other hand, it prevents you from just rerunning the same script without manual intervention. If you get the above error message, you need to run `systemctl reset-failed virtual-keyboard.service` to make that unit name available again. Alternatively, you can pass the `--collect` flag to `systemd-run` to make sure the unit name stays available even if `evsieve` exits with error status.
+
+**Caveats and known issues:**
+
+When using a SELinux-enabled operating system such as Fedora, systemd may fail to execute the `evsieve` binary unless it is located in one of the standard executable directories such as `/usr/local/bin`.
+
+When evsieve is not ran as root, evsieve may be unable to notify the systemd daemon that it is ready unless the property `NotifyAccess=all` is set. When running evsieve using `systemd-run`, this property can be set like `systemd-run --service-type=notify --property=NotifyAccess=all evsieve`.
 
 # Usage: In detail
 
