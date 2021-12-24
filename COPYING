@@ -33,10 +33,10 @@ Once compiled, this program will link against the libevdev library. The
 license of the libevdev library can be found in "licenses/thirdparty/
 libevdev/license.txt".
 
-This program may dynamically link against the libsystemd library at compile-
-or runtime. The libsystemd library is licensed under the GNU Lesser General
-Public License version 2.1 or later. A copy of this licence can be found in
-"licenses/thirdparty/libsystemd/lgpl.txt".
+Once compiled, this program may link against the libsystemd library. The
+libsystemd library is licensed under the GNU Lesser General Public License
+version 2.1 or later. A copy of this licence can be found in "licenses/
+thirdparty/libsystemd/lgpl.txt".
 
 Once compiled, this program will statically link against the Rust standard
 library. The Rust standard library is generally dual-licensed under the

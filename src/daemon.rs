@@ -7,3 +7,9 @@ pub fn notify_ready_async() {
         systemd::notify_ready();
     }
 }
+
+pub fn await_completion() {
+    if systemd::is_available() {
+        systemd::await_completion();
+    }
+}
