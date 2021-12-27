@@ -40,7 +40,81 @@
 // key:a
 // key:b
 // key:c
-// abs:x (min=-5, max=5, fuzz=2, flat=1, resolution=TODO)
-// rep (delay=UINT16, period=U16)
+// abs:x (min=-5, max=5, fuzz=2, flat=1, resolution=1)
+// rep (delay=250, period=33)
 // ```
 
+use std::fmt::Write;
+
+struct ParseError {
+    message: String
+}
+
+impl ParseError {
+    pub fn new(message: String) -> ParseError {
+        ParseError { message }
+    }
+}
+
+/// This and its twin `unescape_path()` are for escaping the path to input files so they never contain
+/// newlines and a newline can be reliably interpreted as the end of the path.
+fn escape_path(path: String) -> String {
+    path.replace("\\", "\\\\")
+        .replace("\n", "\\n")
+}
+
+fn unescape_path(path: String) -> Result<String, ParseError> {
+    let mut iter = path.chars();
+    let mut result = String::new();
+    while let Some(character) = iter.next() {
+        match character {
+            '\\' => match iter.next() {
+                Some('\\') => result.push('\\'),
+                Some('n') => result.push('\n'),
+                Some(other) => return Err(ParseError::new(format!(
+                    "Invalid escape sequence: \\{}", other
+                ))),
+                None => return Err(ParseError::new("Backslash encountered at end of line.".to_owned())),
+            },
+            other => result.push(other),
+        }
+    }
+    Ok(result)
+}
+
+fn format_device_path(path: String) -> String {
+    let mut result = "Path: ".to_owned();
+    result.push_str(&escape_path(path));
+    result
+}
+
+fn parse_device_path(path_line: String) -> Result<String, ParseError> {
+    let path = match path_line.strip_prefix("Path: ") {
+        Some(path_escaped) => unescape_path(path_escaped.to_string())?,
+        None => return Err(ParseError::new(format!(
+            "Expected \"Path: something\", encountered: \"{}\"", path_line
+        ))),
+    };
+
+    if path.starts_with('/') {
+        Ok(path)
+    } else {
+        Err(ParseError::new(format!(
+            "The path \"{}\" must be in absolute form.", path
+        )))
+    }
+}
+
+const MAGICAL_NUMBER_HEADER: &str = "Evsieve event device capabilities description file";
+const FORMAT_VERSION_HEADER: &str = "Format version: 1.0";
+const EMPTY_LINE: &str = "";
+
+fn write() -> Result<String, std::fmt::Error> {
+    let mut output: String = String::new();
+    writeln!(output, "{}", MAGICAL_NUMBER_HEADER)?;
+    writeln!(output, "{}", FORMAT_VERSION_HEADER)?;
+    writeln!(output, "{}", EMPTY_LINE)?;
+    writeln!(output, "{}", format_device_path(unimplemented!()))?;
+    writeln!(output, "{}", EMPTY_LINE)?;
+    Ok(output)
+}
