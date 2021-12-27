@@ -496,7 +496,7 @@ qemu-system-x86_64 \
 systemctl stop virtual-keyboard.service
 ```
 
-**Error handling with `systemd-run`:**
+**Micro-tutorial: error handling with `systemd-run`:**
 
 If evsieve exits with an error status (e.g. invalid argument or input device not available) then the unit name (in the above example, `virtual-keyboard.service`) remains in use. When you try to run the same script again, you will get the following error message:
 
