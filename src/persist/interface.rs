@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 use crate::persist::subsystem::{Command, Report};
 use crate::persist::blueprint::Blueprint;
 use crate::io::internal_pipe::{Sender, Receiver};

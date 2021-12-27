@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 use std::process::{Command, Stdio, Child};
 use std::io;
 use std::sync::Mutex;
