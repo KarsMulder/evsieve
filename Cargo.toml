@@ -27,6 +27,8 @@ libc = "0.2.82"
 panic = "unwind"
 lto = true
 
+# Warning: optional features are experimental and not subject to stability guarantees,
+# i.e. they may work different or not be available on future evsieve versions.
 [features]
 # If enabled, evsieve will link against libsystemd. If not, it will fall back on systemd-notify.
 systemd = []
