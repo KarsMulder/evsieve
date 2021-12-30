@@ -239,3 +239,55 @@ os.unlink(input_device_1_path)
 os.unlink(input_device_2_path)
 
 print("Unittest part 3 successful.")
+
+# Part 4: make sure change in current value of the axes does not trigger device recreation.
+
+capabilities_1 = {
+    e.EV_ABS: [
+        (e.ABS_X, evdev.AbsInfo(value=0, min=-255, max=255, fuzz=0, flat=0, resolution=1))
+    ]
+}
+capabilities_2 = {
+    e.EV_ABS: [
+        (e.ABS_X, evdev.AbsInfo(value=100, min=-255, max=255, fuzz=0, flat=0, resolution=1))
+    ]
+}
+
+input_path = "/dev/input/by-id/evsieve-unittest-reopen-in"
+output_path = "/dev/input/by-id/evsieve-unittest-reopen-out"
+input_device = evdev.UInput(capabilities_1)
+if os.path.islink(input_path):
+    os.unlink(input_path)
+os.symlink(input_device.device, input_path)
+
+run_with_args([
+    "--input", input_path, "persist=reopen",
+    "--output", f"create-link={output_path}"
+])
+output_device = evdev.InputDevice(output_path)
+output_device.grab()
+
+test_events(input_device, output_device,
+    [(e.EV_ABS, e.ABS_X, 42), (e.EV_SYN, 0, 0)]
+)
+
+os.unlink(input_path)
+input_device.close()
+time.sleep(0.1)
+
+input_device = evdev.UInput(capabilities_2)
+os.symlink(input_device.device, input_path)
+time.sleep(0.1)
+
+# Because capabilities_1 and capabilities_2 do only differ in the current value of the axes, this
+# should not trigger recreation of the output devices.
+test_events(input_device, output_device,
+    [(e.EV_ABS, e.ABS_X, 20), (e.EV_SYN, 0, 0)]
+)
+
+os.unlink(input_path)
+input_device.close()
+output_device.close()
+terminate_subprocess()
+
+print("Unittest part 4 successful.")
