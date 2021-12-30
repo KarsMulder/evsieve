@@ -252,6 +252,11 @@ capabilities_2 = {
         (e.ABS_X, evdev.AbsInfo(value=100, min=-255, max=255, fuzz=0, flat=0, resolution=1))
     ]
 }
+capabilities_3 = {
+    e.EV_ABS: [
+        (e.ABS_X, evdev.AbsInfo(value=100, min=-512, max=512, fuzz=0, flat=0, resolution=1))
+    ]
+}
 
 input_path = "/dev/input/by-id/evsieve-unittest-reopen-in"
 output_path = "/dev/input/by-id/evsieve-unittest-reopen-out"
@@ -283,6 +288,25 @@ time.sleep(0.1)
 # should not trigger recreation of the output devices.
 test_events(input_device, output_device,
     [(e.EV_ABS, e.ABS_X, 20), (e.EV_SYN, 0, 0)]
+)
+
+os.unlink(input_path)
+input_device.close()
+time.sleep(0.1)
+
+input_device = evdev.UInput(capabilities_3)
+os.symlink(input_device.device, input_path)
+time.sleep(0.1)
+
+# Because capabilities_2 and capabilities_3 do differ in the range of the axes, this should trigger
+# recreation of the output devices.
+output_device.close()
+output_device = evdev.InputDevice(output_path)
+output_device.grab()
+
+assert(output_device.capabilities()[e.EV_ABS] == capabilities_3[e.EV_ABS])
+test_events(input_device, output_device,
+    [(e.EV_ABS, e.ABS_X, 400), (e.EV_SYN, 0, 0)]
 )
 
 os.unlink(input_path)
