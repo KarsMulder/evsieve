@@ -261,7 +261,7 @@ if os.path.islink(input_path):
 os.symlink(input_device.device, input_path)
 
 run_with_args([
-    "--input", input_path, "persist=reopen",
+    "--input", input_path, "persist=reopen", "grab=force",
     "--output", f"create-link={output_path}"
 ])
 output_device = evdev.InputDevice(output_path)
