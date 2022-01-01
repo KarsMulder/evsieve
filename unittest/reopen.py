@@ -9,6 +9,7 @@ import subprocess as sp
 import time
 
 EVSIEVE_PROGRAM = ["target/debug/evsieve"]
+SLEEP_TIME = 0.2
 
 sp.run(["systemctl", "reset-failed"])
 def run_with_args(args):
@@ -73,11 +74,11 @@ test_send_events()
 input_device.close()
 for link in symlink_chain:
     os.unlink(link)
-time.sleep(0.1)
+time.sleep(SLEEP_TIME)
 
 input_device = evdev.UInput(capabilities)
 create_links()
-time.sleep(0.1)
+time.sleep(SLEEP_TIME)
 
 # Test whether evsieve has picked up the new device.
 test_send_events()
@@ -85,11 +86,11 @@ test_send_events()
 # This time only destroy the last link in the chain.
 input_device.close()
 os.unlink(symlink_chain[0])
-time.sleep(0.1)
+time.sleep(SLEEP_TIME)
 
 input_device = evdev.UInput(capabilities)
 os.symlink(input_device.device, symlink_chain[0])
-time.sleep(0.1)
+time.sleep(SLEEP_TIME)
 
 test_send_events()
 
@@ -147,17 +148,15 @@ run_with_args([
     "--input", input_device_2_path, "persist=none", "grab=force",
     "--output", f"create-link={output_path}"
 ])
-
-time.sleep(0.2)
 assert(os.path.exists(output_path))
 
 input_device_1.close()
-time.sleep(0.2)
+time.sleep(SLEEP_TIME)
 assert(os.path.exists(output_path))
 
 # Make sure evsieve exits when all input devices disappear.
 input_device_2.close()
-time.sleep(0.2)
+time.sleep(SLEEP_TIME)
 assert(not os.path.exists(output_path) and not os.path.islink(output_path))
 
 print("Unittest part 2 successful.")
@@ -170,7 +169,7 @@ run_with_args([
     "--input", input_device_2_path, "persist=reopen", "grab=force",
     "--output", f"create-link={output_path}"
 ])
-time.sleep(0.1)
+time.sleep(SLEEP_TIME)
 output_device = evdev.InputDevice(output_path)
 output_device.grab()
 
@@ -205,7 +204,7 @@ os.unlink(input_device_1_path)
 input_device_1 = evdev.UInput(capabilities_A)
 link_to_device(input_device_1, input_device_1_path)
 
-time.sleep(0.1)
+time.sleep(SLEEP_TIME)
 test_events(input_device_1, output_device,
     [(e.EV_KEY, e.KEY_A, 1), (e.EV_SYN, 0, 0), (e.EV_KEY, e.KEY_A, 0), (e.EV_SYN, 0, 0)]
 )
@@ -218,7 +217,7 @@ input_device_1.close()
 os.unlink(input_device_1_path)
 input_device_1 = evdev.UInput(capabilities_C)
 link_to_device(input_device_1, input_device_1_path)
-time.sleep(0.1)
+time.sleep(SLEEP_TIME)
 
 output_device.close()
 output_device = evdev.InputDevice(output_path)
@@ -278,11 +277,11 @@ test_events(input_device, output_device,
 
 os.unlink(input_path)
 input_device.close()
-time.sleep(0.1)
+time.sleep(SLEEP_TIME)
 
 input_device = evdev.UInput(capabilities_2)
 os.symlink(input_device.device, input_path)
-time.sleep(0.1)
+time.sleep(SLEEP_TIME)
 
 # Because capabilities_1 and capabilities_2 do only differ in the current value of the axes, this
 # should not trigger recreation of the output devices.
@@ -292,11 +291,11 @@ test_events(input_device, output_device,
 
 os.unlink(input_path)
 input_device.close()
-time.sleep(0.1)
+time.sleep(SLEEP_TIME)
 
 input_device = evdev.UInput(capabilities_3)
 os.symlink(input_device.device, input_path)
-time.sleep(0.1)
+time.sleep(SLEEP_TIME)
 
 # Because capabilities_2 and capabilities_3 do differ in the range of the axes, this should trigger
 # recreation of the output devices.
