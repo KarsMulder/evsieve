@@ -32,17 +32,10 @@ impl Tracker {
     }
 
     /// If the event matches, remembers whether this event falls in the desired range.
-    /// If this event falls in the desired range and the previous one didn't, returns true.
-    /// Otherwise, returns false.
-    fn apply(&mut self, event: &Event) -> bool {
+    fn apply(&mut self, event: &Event) {
         if self.key.matches(event) {
-            let previous_value = self.state;
             let new_value = self.range.contains(event.value);
             self.state = new_value;
-            
-            new_value && ! previous_value
-        } else {
-            false
         }
     }
 
@@ -51,15 +44,34 @@ impl Tracker {
     }
 }
 
+#[derive(Clone, Copy)]
+enum HookState {
+    /// All trackers are currently pressed.
+    Active,
+    /// Not all trackers are currently pressed.
+    Inactive,
+}
+
 pub struct Hook {
     hold_trackers: Vec<Tracker>,
+    state: HookState,
+
+    /// Effects that shall be triggered if this hook activates, i.e. all keys are held down simultaneously.
     effects: Vec<Effect>,
+    /// Effects that shall be released after one of the keys has been released after activating.
+    release_effects: Vec<Effect>,
 }
 
 impl Hook {
     pub fn new(hold_keys: Vec<Key>) -> Hook {
         let hold_trackers = hold_keys.into_iter().map(Tracker::new).collect();
-        Hook { hold_trackers, effects: Vec::new() }
+        Hook {
+            hold_trackers,
+            state: HookState::Inactive,
+
+            effects: Vec::new(),
+            release_effects: Vec::new(),
+        }
     }
 
     pub fn add_effect(&mut self, effect: Effect) {
@@ -67,28 +79,34 @@ impl Hook {
     }
 
     fn apply(&mut self, event: &Event, state: &mut State) {
-        let any_tracker_activated = self.hold_trackers.iter_mut().any(
-            |tracker| tracker.apply(event)
-        );
-
-        // Check whether at least one tracker turned active that wasn't on active,
-        // i.e. whether this event contributed to the filters of this hook.
-        if ! any_tracker_activated {
-            return;
+        for tracker in &mut self.hold_trackers {
+            tracker.apply(event);
         }
 
-        // Test whether all other trackers are active.
-        for tracker in &self.hold_trackers {
-            if ! tracker.is_down() {
-                return;
-            }
+        let all_trackers_down = self.hold_trackers.iter().all(Tracker::is_down);
+        match (self.state, all_trackers_down) {
+            (HookState::Active, false) => {
+                self.state = HookState::Inactive;
+                self.apply_release_effects(state);
+            },
+            (HookState::Inactive, true) => {
+                self.state = HookState::Active;
+                self.apply_effects(state);
+            },
+            (HookState::Active, true) => {},
+            (HookState::Inactive, false) => {},
         }
-        self.apply_effects(state);
     }
 
     fn apply_effects(&self, state: &mut State) {
         for effect in &self.effects {
             effect(state);
+        }
+    }
+
+    fn apply_release_effects(&self, state: &mut State) {
+        for release_effect in &self.release_effects {
+            release_effect(state);
         }
     }
 
