@@ -14,8 +14,6 @@ pub struct State {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct ToggleIndex(usize);
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct MergeIndex(usize);
 
 impl State {
     pub fn new() -> State {
