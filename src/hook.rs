@@ -9,16 +9,24 @@ use crate::subprocess;
 
 pub type Effect = Box<dyn Fn(&mut State)>;
 
+#[derive(Clone, Copy)]
+enum TrackerState {
+    /// This tracker's corresponding key is held down.
+    /// This tracker remembers the last event that activated this tracker.
+    Active(Event),
+    /// This tracker's corresponding key is not held down.
+    Inactive,
+}
+
 /// A tracker is used to track whether a certain key is held down. This is useful for --hook type
 /// arguments.
-#[derive(Debug)]
 struct Tracker {
     key: Key,
     range: Range,
 
     /// The state is mutable at runtime. It reflects whether the key tracked by this tracked
     /// is currently pressed or not.
-    state: bool,
+    state: TrackerState,
 }
 
 impl Tracker {
@@ -27,20 +35,22 @@ impl Tracker {
         Tracker {
             key,
             range,
-            state: false,
+            state: TrackerState::Inactive,
         }
     }
 
     /// If the event matches, remembers whether this event falls in the desired range.
     fn apply(&mut self, event: &Event) {
         if self.key.matches(event) {
-            let new_value = self.range.contains(event.value);
-            self.state = new_value;
+            self.state = match self.range.contains(event.value) {
+                true => TrackerState::Active(*event),
+                false => TrackerState::Inactive,
+            }
         }
     }
 
     fn is_down(&self) -> bool {
-        self.state
+        matches!(self.state, TrackerState::Active(_))
     }
 }
 
