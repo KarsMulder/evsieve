@@ -2,7 +2,7 @@ use crate::error::Context;
 use crate::range::Range;
 use crate::key::Key;
 use crate::event::Event;
-use std::time::Instant;
+use std::time::{Instant, Duration};
 
 #[derive(Clone, Copy)]
 enum ExpirationTime {
@@ -17,11 +17,21 @@ enum TrackerState {
     /// should stay active.
     Active(Event, ExpirationTime),
     /// This tracker has been active and should withold the next key that would deactivate it.
-    /// It no longer counts as active. If it is reactivated before it can uphold a key, the residual
-    /// status expires early.
+    /// It still counts as active, but no longer witholds a key. It can be re-activated to
+    /// forget about witholding the key that should de-activate it.
+    // TODO: Consider whether that behaviour is sensible.
     Residual,
     /// This tracker's corresponding key is not held down.
     Inactive,
+}
+
+impl TrackerState {
+    fn is_active(&self) -> bool {
+        match self {
+            TrackerState::Active (_, _) | TrackerState::Residual => true,
+            TrackerState::Inactive => false,
+        }
+    }
 }
 
 /// A tracker is used to track whether a certain key is held down. This is useful for --hook type
@@ -71,6 +81,7 @@ enum HookState {
 
 struct Hook {
     withhold: bool,
+    period: Option<Duration>,
 
     trackers: Vec<Tracker>,
     state: HookState,
@@ -103,7 +114,7 @@ impl Hook {
                 events_out.push(old_event);
             }
             
-            match tracker.range.contains(event.value) {
+            match tracker.activates(event) {
                 // If this tracker is activated by this event, withhold it.
                 true => {}
                 // If not, drop the event if this tracker was in residual state.
@@ -126,13 +137,22 @@ impl Hook {
             return;
         }
 
-        match self.state {
-            HookState::Active => {
+        let all_trackers_active = self.trackers.iter().all(|tracker| tracker.state.is_active());
+
+        match (self.state, all_trackers_active) {
+            (HookState::Inactive, true) => {
+                // The tracker activates.
+                self.state = HookState::Active;
+                for tracker in &mut self.trackers {
+                    tracker.state = TrackerState::Residual;
+                }
                 // TODO
             },
-            HookState::Inactive => {
+            (HookState::Active, false) => {
+                self.state = HookState::Inactive;
                 // TODO
-            }
+            },
+            (HookState::Active, true) | (HookState::Inactive, false) => {},
         }
     }
 
