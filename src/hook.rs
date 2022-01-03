@@ -13,7 +13,7 @@ pub type Effect = Box<dyn Fn(&mut State)>;
 enum TrackerState {
     /// This tracker's corresponding key is held down.
     /// This tracker remembers the last event that activated this tracker.
-    Active(Event),
+    Active,
     /// This tracker's corresponding key is not held down.
     Inactive,
 }
@@ -39,18 +39,29 @@ impl Tracker {
         }
     }
 
+    /// Returns true if this event may affect this tracker, regardless of the state of
+    /// this tracker and whether or not the event activates or deactives it.
+    fn matches(&self, event: &Event) -> bool{
+        self.key.matches(event)
+    }
+
+    /// Returns true if this event would activate tracker.
+    fn activates_by(&self, event: &Event) -> bool {
+        self.matches(event) && self.range.contains(event.value)
+    }
+
     /// If the event matches, remembers whether this event falls in the desired range.
     fn apply(&mut self, event: &Event) {
-        if self.key.matches(event) {
-            self.state = match self.range.contains(event.value) {
-                true => TrackerState::Active(*event),
+        if self.matches(event) {
+            self.state = match self.activates_by(event) {
+                true => TrackerState::Active,
                 false => TrackerState::Inactive,
             }
         }
     }
 
     fn is_down(&self) -> bool {
-        matches!(self.state, TrackerState::Active(_))
+        matches!(self.state, TrackerState::Active)
     }
 }
 
@@ -60,6 +71,57 @@ enum HookState {
     Active,
     /// Not all trackers are currently pressed.
     Inactive,
+}
+
+struct PeriodHook {
+    trackers: Vec<Tracker>,
+    withheld_events: Vec<(Event, Vec<usize>)>,
+    witheld_release: Vec<usize>,
+    state: HookState,
+}
+
+impl PeriodHook {
+    fn apply(&mut self, event: Event, events_out: &mut Vec<Event>) {
+        let mut trackers_witholding_this_event: Vec<usize> = Vec::new();
+        for (index, tracker) in self.trackers.iter_mut().enumerate() {
+            if ! tracker.matches(&event) {
+                continue;
+            }
+
+            // If some events were witheld by some trackers, they are no longer upheld.
+            for (_w_event, w_trackers) in &mut self.withheld_events {
+                w_trackers.retain(|&w_index| w_index != index);
+            }
+            // Events that are no longer upheld by any tracker must be written out.
+            self.withheld_events.retain(|(w_event, w_trackers)| {
+                if w_trackers.is_empty() {
+                    events_out.push(*w_event);
+                    false
+                } else {
+                    true
+                }
+            });
+
+            if tracker.activates_by(&event) {
+                trackers_witholding_this_event.push(index);
+            }
+            tracker.apply(&event);
+        }
+
+        // If a nonzero amount of trackers were activated by this event, withold it for the time
+        // being until those trackers deactivate or get activated by a later event.
+        if trackers_witholding_this_event.is_empty() {
+            events_out.push(event);
+        } else {
+            self.withheld_events.push((event, trackers_witholding_this_event));
+        }
+    }
+
+    fn apply_to_all(&mut self, events: &[Event], events_out: &mut Vec<Event>) {
+        for event in events {
+            self.apply(*event, events_out);
+        }
+    }
 }
 
 pub struct Hook {
