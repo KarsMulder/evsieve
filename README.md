@@ -72,7 +72,7 @@ To:
 
 * Keyboard → Kernel → Event Device → Evsieve → Virtual Event Device → Xorg/Wayland → Applications
 
-This has effectively accomplished nothing besides adding about 0.1ms of latency. However, if we add additional arguments to evsieve, we can use this construction to add, change, or suppress events. For example, the following script will turn the capslock into a second backspace:
+This has effectively accomplished nothing besides adding about 0.15ms of latency. However, if we add additional arguments to evsieve, we can use this construction to add, change, or suppress events. For example, the following script will turn the capslock into a second backspace:
 
 ```
 evsieve --input /dev/input/by-id/keyboard grab \
