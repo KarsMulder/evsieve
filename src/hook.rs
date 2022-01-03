@@ -6,17 +6,9 @@ use crate::key::Key;
 use crate::state::{State};
 use crate::event::Event;
 use crate::subprocess;
+use std::time::Instant;
 
 pub type Effect = Box<dyn Fn(&mut State)>;
-
-#[derive(Clone, Copy)]
-enum TrackerState {
-    /// This tracker's corresponding key is held down.
-    /// This tracker remembers the last event that activated this tracker.
-    Active,
-    /// This tracker's corresponding key is not held down.
-    Inactive,
-}
 
 /// A tracker is used to track whether a certain key is held down. This is useful for --hook type
 /// arguments.
@@ -26,42 +18,83 @@ struct Tracker {
 
     /// The state is mutable at runtime. It reflects whether the key tracked by this tracked
     /// is currently pressed or not.
-    state: TrackerState,
+    state: bool,
 }
 
 impl Tracker {
+    // TODO: refactor this code duplication.
     fn new(mut key: Key) -> Tracker {
         let range = key.pop_value().unwrap_or_else(|| Range::new(Some(1), None));
         Tracker {
             key,
             range,
-            state: TrackerState::Inactive,
+            state: false,
         }
-    }
-
-    /// Returns true if this event may affect this tracker, regardless of the state of
-    /// this tracker and whether or not the event activates or deactives it.
-    fn matches(&self, event: &Event) -> bool{
-        self.key.matches(event)
-    }
-
-    /// Returns true if this event would activate tracker.
-    fn activates_by(&self, event: &Event) -> bool {
-        self.matches(event) && self.range.contains(event.value)
     }
 
     /// If the event matches, remembers whether this event falls in the desired range.
     fn apply(&mut self, event: &Event) {
-        if self.matches(event) {
-            self.state = match self.activates_by(event) {
-                true => TrackerState::Active,
-                false => TrackerState::Inactive,
+        if self.key.matches(event) {
+            self.state = self.range.contains(event.value);
+        }
+    }
+
+    fn is_down(&self) -> bool {
+        self.state
+    }
+}
+
+#[derive(Clone, Copy)]
+enum PeriodTrackerState {
+    /// This tracker's corresponding key is held down.
+    /// This tracker remembers the last event that activated this tracker and when it was last activated.
+    Active(Event, Instant),
+    /// This tracker has been active and should withold the next key that would deactivate it.
+    /// It no longer counts as active. If it is reactivated before it can uphold a key, the residual
+    /// status expires early.
+    Residual,
+    /// This tracker's corresponding key is not held down.
+    Inactive,
+}
+
+/// A tracker is used to track whether a certain key is held down. This is useful for --hook type
+/// arguments.
+struct PeriodTracker {
+    key: Key,
+    range: Range,
+
+    /// The state is mutable at runtime. It reflects whether the key tracked by this tracked
+    /// is currently pressed or not, as well as which event triggered it and when.
+    state: PeriodTrackerState,
+}
+
+impl PeriodTracker {
+    fn new(mut key: Key) -> Tracker {
+        let range = key.pop_value().unwrap_or_else(|| Range::new(Some(1), None));
+        Tracker {
+            key,
+            range,
+            state: false,
+        }
+    }
+
+    /// Returns true if this event might interact with this tracker in some way.
+    fn matches(&self, event: &Event) -> bool {
+        self.key.matches(event)
+    }
+
+    /// If the event matches, remembers whether this event falls in the desired range.
+    fn apply(&mut self, event: &Event) {
+        if self.key.matches(event) {
+            self.state = match self.range.contains(event.value) {
+                true =>  PeriodTrackerState::Active(*event, Instant::now()),
+                false => PeriodTrackerState::Inactive
             }
         }
     }
 
     fn is_down(&self) -> bool {
-        matches!(self.state, TrackerState::Active)
+        matches!(self.state, PeriodTrackerState::Active(_, _))
     }
 }
 
@@ -74,46 +107,43 @@ enum HookState {
 }
 
 struct PeriodHook {
-    trackers: Vec<Tracker>,
-    withheld_events: Vec<(Event, Vec<usize>)>,
-    witheld_release: Vec<usize>,
+    trackers: Vec<PeriodTracker>,
     state: HookState,
 }
 
 impl PeriodHook {
     fn apply(&mut self, event: Event, events_out: &mut Vec<Event>) {
-        let mut trackers_witholding_this_event: Vec<usize> = Vec::new();
-        for (index, tracker) in self.trackers.iter_mut().enumerate() {
-            if ! tracker.matches(&event) {
-                continue;
+        // ISSUE: Period hooks do not work if multiple keys can potentially overlap.
+        if let Some(tracker) = self.trackers.iter_mut()
+            .filter(|tracker| tracker.matches(&event))
+            .next()
+        {
+            let new_state = match tracker.range.contains(event.value) {
+                true => PeriodTrackerState::Active(event, Instant::now()),
+                false => PeriodTrackerState::Inactive,
+            };
+
+            // If an event was upheld by this tracker, release it. Deactivate the tracker in the meanwhile.
+            let previous_state = std::mem::replace(&mut tracker.state, new_state);
+            if let PeriodTrackerState::Active(event, _) = previous_state {
+                events_out.push(event);
             }
 
-            // If some events were witheld by some trackers, they are no longer upheld.
-            for (_w_event, w_trackers) in &mut self.withheld_events {
-                w_trackers.retain(|&w_index| w_index != index);
-            }
-            // Events that are no longer upheld by any tracker must be written out.
-            self.withheld_events.retain(|(w_event, w_trackers)| {
-                if w_trackers.is_empty() {
-                    events_out.push(*w_event);
-                    false
-                } else {
-                    true
+            match tracker.range.contains(event.value) {
+                // If this tracker is activated by this event, uphold it.
+                true => {}
+                // If not, drop the event if this tracker was in residual state. Otherwise, drop it.
+                false => {
+                    match previous_state {
+                        PeriodTrackerState::Residual => {},
+                        PeriodTrackerState::Active(_, _) | PeriodTrackerState::Inactive
+                            => events_out.push(event),
+                    }
                 }
-            });
-
-            if tracker.activates_by(&event) {
-                trackers_witholding_this_event.push(index);
             }
-            tracker.apply(&event);
-        }
-
-        // If a nonzero amount of trackers were activated by this event, withold it for the time
-        // being until those trackers deactivate or get activated by a later event.
-        if trackers_witholding_this_event.is_empty() {
-            events_out.push(event);
         } else {
-            self.withheld_events.push((event, trackers_witholding_this_event));
+            // No trackers care about this event.
+            events_out.push(event);
         }
     }
 
