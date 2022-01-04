@@ -34,13 +34,16 @@ enum TrackerState {
     Residual,
     /// This tracker's corresponding key is not held down.
     Inactive,
+    /// This tracker was active, but then expired and now can't become active again until a
+    /// release event is encountered.
+    Expired,
 }
 
 impl TrackerState {
     fn is_active(&self) -> bool {
         match self {
             TrackerState::Active (_, _) | TrackerState::Residual => true,
-            TrackerState::Inactive => false,
+            TrackerState::Inactive | TrackerState::Expired => false,
         }
     }
 }
@@ -130,6 +133,7 @@ impl Hook {
                     TrackerState::Inactive | TrackerState::Residual => {
                         TrackerState::Active(event, expiration_time)
                     },
+                    TrackerState::Expired => TrackerState::Expired,
                 }
             } else {
                 TrackerState::Inactive
@@ -162,7 +166,7 @@ impl Hook {
                             events_out.push(old_event);
                             events_out.push(event);
                         },
-                        TrackerState::Inactive => {
+                        TrackerState::Inactive | TrackerState::Expired => {
                             events_out.push(event);
                         },
                     }
@@ -218,9 +222,10 @@ impl Hook {
                 TrackerState::Active(_event, ExpirationTime::Never) => {},
                 TrackerState::Residual => {}, // TODO: handle expiration of residual.
                 TrackerState::Inactive => {},
+                TrackerState::Expired => {},
                 TrackerState::Active(event, ExpirationTime::Until(time)) => {
                     if time <= now {
-                        tracker.state = TrackerState::Inactive;
+                        tracker.state = TrackerState::Expired;
                         if self.withhold {
                             events_out.push(event);
                         }
