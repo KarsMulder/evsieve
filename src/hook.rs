@@ -85,7 +85,8 @@ impl Tracker {
 #[derive(Clone, Copy)]
 enum HookState {
     /// All trackers are currently pressed.
-    Active,
+    /// Remembers the event that activated this hook.
+    Active { activating_event: Event },
     /// Not all trackers are currently pressed.
     Inactive,
 }
@@ -95,16 +96,16 @@ pub struct Hook {
     withhold: bool,
     period: Option<Duration>, // TODO: unimplemented.
 
-    /// The current state mutable at runtime.
-    trackers: Vec<Tracker>,
-    state: HookState,
-
     /// Effects that shall be triggered if this hook activates, i.e. all keys are held down simultaneously.
     effects: Vec<Effect>,
     /// Effects that shall be released after one of the keys has been released after activating.
     release_effects: Vec<Effect>,
     /// Additional capabilities that this hooks' effects can generate.
     additional_caps: Vec<Capability>,
+
+    /// The current state mutable at runtime.
+    trackers: Vec<Tracker>,
+    state: HookState,
 }
 
 impl Hook {
@@ -190,20 +191,24 @@ impl Hook {
         // Check if we transitioned between active and inactive.
         let all_trackers_active = self.trackers.iter().all(|tracker| tracker.state.is_active());
 
-        match (self.state, all_trackers_active) {
-            (HookState::Inactive, true) => {
-                self.state = HookState::Active;
+        match (self.is_active(), all_trackers_active) {
+            (false, true) => {
+                self.state = HookState::Active { activating_event: event };
                 for tracker in &mut self.trackers {
                     tracker.state = TrackerState::Residual;
                 }
                 self.apply_effects(state);
             },
-            (HookState::Active, false) => {
+            (true, false) => {
                 self.state = HookState::Inactive;
                 self.apply_release_effects(state);
             },
-            (HookState::Active, true) | (HookState::Inactive, false) => {},
+            (true, true) | (false, false) => {},
         }
+    }
+
+    fn is_active(&self) -> bool {
+        matches!(self.state, HookState::Active { .. })
     }
 
     pub fn apply_to_all(
