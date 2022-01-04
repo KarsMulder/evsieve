@@ -14,12 +14,13 @@ pub(super) struct HookArg {
     pub exec_shell: Vec<String>,
     pub hold_keys: Vec<Key>,
     pub toggle_action: HookToggleAction,
+    pub withhold: bool,
 }
 
 impl HookArg {
 	pub fn parse(args: Vec<String>) -> Result<HookArg, ArgumentError> {
         let arg_group = ComplexArgGroup::parse(args,
-            &["toggle"],
+            &["toggle", "withhold"],
             &["exec-shell", "toggle"],
             false,
             true,
@@ -35,13 +36,14 @@ impl HookArg {
             allow_relative_values: false,
             namespace: Namespace::User,
         }.parse_all(&arg_group.keys)?;
+        let withhold = arg_group.has_flag("withhold");
 
         if arg_group.keys.is_empty() {
             Err(ArgumentError::new("A --hook argument requires at least one key."))
         } else {
             Ok(HookArg {
                 exec_shell: arg_group.get_clauses("exec-shell"),
-                hold_keys, toggle_action,
+                hold_keys, toggle_action, withhold,
             })
         }
     }

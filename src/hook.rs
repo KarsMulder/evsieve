@@ -22,6 +22,9 @@ enum TrackerState {
     /// This tracker remembers the last event that activated this tracker and until when the tracker
     /// should stay active.
     Active(Event, ExpirationTime),
+    /// The distinction between Active and Residual only matters if the hook has the `withhold`
+    /// flag. (TODO: verify)
+    ///
     /// This tracker has been active and should withold the next key that would deactivate it.
     /// It still counts as active, but no longer witholds a key. It can be re-activated to
     /// forget about witholding the key that should de-activate it.
@@ -119,9 +122,15 @@ impl Hook {
         {
             any_tracker_matched = true;
 
-            let new_state = match tracker.activates(event) {
-                true => TrackerState::Active(event, ExpirationTime::Never),
-                false => TrackerState::Inactive,
+            let new_state = if tracker.activates(event) {
+                match tracker.state {
+                    active @ TrackerState::Active(..) => active,
+                    TrackerState::Inactive | TrackerState::Residual => {
+                        TrackerState::Active(event, ExpirationTime::Never)
+                    },
+                }
+            } else {
+                TrackerState::Inactive
             };
             let previous_state = std::mem::replace(&mut tracker.state, new_state);
 
@@ -132,23 +141,24 @@ impl Hook {
                 events_out.push(event);
                 continue;
             }
-
-            // If an event was upheld by this tracker, release it.
-            if let TrackerState::Active(old_event, _) = previous_state {
-                events_out.push(old_event);
-            }
             
             match tracker.activates(event) {
                 // If this tracker is activated by this event, withhold it.
-                true => {}
-                // If not, drop the event if this tracker was in residual state.
+                true => {},
                 false => {
                     match previous_state {
                         TrackerState::Residual => {},
-                        TrackerState::Active(_, _) | TrackerState::Inactive
-                            => events_out.push(event),
+                        // If an event was previously held up, release it together with
+                        // the new event.
+                        TrackerState::Active(old_event, _expiration) => {
+                            events_out.push(old_event);
+                            events_out.push(event);
+                        },
+                        TrackerState::Inactive => {
+                            events_out.push(event);
+                        },
                     }
-                }
+                },
             }
 
             // ISSUE: withholding hooks do not work if multiple keys can potentially overlap.
