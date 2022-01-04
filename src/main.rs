@@ -35,7 +35,6 @@ pub mod print;
 pub mod subprocess;
 pub mod daemon;
 pub mod merge;
-pub mod new_hook;
 
 pub mod io {
     pub mod input;

@@ -114,7 +114,9 @@ pub fn run_event(event_in: Event, events_out: &mut Vec<Event>, stream: &mut [Str
                 std::mem::swap(&mut events, &mut buffer);
             },
             StreamEntry::Hook(hook) => {
-                hook.apply_to_all(&events, state);
+                hook.apply_to_all(&events, &mut buffer, state);
+                events.clear();
+                std::mem::swap(&mut events, &mut buffer);
             },
             StreamEntry::Print(printer) => {
                 printer.apply_to_all(&events);

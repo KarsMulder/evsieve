@@ -225,7 +225,8 @@ pub fn implement(args_str: Vec<String>)
                 }
             },
             Argument::HookArg(hook_arg) => {
-                let mut hook = Hook::new(hook_arg.hold_keys);
+                // TODO: expose new arguments to user.
+                let mut hook = Hook::new(hook_arg.hold_keys, false, None);
                 for exec_shell in hook_arg.exec_shell.iter().cloned() {
                     hook.add_command("/bin/sh".to_owned(), vec!["-c".to_owned(), exec_shell]);
                 }
