@@ -12,6 +12,7 @@ use crate::capability::{Capability, InputCapabilites};
 use crate::io::output::OutputSystem;
 use crate::error::RuntimeError;
 use crate::loopback::Loopback;
+use std::time::Instant;
 
 /// An enum of everything that can be part of the event processing stream.
 ///
@@ -91,9 +92,7 @@ impl Setup {
 
 pub fn run(setup: &mut Setup, event: Event) {
     if event.ev_type().is_syn() {
-        setup.output.route_events(&setup.staged_events);
-        setup.staged_events.clear();
-        setup.output.synchronize();
+        syn(setup);
     } else {
         run_event(
             event,
@@ -105,7 +104,28 @@ pub fn run(setup: &mut Setup, event: Event) {
     }
 }
 
-pub fn run_event(event_in: Event, events_out: &mut Vec<Event>, stream: &mut [StreamEntry], state: &mut State, loopback: &mut Loopback) {
+pub fn wakeup(setup: &mut Setup) {
+    let wakeup_instants = setup.loopback.poll();
+    for instant in wakeup_instants {
+        run_wakeup(
+            instant,
+            &mut setup.staged_events,
+            &mut setup.stream,
+            &mut setup.state,
+            &mut setup.loopback,
+        );
+    };
+    // TODO: consider the pooling behaviour for events with the same instant.
+    syn(setup);
+}
+
+fn syn(setup: &mut Setup) {
+    setup.output.route_events(&setup.staged_events);
+    setup.staged_events.clear();
+    setup.output.synchronize();
+}
+
+fn run_event(event_in: Event, events_out: &mut Vec<Event>, stream: &mut [StreamEntry], state: &mut State, loopback: &mut Loopback) {
     let mut events: Vec<Event> = vec![event_in];
     let mut buffer: Vec<Event> = Vec::new();
 
@@ -140,6 +160,27 @@ pub fn run_event(event_in: Event, events_out: &mut Vec<Event>, stream: &mut [Str
     events_out.extend(
         events.into_iter().filter(|event| event.namespace == Namespace::Output)
     );
+}
+
+fn run_wakeup(instant: Instant, events_out: &mut Vec<Event>, stream: &mut [StreamEntry], state: &mut State, loopback: &mut Loopback) {
+    let mut events: Vec<Event> = Vec::new();
+
+    for index in 0 .. stream.len() {
+        match &mut stream[index] {
+            StreamEntry::Map(_map) => {},
+            StreamEntry::Toggle(_toggle) => {},
+            StreamEntry::Merge(_merge) => {},
+            StreamEntry::Hook(hook) => {
+                hook.wakeup(instant, &mut events);
+            },
+            StreamEntry::Print(_printer) => {},
+        }
+
+        for event in events.drain(..) {
+            // TODO: check panic-safety
+            run_event(event, events_out, &mut stream[index+1..], state, loopback);
+        }
+    }
 }
 
 /// A direct analogue for run_once(), except it runs through capabilities instead of events.
