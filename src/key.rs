@@ -476,28 +476,13 @@ fn interpret_relative_value(value_str: &str) -> Result<Option<KeyProperty>, Argu
     match utils::strip_suffix(value_str, "d") {
         None => Ok(None),
         Some(factor_str) => {
-            let factor = match parse_number(factor_str) {
+            let factor = match utils::parse_number(factor_str) {
                 Some(factor) => factor,
                 None => return Err(ArgumentError::new(format!(
                     "Cannot interpret {} as a float.", factor_str
                 ))),
             };
             Ok(Some(KeyProperty::DeltaFactor(factor)))
-        }
-    }
-}
-
-/// Like str::parse, but a bit more stringent, in that it also rejects floats containing e+ or NaN.
-/// Also interprets "" as 1.0 and "-" as -1.0.
-fn parse_number(string: &str) -> Option<f64> {
-    const ALLOWED_CHARS: &str = "0123456789-.";
-    match string {
-        "-" => Some(-1.0),
-        "" => Some(1.0),
-        _ => if string.chars().all(|c| ALLOWED_CHARS.contains(c)) {
-            string.parse().ok()
-        } else {
-            None
         }
     }
 }

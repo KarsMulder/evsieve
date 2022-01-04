@@ -40,6 +40,22 @@ pub fn warn_once(message: impl Into<String>) {
     }
 }
 
+/// Like str::parse, but a bit more stringent, in that it also rejects floats containing e+ or NaN.
+/// Also interprets "" as 1.0 and "-" as -1.0.
+pub fn parse_number(string: &str) -> Option<f64> {
+    const ALLOWED_CHARS: &str = "0123456789-.";
+    match string {
+        "-" => Some(-1.0),
+        "" => Some(1.0),
+        _ => if string.chars().all(|c| ALLOWED_CHARS.contains(c)) {
+            string.parse().ok()
+        } else {
+            None
+        }
+    }
+}
+
+
 /// Rust 1.41.1 doesn't include str::strip_prefix or str::strip_suffix, so we roll our own implementation.
 pub fn strip_prefix<'a>(string: &'a str, prefix: &str) -> Option<&'a str> {
     if string.starts_with(prefix) {
