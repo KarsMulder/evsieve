@@ -5,6 +5,7 @@ use crate::event::Event;
 use crate::state::State;
 use crate::subprocess;
 use crate::loopback::Loopback;
+use crate::capability::Capability;
 use std::time::{Instant, Duration};
 
 pub type Effect = Box<dyn Fn(&mut State)>;
@@ -212,6 +213,14 @@ impl Hook {
         for event in events {
             self.apply(*event, events_out, state, loopback);
         }
+    }
+
+    pub fn apply_to_all_caps(
+        &self,
+        caps: &[Capability],
+        caps_out: &mut Vec<Capability>,
+    ) {
+        caps_out.extend(caps);
     }
 
     pub fn wakeup(&mut self, now: Instant, events_out: &mut Vec<Event>) {

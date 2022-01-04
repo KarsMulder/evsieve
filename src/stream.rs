@@ -206,7 +206,11 @@ pub fn run_caps(stream: &[StreamEntry], capabilities: Vec<Capability>) -> Vec<Ca
                 std::mem::swap(&mut caps, &mut buffer);
             },
             StreamEntry::Merge(_) => (),
-            StreamEntry::Hook(_) => (),
+            StreamEntry::Hook(hook) => {
+                hook.apply_to_all_caps(&caps, &mut buffer);
+                caps.clear();
+                std::mem::swap(&mut caps, &mut buffer);
+            },
             StreamEntry::Print(_) => (),
         }
 
