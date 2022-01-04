@@ -200,7 +200,16 @@ enum Action {
 /// is returned by `handle_ready_file()` or `handle_broken_file()`.
 fn enter_main_loop(program: &mut Program) -> Result<(), RuntimeError> {
     loop {
-        let messages = program.epoll.poll().with_context("While polling the epoll for events:")?;
+        let timeout: i32 = match program.setup.time_until_next_wakeup() {
+            loopback::Delay::Now => {
+                stream::wakeup(&mut program.setup);
+                continue;
+            },
+            loopback::Delay::Never => -1,
+            loopback::Delay::Wait(time) => time.get(),
+        };
+
+        let messages = program.epoll.poll(timeout).with_context("While polling the epoll for events:")?;
 
         for message in messages {
             let action = match message {

@@ -11,7 +11,7 @@ use crate::print::EventPrinter;
 use crate::capability::{Capability, InputCapabilites};
 use crate::io::output::OutputSystem;
 use crate::error::RuntimeError;
-use crate::loopback::Loopback;
+use crate::loopback::{Loopback, Delay};
 use std::time::Instant;
 
 /// An enum of everything that can be part of the event processing stream.
@@ -87,6 +87,10 @@ impl Setup {
         let caps_vec: Vec<Capability> = crate::capability::input_caps_to_vec(&self.input_caps);
         let caps_out = run_caps(&self.stream, caps_vec);
         self.output.update_caps(caps_out);
+    }
+
+    pub fn time_until_next_wakeup(&self) -> Delay {
+        self.loopback.time_until_next_wakeup()
     }
 }
 

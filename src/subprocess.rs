@@ -152,7 +152,7 @@ fn start_cleanup_thread() {
             .expect("Subprocess cleanup thread failed to register a signal fd with an epoll.");
 
         loop {
-            for message in epoll.poll().expect("Failed to poll an epoll.") {
+            for message in epoll.poll(crate::io::epoll::INDEFINITE_TIMEOUT).expect("Failed to poll an epoll.") {
                 match message {
                     Message::Ready(index) => {
                         // If we get here, then the SignalFd should have a SIGCHLD signal ready.

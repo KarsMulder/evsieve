@@ -119,7 +119,7 @@ fn poll(epoll: &mut Epoll<Pollable>) -> Result<(Vec<Command>, Vec<Report>), Runt
     let mut commands: Vec<Command> = Vec::new();
     let mut reports: Vec<Report> = Vec::new();
 
-    match epoll.poll() {
+    match epoll.poll(crate::io::epoll::INDEFINITE_TIMEOUT) {
         Err(error) => {
             error.with_context("While the persistence subsystem was polling for events:").print_err();
             commands.push(Command::Shutdown);

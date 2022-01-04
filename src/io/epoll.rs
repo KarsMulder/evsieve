@@ -5,6 +5,7 @@ use crate::io::fd::{OwnedFd, HasFixedFd};
 use std::collections::HashMap;
 use std::os::unix::io::{AsRawFd};
 
+pub const INDEFINITE_TIMEOUT: i32 = -1;
 
 /// Like a file descriptor, that identifies a file registered in this Epoll.
 #[derive(Clone, Copy, Hash, PartialEq, Eq)]
@@ -125,7 +126,7 @@ impl<T: HasFixedFd> Epoll<T> {
         Some(file)
     }
 
-    fn poll_raw(&mut self) -> Result<Vec<libc::epoll_event>, std::io::Error> {
+    fn poll_raw(&mut self, timeout: i32) -> Result<Vec<libc::epoll_event>, std::io::Error> {
         // The number 8 was chosen arbitrarily.
         let max_events: i32 = std::cmp::min(self.files.len(), 8) as i32;
         let mut events: Vec<libc::epoll_event> = (0 .. max_events).map(|_| libc::epoll_event {
@@ -139,7 +140,7 @@ impl<T: HasFixedFd> Epoll<T> {
                 self.fd.as_raw_fd(),
                 events.as_mut_ptr(),
                 max_events,
-                -1, // timeout, -1 means it will wait indefinitely
+                timeout,
             )
         };
 
@@ -153,9 +154,12 @@ impl<T: HasFixedFd> Epoll<T> {
 
     /// Tries to read all events from all ready devices. Returns a vector containing all events read.
     /// If a device reports an error, said device is removed from self and also returned.
-    pub fn poll(&mut self) -> Result<impl Iterator<Item=Message>, SystemError> {
+    ///
+    /// Timeout means the same thing as in the `epoll_wait()` syscall: time in milliseconds,
+    /// -1 means forever, 0 means instant return.
+    pub fn poll(&mut self, timeout: i32) -> Result<impl Iterator<Item=Message>, SystemError> {
         let events = loop {
-            match self.poll_raw() {
+            match self.poll_raw(timeout) {
                 Ok(events) => break events,
                 Err(error) => match error.kind() {
                     std::io::ErrorKind::Interrupted => continue,
