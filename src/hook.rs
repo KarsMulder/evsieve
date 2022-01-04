@@ -103,6 +103,8 @@ pub struct Hook {
     effects: Vec<Effect>,
     /// Effects that shall be released after one of the keys has been released after activating.
     release_effects: Vec<Effect>,
+    /// Additional capabilities that this hooks' effects can generate.
+    additional_caps: Vec<Capability>,
 }
 
 impl Hook {
@@ -117,6 +119,7 @@ impl Hook {
 
             effects: Vec::new(),
             release_effects: Vec::new(),
+            additional_caps: Vec::new(),
         }
     }
 
@@ -221,6 +224,7 @@ impl Hook {
         caps_out: &mut Vec<Capability>,
     ) {
         caps_out.extend(caps);
+        caps_out.extend(&self.additional_caps);
     }
 
     pub fn wakeup(&mut self, now: Instant, events_out: &mut Vec<Event>) {
