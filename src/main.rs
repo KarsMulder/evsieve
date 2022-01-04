@@ -205,7 +205,7 @@ fn enter_main_loop(program: &mut Program) -> Result<(), RuntimeError> {
                 stream::wakeup(&mut program.setup);
                 continue;
             },
-            loopback::Delay::Never => -1,
+            loopback::Delay::Never => crate::io::epoll::INDEFINITE_TIMEOUT,
             loopback::Delay::Wait(time) => time.get(),
         };
 
