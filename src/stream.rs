@@ -11,11 +11,12 @@ use crate::print::EventPrinter;
 use crate::capability::{Capability, InputCapabilites};
 use crate::io::output::OutputSystem;
 use crate::error::RuntimeError;
+use crate::loopback::Loopback;
 
 /// An enum of everything that can be part of the event processing stream.
 ///
-/// There is no formal interface of what these entries need to be capable of, but they need to have
-/// rhoughly two functions:
+/// There is no formal interface of what these entries need to be capable of, but they need to
+/// have rhoughly two functions:
 ///
 /// * `apply_to_all()`, which takes as input a buffer of events, processes them, and then writes
 ///   them to an output buffer. Events that are left untouched must be written to the output buffer
@@ -39,6 +40,7 @@ pub struct Setup {
     stream: Vec<StreamEntry>,
     output: OutputSystem,
     state: State,
+    loopback: Loopback,
     /// The capabilities all input devices are capable of, and the tentative capabilites of devices that
     /// may be (re)opened in the future. If a new device gets opened, make sure to call `update_caps`
     /// with that device to keep the bookholding straight.
@@ -58,7 +60,10 @@ impl Setup {
         let caps_vec: Vec<Capability> = crate::capability::input_caps_to_vec(&input_caps);
         let caps_out = run_caps(&stream, caps_vec);
         let output = OutputSystem::create(pre_output, caps_out)?;
-        Ok(Setup { stream, output, state, input_caps, staged_events: Vec::new() })
+        Ok(Setup {
+            stream, output, state, input_caps,
+            loopback: Loopback::new(), staged_events: Vec::new(),
+        })
     }
 
     /// Call this function if the capabilities of a certain input device may have changes, e.g. because

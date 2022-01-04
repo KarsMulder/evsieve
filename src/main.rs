@@ -35,12 +35,12 @@ pub mod print;
 pub mod subprocess;
 pub mod daemon;
 pub mod merge;
+pub mod loopback;
 
 pub mod io {
     pub mod input;
     pub mod epoll;
     pub mod output;
-    pub mod loopback;
     pub mod internal_pipe;
     pub mod fd;
 }
