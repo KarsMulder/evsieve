@@ -2,8 +2,14 @@ use crate::error::Context;
 use crate::range::Range;
 use crate::key::Key;
 use crate::event::Event;
+use crate::state::State;
+use crate::subprocess;
 use std::time::{Instant, Duration};
 
+pub type Effect = Box<dyn Fn(&mut State)>;
+
+/// Represents the point at time after which a pressed tracker is no longer valid.
+/// Usually determined by the --hook period= clause.
 #[derive(Clone, Copy)]
 enum ExpirationTime {
     Never,
@@ -20,6 +26,7 @@ enum TrackerState {
     /// It still counts as active, but no longer witholds a key. It can be re-activated to
     /// forget about witholding the key that should de-activate it.
     // TODO: Consider whether that behaviour is sensible.
+    // TODO: Consider how this should interact with expiration.
     Residual,
     /// This tracker's corresponding key is not held down.
     Inactive,
@@ -80,15 +87,36 @@ enum HookState {
 }
 
 struct Hook {
+    /// Options that can be configured by the user.
     withhold: bool,
-    period: Option<Duration>,
+    period: Option<Duration>, // TODO: unimplemented.
 
+    /// The current state mutable at runtime.
     trackers: Vec<Tracker>,
     state: HookState,
+
+    /// Effects that shall be triggered if this hook activates, i.e. all keys are held down simultaneously.
+    effects: Vec<Effect>,
+    /// Effects that shall be released after one of the keys has been released after activating.
+    release_effects: Vec<Effect>,
 }
 
 impl Hook {
-    fn apply(&mut self, event: Event, events_out: &mut Vec<Event>) {
+    pub fn new(keys: Vec<Key>, withhold: bool, period: Option<Duration>) -> Hook {
+        let trackers = keys.into_iter().map(Tracker::new).collect();
+        Hook {
+            withhold,
+            period,
+
+            trackers,
+            state: HookState::Inactive,
+
+            effects: Vec::new(),
+            release_effects: Vec::new(),
+        }
+    }
+
+    fn apply(&mut self, event: Event, events_out: &mut Vec<Event>, state: &mut State) {
         let mut any_tracker_matched: bool = false;
         for tracker in self.trackers.iter_mut()
             .filter(|tracker| tracker.matches(&event))
@@ -137,28 +165,57 @@ impl Hook {
             return;
         }
 
+        // Check if we transitioned between active and inactive.
         let all_trackers_active = self.trackers.iter().all(|tracker| tracker.state.is_active());
 
         match (self.state, all_trackers_active) {
             (HookState::Inactive, true) => {
-                // The tracker activates.
                 self.state = HookState::Active;
                 for tracker in &mut self.trackers {
                     tracker.state = TrackerState::Residual;
                 }
-                // TODO
+                self.apply_effects(state);
             },
             (HookState::Active, false) => {
                 self.state = HookState::Inactive;
-                // TODO
+                self.apply_release_effects(state);
             },
             (HookState::Active, true) | (HookState::Inactive, false) => {},
         }
     }
 
-    fn apply_to_all(&mut self, events: &[Event], events_out: &mut Vec<Event>) {
+    fn apply_to_all(&mut self, events: &[Event], events_out: &mut Vec<Event>, state: &mut State) {
         for event in events {
-            self.apply(*event, events_out);
+            self.apply(*event, events_out, state);
         }
+    }
+
+    /// Runs all effects that should be ran when this hook triggers.
+    fn apply_effects(&self, state: &mut State) {
+        for effect in &self.effects {
+            effect(state);
+        }
+    }
+
+    /// Runs all effects that should be ran when this hook has triggered and
+    /// a tracked key is released.
+    fn apply_release_effects(&self, state: &mut State) {
+        for release_effect in &self.release_effects {
+            release_effect(state);
+        }
+    }
+
+    /// Makes this hook run an effect when it triggers.
+    pub fn add_effect(&mut self, effect: Effect) {
+        self.effects.push(effect);
+    }
+
+    /// Makes this hook invoke an external subprocess when this hook is triggered.
+    pub fn add_command(&mut self, program: String, args: Vec<String>) {
+        self.add_effect(
+            Box::new(move |_| {
+                subprocess::try_spawn(program.clone(), args.clone()).print_err();
+            })
+        );
     }
 }
