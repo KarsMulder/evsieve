@@ -28,6 +28,8 @@ use crate::loopback::Loopback;
 /// Note that `apply_to_all()` is allowed to take an `&mut self` to change event handling logic at
 /// runtime, but it should never modify `self` in a way that the output of `apply_to_all_caps()` changes.
 /// The output of `apply_to_all_caps()` must be agnostic of the entry's current runtime state.
+/// 
+/// TODO: Update doccomment to account for loopback.
 pub enum StreamEntry {
     Map(Map),
     Hook(Hook),
@@ -93,11 +95,17 @@ pub fn run(setup: &mut Setup, event: Event) {
         setup.staged_events.clear();
         setup.output.synchronize();
     } else {
-        run_event(event, &mut setup.staged_events, &mut setup.stream, &mut setup.state);
+        run_event(
+            event,
+            &mut setup.staged_events,
+            &mut setup.stream,
+            &mut setup.state,
+            &mut setup.loopback,
+        );
     }
 }
 
-pub fn run_event(event_in: Event, events_out: &mut Vec<Event>, stream: &mut [StreamEntry], state: &mut State) {
+pub fn run_event(event_in: Event, events_out: &mut Vec<Event>, stream: &mut [StreamEntry], state: &mut State, loopback: &mut Loopback) {
     let mut events: Vec<Event> = vec![event_in];
     let mut buffer: Vec<Event> = Vec::new();
 
@@ -119,7 +127,7 @@ pub fn run_event(event_in: Event, events_out: &mut Vec<Event>, stream: &mut [Str
                 std::mem::swap(&mut events, &mut buffer);
             },
             StreamEntry::Hook(hook) => {
-                hook.apply_to_all(&events, &mut buffer, state);
+                hook.apply_to_all(&events, &mut buffer, state, loopback);
                 events.clear();
                 std::mem::swap(&mut events, &mut buffer);
             },

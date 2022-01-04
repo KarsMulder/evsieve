@@ -4,6 +4,7 @@ use crate::key::Key;
 use crate::event::Event;
 use crate::state::State;
 use crate::subprocess;
+use crate::loopback::Loopback;
 use std::time::{Instant, Duration};
 
 pub type Effect = Box<dyn Fn(&mut State)>;
@@ -115,24 +116,31 @@ impl Hook {
         }
     }
 
-    fn apply(&mut self, event: Event, events_out: &mut Vec<Event>, state: &mut State) {
+    fn apply(&mut self, event: Event, events_out: &mut Vec<Event>, state: &mut State, loopback: &mut Loopback) {
         let mut any_tracker_matched: bool = false;
         for tracker in self.trackers.iter_mut()
             .filter(|tracker| tracker.matches(&event))
         {
             any_tracker_matched = true;
 
+            let expiration_time = get_expiration_time_of_new_event(self.period);
             let new_state = if tracker.activates(event) {
                 match tracker.state {
                     active @ TrackerState::Active(..) => active,
                     TrackerState::Inactive | TrackerState::Residual => {
-                        TrackerState::Active(event, ExpirationTime::Never)
+                        TrackerState::Active(event, expiration_time)
                     },
                 }
             } else {
                 TrackerState::Inactive
             };
             let previous_state = std::mem::replace(&mut tracker.state, new_state);
+
+            // If this event expires, ask the loopback device to wake us up when it does.
+            match expiration_time {
+                ExpirationTime::Never => {},
+                ExpirationTime::Until(time) => loopback.schedule_wakeup(time),
+            }
 
             // If this hook does not withold events, write the event out and carry on.
             // Otherwise, do some complex logic to determine if this events needs to be
@@ -190,9 +198,35 @@ impl Hook {
         }
     }
 
-    pub fn apply_to_all(&mut self, events: &[Event], events_out: &mut Vec<Event>, state: &mut State) {
+    pub fn apply_to_all(
+        &mut self,
+        events: &[Event],
+        events_out: &mut Vec<Event>,
+        state: &mut State,
+        loopback: &mut Loopback,
+    ) {
         for event in events {
-            self.apply(*event, events_out, state);
+            self.apply(*event, events_out, state, loopback);
+        }
+    }
+
+    pub fn wakeup(&mut self, now: Instant, events_out: &mut Vec<Event>) {
+        // TODO: try maintaining weak ordering when releasing events?
+        // Release all events that have expired.
+        for tracker in &mut self.trackers {
+            match tracker.state {
+                TrackerState::Active(_event, ExpirationTime::Never) => {},
+                TrackerState::Residual => {}, // TODO: handle expiration of residual.
+                TrackerState::Inactive => {},
+                TrackerState::Active(event, ExpirationTime::Until(time)) => {
+                    if time <= now {
+                        tracker.state = TrackerState::Inactive;
+                        if self.withhold {
+                            events_out.push(event);
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -223,5 +257,17 @@ impl Hook {
                 subprocess::try_spawn(program.clone(), args.clone()).print_err();
             })
         );
+    }
+}
+
+/// Returns the expiration time of a new event that would activate a tracker given
+/// the period of a hook.
+fn get_expiration_time_of_new_event(period: Option<Duration>) -> ExpirationTime {
+    match period {
+        Some(duration) => {
+            let now = Instant::now(); // TODO: consider caching this result?
+            ExpirationTime::Until(now + duration)
+        },
+        None => ExpirationTime::Never,
     }
 }
