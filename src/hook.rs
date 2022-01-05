@@ -194,24 +194,20 @@ impl Hook {
         // Check if we transitioned between active and inactive.
         let all_trackers_active = self.trackers.iter().all(|tracker| tracker.state.is_active());
 
-        match (self.is_active(), all_trackers_active) {
-            (false, true) => {
+        match (self.state, all_trackers_active) {
+            (HookState::Inactive, true) => {
                 self.state = HookState::Active { activating_event: event };
                 for tracker in &mut self.trackers {
                     tracker.state = TrackerState::Residual;
                 }
-                self.apply_effects(state);
+                self.apply_effects(event, events_out, state);
             },
-            (true, false) => {
+            (HookState::Active { activating_event }, false) => {
                 self.state = HookState::Inactive;
-                self.apply_release_effects(state);
+                self.apply_release_effects(activating_event, events_out, state);
             },
-            (true, true) | (false, false) => {},
+            (HookState::Active {..}, true) | (HookState::Inactive, false) => {},
         }
-    }
-
-    fn is_active(&self) -> bool {
-        matches!(self.state, HookState::Active { .. })
     }
 
     pub fn apply_to_all(
@@ -260,18 +256,37 @@ impl Hook {
     }
 
     /// Runs all effects that should be ran when this hook triggers.
-    fn apply_effects(&self, state: &mut State) {
+    fn apply_effects(
+            &self, activating_event: Event, events_out: &mut Vec<Event>, state: &mut State
+    ) {
         for effect in &self.effects {
             effect(state);
         }
+        // TODO: Consider integrating this special call into the Effect system.
+        send_keys_press(
+            &self.send_keys,
+            activating_event,
+            events_out,
+        )
     }
 
     /// Runs all effects that should be ran when this hook has triggered and
     /// a tracked key is released.
-    fn apply_release_effects(&self, state: &mut State) {
+    /// 
+    /// IMPORTANT: activating_event is the event that activated the hook, not the event that
+    /// caused it to be released.
+    fn apply_release_effects(
+            &self, activating_event: Event, events_out: &mut Vec<Event>, state: &mut State)
+    {
         for release_effect in &self.release_effects {
             release_effect(state);
         }
+        // TODO: Consider integrating this special call into the Effect system.
+        send_keys_release(
+            &self.send_keys,
+            activating_event,
+            events_out,
+        )
     }
 
     /// Makes this hook run an effect when it triggers.
@@ -331,4 +346,30 @@ fn generate_additional_caps(
     }
 
     caps_out.extend(additional_caps);
+}
+
+fn send_keys_press(
+    send_keys: &[Key],
+    activating_event: Event,
+    events_out: &mut Vec<Event>)
+{
+    for key in send_keys {
+        let mut event = key.merge(activating_event);
+        event.value = 1;
+        events_out.push(event);
+    }
+}
+
+/// IMPORTANT: activating_event must be the event that caused the hook to ACTIVATE, not the 
+/// event that deactivated it.
+fn send_keys_release(
+    send_keys: &[Key],
+    activating_event: Event,
+    events_out: &mut Vec<Event>)
+{
+    for key in send_keys {
+        let mut event = key.merge(activating_event);
+        event.value = 0;
+        events_out.push(event);
+    }
 }
