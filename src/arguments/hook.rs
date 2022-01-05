@@ -17,13 +17,14 @@ pub(super) struct HookArg {
     pub toggle_action: HookToggleAction,
     pub withhold: bool,
     pub period: Option<Duration>,
+    pub send_keys: Vec<Key>,
 }
 
 impl HookArg {
 	pub fn parse(args: Vec<String>) -> Result<HookArg, ArgumentError> {
         let arg_group = ComplexArgGroup::parse(args,
             &["toggle", "withhold"],
-            &["exec-shell", "toggle", "period"],
+            &["exec-shell", "toggle", "period", "send-key"],
             false,
             true,
         )?;
@@ -58,12 +59,23 @@ impl HookArg {
             }
         };
 
+        // TODO: Enforce that this is EV_KEY.
+        let send_keys = KeyParser {
+            allow_transitions: false,
+            allow_values: false,
+            allow_ranges: false,
+            allow_types: false,
+            default_value: "",
+            allow_relative_values: false,
+            namespace: Namespace::User,
+        }.parse_all(&arg_group.get_clauses("send-key"))?;
+
         if arg_group.keys.is_empty() {
             Err(ArgumentError::new("A --hook argument requires at least one key."))
         } else {
             Ok(HookArg {
                 exec_shell: arg_group.get_clauses("exec-shell"),
-                hold_keys, toggle_action, withhold, period,
+                hold_keys, toggle_action, withhold, period, send_keys,
             })
         }
     }

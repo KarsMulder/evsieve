@@ -226,8 +226,12 @@ pub fn implement(args_str: Vec<String>)
             },
             Argument::HookArg(hook_arg) => {
                 let mut hook = Hook::new(hook_arg.hold_keys, hook_arg.withhold, hook_arg.period);
-                for exec_shell in hook_arg.exec_shell.iter().cloned() {
+                for exec_shell in hook_arg.exec_shell {
                     hook.add_command("/bin/sh".to_owned(), vec!["-c".to_owned(), exec_shell]);
+                }
+
+                for send_key in hook_arg.send_keys {
+                    hook.add_send_key(send_key)
                 }
                 
                 for effect in hook_arg.toggle_action.implement(&state, &toggle_indices)? {

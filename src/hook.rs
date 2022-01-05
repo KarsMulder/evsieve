@@ -302,6 +302,12 @@ impl Hook {
             })
         );
     }
+
+    /// Adds an effect: send a KEY_DOWN event of the provided key when the hook activates,
+    /// and a KEY_UP event of the provided key when the hook releases.
+    pub fn add_send_key(&mut self, key: Key) {
+        self.send_keys.push(key);
+    }
 }
 
 /// Returns the expiration time of a new event that would activate a tracker given
