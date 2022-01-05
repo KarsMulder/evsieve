@@ -753,6 +753,8 @@ Input event | State of input keyboard | Output event | State of output keyboard
 
 It is possible to specify a filter after the `--merge` argument to make it apply to only a specific set of events, e.g. `--merge key:a` will only merge (EV_KEY, KEY_A) events and leave other events untouched. If no filter is specified, `--merge` will apply to all events of type EV_KEY.
 
+Only events that have the same event code and domain are merged with each other.
+
 ## Toggles
 
 The `--toggle` argument has the following basic syntax:
