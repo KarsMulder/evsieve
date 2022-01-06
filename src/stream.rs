@@ -123,7 +123,7 @@ pub fn wakeup(setup: &mut Setup) {
     syn(setup);
 }
 
-fn syn(setup: &mut Setup) {
+pub fn syn(setup: &mut Setup) {
     setup.output.route_events(&setup.staged_events);
     setup.staged_events.clear();
     setup.output.synchronize();

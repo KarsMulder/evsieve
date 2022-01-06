@@ -291,6 +291,7 @@ fn handle_broken_file(program: &mut Program, index: FileIndex) -> Action {
                 let release_event = device.synthesize_event(key_code, 0);
                 stream::run(&mut program.setup, release_event);
             }
+            stream::syn(&mut program.setup);
 
             let should_persist = match device.persist_mode() {
                 PersistMode::None => false,
