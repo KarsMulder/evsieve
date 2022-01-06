@@ -69,6 +69,45 @@ lazy_static! {
         }
         result
     };
+
+    /// For each _valid_ event code (EV_KEY, code) holds: the name of this code starts with
+    /// btn: if and only if it is contained in one of the following ranges.
+    ///
+    /// This is precomputed for performance reasons: it provides about 30% speedup in scripts
+    /// where most maps are type-level on the "key" or "btn" type. It is also lazily computed
+    /// so it does not bother users who don't use type-level maps.
+    pub static ref BTN_CODE_RANGES: Vec<std::ops::Range<u16>> = {
+        // Compute for each valid code whether (EV_KEY, code) is called btn:something or not.
+        let mut is_btn_vec: Vec<(u16, bool)> = EVENT_CODES.iter()
+            .filter(|(_, code)| code.ev_type().is_key())
+            .map(|((typename, _codename), code)| (code.code(), typename == "btn"))
+            .collect();
+        is_btn_vec.sort_unstable();
+
+        // Detect consecutive ranges of (code, true) in `is_btn_vec`.
+        let mut ranges: Vec<std::ops::Range<u16>> = Vec::new();
+        let mut range_start: Option<u16> = None;
+
+        for &(code, is_btn) in &is_btn_vec {
+            if is_btn {
+                if range_start.is_none() {
+                    range_start = Some(code);
+                }
+            } else if let Some(start) = range_start {
+                // Remember that ranges are exclusive.
+                ranges.push(start .. code);
+                range_start = None;
+            }
+        }
+
+        if let Some(start) = range_start {
+            if let Some((last_code, true)) = is_btn_vec.last() {
+                ranges.push(start .. last_code + 1)
+            }
+        }
+
+        ranges
+    };
 }
 
 pub fn event_name(code: EventCode) -> String {
@@ -80,10 +119,8 @@ pub fn event_name(code: EventCode) -> String {
 
 /// Returns true if this code is of type EV_KEY with a BTN_* code.
 pub fn is_button_code(code: EventCode) -> bool {
-    match EVENT_NAMES.get(&code) {
-        Some(name) => name.starts_with("btn:"),
-        None => false,
-    }
+    code.ev_type().is_key() &&
+        BTN_CODE_RANGES.iter().any(|range| range.contains(&code.code()))
 }
 
 /// Returns whether this event is an multitouch event.
