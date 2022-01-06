@@ -574,7 +574,7 @@ Keys can be provided to the `--map` arguments. They use the same form for both t
 
 For more information about the "@domain" part, see the "Domains" section below. We will first talk about the type, code, and value.
 
-Most parts are optional. If formal format, all parts between `[]` are optional:
+Most parts are optional. In formal format, all parts between `[]` are optional:
 
 ```
     [event_type[:event_code[:event_value]]][@domain]
