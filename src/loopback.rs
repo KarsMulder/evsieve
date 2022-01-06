@@ -1,11 +1,28 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use std::time::{Instant};
+use std::time::{Instant, Duration};
 use std::num::NonZeroI32;
 use std::convert::TryInto;
 
+/// Whenever a wakeup is scheduled, you get a `Token` back. At the desired time, a wakeup()
+/// call with the provided token shall be made.
+#[derive(PartialEq, Eq)]
+pub struct Token(u64);
+
+impl Token {
+    // The `clone()` implementation is private to avoid some errors that can happen from
+    // carelessly cloning tokens.
+    fn clone(&self) -> Token {
+        Token(self.0)
+    }
+}
+
 pub struct Loopback {
-    schedule: Vec<Instant>,
+    schedule: Vec<(Instant, Token)>,
+
+    /// A counter for the amount of `Token`s that were handed out. Ensures that all handed
+    /// out tokens shall be unique except in case of integer overflow.
+    token_index: u64,
 }
 
 pub enum Delay {
@@ -19,14 +36,23 @@ impl Loopback {
     pub fn new() -> Loopback {
         Loopback {
             schedule: Vec::new(),
+            token_index: 0,
         }
     }
-    pub fn schedule_wakeup(&mut self, time: Instant) {
-        self.schedule.push(time);
+
+    pub fn schedule_wakeup_at(&mut self, time: Instant) -> Token {
+        let token = self.generate_token();
+        self.schedule.push((time, token.clone()));
+        token
+    }
+
+    pub fn schedule_wakeup_in(&mut self, delay: Duration) -> Token {
+        self.schedule_wakeup_at(Instant::now() + delay)
     }
 
     pub fn time_until_next_wakeup(&self) -> Delay {
-        let next_instant_opt = self.schedule.iter().min();
+        let next_instant_opt = self.schedule.iter()
+            .map(|(instant, _token)| instant).min();
         
         // If None, then then there are no events scheduled to happen.
         let next_instant = match next_instant_opt {
@@ -54,23 +80,29 @@ impl Loopback {
         }
     }
 
-    pub fn poll(&mut self) -> Vec<Instant> {
-        self.schedule.sort_unstable();
-        self.schedule.dedup();
-        
-        let mut ready_instants: Vec<Instant> = Vec::new();
-        let mut remaining_instants: Vec<Instant> = Vec::new();
+    pub fn poll(&mut self) -> Vec<Token> {
+        let mut ready_tokens: Vec<Token> = Vec::new();
+        let mut remaining_schedule: Vec<(Instant, Token)> = Vec::new();
         let now = Instant::now();
 
-        for instant in std::mem::take(&mut self.schedule) {
+        for (instant, token) in std::mem::take(&mut self.schedule) {
             if instant <= now {
-                ready_instants.push(instant);
+                ready_tokens.push(token);
             } else {
-                remaining_instants.push(instant);
+                remaining_schedule.push((instant, token));
             }
         }
-        self.schedule = remaining_instants;
+        self.schedule = remaining_schedule;
 
-        return ready_instants;
+        return ready_tokens;
+    }
+
+    fn generate_token(&mut self) -> Token {
+        if cfg!(debug_assertions) {
+            self.token_index += 1;
+        } else {
+            self.token_index = self.token_index.wrapping_add(1);
+        }
+        Token(self.token_index)
     }
 }

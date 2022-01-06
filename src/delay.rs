@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use crate::loopback::Loopback;
+use crate::loopback::{Loopback, Token};
 use crate::event::Event;
 use crate::key::Key;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 /// All events that reach the delay shall be removed and put back into the stream after 
 /// a certain amount of time passes.
@@ -12,7 +12,8 @@ pub struct Delay {
     period: Duration,
 
     /// State: modifiable at runtime.
-    delayed_events: Vec<(Instant, Vec<Event>)>,
+    /// Events that need to be put back into thes stream when the loopback releases a certain token.
+    delayed_events: Vec<(Token, Vec<Event>)>,
 }
 
 impl Delay {
@@ -36,17 +37,15 @@ impl Delay {
         }
 
         if ! events_to_withold.is_empty() {
-            let wakeup_time = Instant::now() + self.period;
-            self.delayed_events.push((wakeup_time, events_to_withold));
-            loopback.schedule_wakeup(wakeup_time);
+            let wakeup_token = loopback.schedule_wakeup_in(self.period);
+            self.delayed_events.push((wakeup_token, events_to_withold));
         }
     }
 
     /// All delayed events that are overdue will be put back into the stream.
-    pub fn wakeup(&mut self, now: Instant, output_events: &mut Vec<Event>) {
-        // Issue: this can merge multiple batches of events together.
-        while let Some((wakeup_time, delayed_events)) = self.delayed_events.first() {
-            if wakeup_time <= &now {
+    pub fn wakeup(&mut self, token: &Token, output_events: &mut Vec<Event>) {
+        while let Some((wakeup_token, delayed_events)) = self.delayed_events.first() {
+            if wakeup_token == token {
                 output_events.extend(delayed_events);
                 self.delayed_events.remove(0);
             } else {

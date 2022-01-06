@@ -4,22 +4,21 @@ use crate::key::Key;
 use crate::event::Event;
 use crate::state::State;
 use crate::subprocess;
+use crate::loopback;
 use crate::loopback::Loopback;
 use crate::capability::{Capability, CapMatch};
-use std::time::{Instant, Duration};
+use std::time::Duration;
 use std::collections::HashSet;
 
 pub type Effect = Box<dyn Fn(&mut State)>;
 
 /// Represents the point at time after which a pressed tracker is no longer valid.
 /// Usually determined by the --hook period= clause.
-#[derive(Clone, Copy)]
 enum ExpirationTime {
     Never,
-    Until(Instant),
+    Until(loopback::Token),
 }
 
-#[derive(Clone, Copy)]
 enum TrackerState {
     /// This tracker's corresponding key is held down.
     /// This tracker remembers the last event that activated this tracker and until when the tracker
@@ -133,12 +132,15 @@ impl Hook {
         {
             any_tracker_matched = true;
 
-            let expiration_time = get_expiration_time_of_new_event(self.period);
             let new_state = if tracker.activates(event) {
-                match tracker.state {
+                // Put a temporary dummy value in tracker.state. We will soon put
+                // a sensible value back.
+                match std::mem::replace(&mut tracker.state, TrackerState::Inactive) {
                     active @ TrackerState::Active(..) => active,
                     TrackerState::Inactive => {
-                        TrackerState::Active(event, expiration_time)
+                        TrackerState::Active(
+                            event, acquire_expiration_token(self.period, loopback)
+                        )
                     },
                     TrackerState::Residual => TrackerState::Residual,
                     TrackerState::Expired => TrackerState::Expired,
@@ -147,12 +149,6 @@ impl Hook {
                 TrackerState::Inactive
             };
             let previous_state = std::mem::replace(&mut tracker.state, new_state);
-
-            // If this event expires, ask the loopback device to wake us up when it does.
-            match expiration_time {
-                ExpirationTime::Never => {},
-                ExpirationTime::Until(time) => loopback.schedule_wakeup(time),
-            }
 
             // If this hook does not withold events, write the event out and carry on.
             // Otherwise, do some complex logic to determine if this events needs to be
@@ -234,7 +230,7 @@ impl Hook {
         }
     }
 
-    pub fn wakeup(&mut self, now: Instant, events_out: &mut Vec<Event>) {
+    pub fn wakeup(&mut self, token: &loopback::Token, events_out: &mut Vec<Event>) {
         // TODO: try maintaining weak ordering when releasing events?
         // Release all events that have expired.
         for tracker in &mut self.trackers {
@@ -243,8 +239,8 @@ impl Hook {
                 TrackerState::Residual => {}, // TODO: handle expiration of residual.
                 TrackerState::Inactive => {},
                 TrackerState::Expired => {},
-                TrackerState::Active(event, ExpirationTime::Until(time)) => {
-                    if time <= now {
+                TrackerState::Active(event, ExpirationTime::Until(ref other_token)) => {
+                    if token == other_token {
                         tracker.state = TrackerState::Expired;
                         if self.withhold {
                             events_out.push(event);
@@ -310,14 +306,11 @@ impl Hook {
     }
 }
 
-/// Returns the expiration time of a new event that would activate a tracker given
-/// the period of a hook.
-fn get_expiration_time_of_new_event(period: Option<Duration>) -> ExpirationTime {
+/// If this hook has a period set, acquires a Token from the loopback and arranges for a
+/// `wakeup()` call later. If no period is set, return `ExpirationTime::Never`.
+fn acquire_expiration_token(period: Option<Duration>, loopback: &mut Loopback) -> ExpirationTime {
     match period {
-        Some(duration) => {
-            let now = Instant::now(); // TODO: consider caching this result?
-            ExpirationTime::Until(now + duration)
-        },
+        Some(duration) => ExpirationTime::Until(loopback.schedule_wakeup_in(duration)),
         None => ExpirationTime::Never,
     }
 }

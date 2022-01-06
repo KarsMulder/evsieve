@@ -12,7 +12,6 @@ use crate::capability::{Capability, InputCapabilites};
 use crate::io::output::OutputSystem;
 use crate::error::RuntimeError;
 use crate::loopback::{Loopback, Delay};
-use std::time::Instant;
 
 /// An enum of everything that can be part of the event processing stream.
 ///
@@ -172,7 +171,7 @@ fn run_event(event_in: Event, events_out: &mut Vec<Event>, stream: &mut [StreamE
     );
 }
 
-fn run_wakeup(instant: Instant, events_out: &mut Vec<Event>, stream: &mut [StreamEntry], state: &mut State, loopback: &mut Loopback) {
+fn run_wakeup(token: crate::loopback::Token, events_out: &mut Vec<Event>, stream: &mut [StreamEntry], state: &mut State, loopback: &mut Loopback) {
     let mut events: Vec<Event> = Vec::new();
 
     for index in 0 .. stream.len() {
@@ -181,10 +180,10 @@ fn run_wakeup(instant: Instant, events_out: &mut Vec<Event>, stream: &mut [Strea
             StreamEntry::Toggle(_toggle) => {},
             StreamEntry::Merge(_merge) => {},
             StreamEntry::Hook(hook) => {
-                hook.wakeup(instant, &mut events);
+                hook.wakeup(&token, &mut events);
             },
             StreamEntry::Delay(delay) => {
-                delay.wakeup(instant, &mut events);
+                delay.wakeup(&token, &mut events);
             },
             StreamEntry::Print(_printer) => {},
         }
