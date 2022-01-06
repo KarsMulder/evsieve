@@ -41,6 +41,7 @@ impl HookArg {
         }.parse_all(&arg_group.keys)?;
         let withhold = arg_group.has_flag("withhold");
 
+        // TODO: deduplicate with DelayArg.
         let period = match arg_group.get_unique_clause("period")? {
             None => None,
             Some(value) => match crate::utils::parse_number(&value) {

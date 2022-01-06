@@ -36,6 +36,7 @@ pub mod subprocess;
 pub mod daemon;
 pub mod merge;
 pub mod loopback;
+pub mod delay;
 
 pub mod io {
     pub mod input;
@@ -62,6 +63,7 @@ pub mod arguments {
     pub mod toggle;
     pub mod print;
     pub mod merge;
+    pub mod delay;
 }
 
 pub mod bindings {

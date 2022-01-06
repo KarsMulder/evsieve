@@ -37,6 +37,7 @@ pub enum StreamEntry {
     Toggle(Toggle),
     Print(EventPrinter),
     Merge(Merge),
+    Delay(crate::delay::Delay),
 }
 
 pub struct Setup {
@@ -118,9 +119,9 @@ pub fn wakeup(setup: &mut Setup) {
             &mut setup.state,
             &mut setup.loopback,
         );
+        // TODO: consider the pooling behaviour for events with the same instant.
+        syn(setup);
     };
-    // TODO: consider the pooling behaviour for events with the same instant.
-    syn(setup);
 }
 
 pub fn syn(setup: &mut Setup) {
@@ -155,6 +156,11 @@ fn run_event(event_in: Event, events_out: &mut Vec<Event>, stream: &mut [StreamE
                 events.clear();
                 std::mem::swap(&mut events, &mut buffer);
             },
+            StreamEntry::Delay(delay) => {
+                delay.apply_to_all(&events, &mut buffer, loopback);
+                events.clear();
+                std::mem::swap(&mut events, &mut buffer);
+            },
             StreamEntry::Print(printer) => {
                 printer.apply_to_all(&events);
             },
@@ -176,6 +182,9 @@ fn run_wakeup(instant: Instant, events_out: &mut Vec<Event>, stream: &mut [Strea
             StreamEntry::Merge(_merge) => {},
             StreamEntry::Hook(hook) => {
                 hook.wakeup(instant, &mut events);
+            },
+            StreamEntry::Delay(delay) => {
+                delay.wakeup(instant, &mut events);
             },
             StreamEntry::Print(_printer) => {},
         }
@@ -212,6 +221,7 @@ pub fn run_caps(stream: &[StreamEntry], capabilities: Vec<Capability>) -> Vec<Ca
                 std::mem::swap(&mut caps, &mut buffer);
             },
             StreamEntry::Print(_) => (),
+            StreamEntry::Delay(_) => (),
         }
 
         // Merge capabilities that differ only in value together when possible.
