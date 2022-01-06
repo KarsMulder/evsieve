@@ -24,21 +24,21 @@ impl Delay {
         }
     }
 
-    /// Checks if some events matches this delay's keys, and if so, witholds them for a
+    /// Checks if some events matches this delay's keys, and if so, withholds them for a
     /// specified period.
     pub fn apply_to_all(&mut self, events: &[Event], output_events: &mut Vec<Event>, loopback: &mut Loopback) {
-        let mut events_to_withold: Vec<Event> = Vec::new();
+        let mut events_to_withhold: Vec<Event> = Vec::new();
         for &event in events {
             if self.keys.iter().any(|key| key.matches(&event)) {
-                events_to_withold.push(event);
+                events_to_withhold.push(event);
             } else {
                 output_events.push(event);
             }
         }
 
-        if ! events_to_withold.is_empty() {
+        if ! events_to_withhold.is_empty() {
             let wakeup_token = loopback.schedule_wakeup_in(self.period);
-            self.delayed_events.push((wakeup_token, events_to_withold));
+            self.delayed_events.push((wakeup_token, events_to_withhold));
         }
     }
 
