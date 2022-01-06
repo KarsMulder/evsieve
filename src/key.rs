@@ -320,8 +320,8 @@ pub fn resembles_key(key_str: &str) -> bool {
 fn interpret_key_with_domain(key_str: &str, parser: &KeyParser) -> Result<Key, ArgumentError> {
     let (event_str, domain_str_opt) = utils::split_once(key_str, "@");
     let mut key = interpret_key(event_str, parser)?;
-    
-	if let Some(domain_str) = domain_str_opt {
+
+    if let Some(domain_str) = domain_str_opt {
         let domain = domain::resolve(domain_str)?;
         key.properties.push(KeyProperty::Domain(domain));
     }
@@ -332,13 +332,13 @@ fn interpret_key_with_domain(key_str: &str, parser: &KeyParser) -> Result<Key, A
 fn interpret_key(key_str: &str, parser: &KeyParser) -> Result<Key, ArgumentError> {
     let mut key = Key::new();
     key.add_property(KeyProperty::Namespace(parser.namespace));
-	if key_str == "" {
+    if key_str == "" {
         return Ok(key)
     }
-	
-	let mut parts = key_str.split(':');
-	
-	// Interpret the event type.
+        
+    let mut parts = key_str.split(':');
+
+    // Interpret the event type.
     let event_type_name = parts.next().unwrap();
     let event_type = ecodes::event_type(event_type_name).ok_or_else(||
         ArgumentError::new(format!(
