@@ -316,7 +316,6 @@ pub fn resembles_key(key_str: &str) -> bool {
 }
 
 /// Interprets a key that optionally has a domain attached, like "key:a@keyboard".
-/// The default value is what shall be taken for the range of values if none is specified.
 fn interpret_key_with_domain(key_str: &str, parser: &KeyParser) -> Result<Key, ArgumentError> {
     let (event_str, domain_str_opt) = utils::split_once(key_str, "@");
     let mut key = interpret_key(event_str, parser)?;
@@ -351,6 +350,22 @@ fn interpret_key(key_str: &str, parser: &KeyParser) -> Result<Key, ArgumentError
 
     // Extract the event code, or return a key that matches on type only.
     match parts.next() {
+        // If no event code is available, then either throw an error or return a key that matches only on
+        // the virtual type depending on whether parser.allow_types is set.
+        //
+        // The Some("") guard exists to allow stuff like key::2 to be parsed.
+        None | Some("") => {
+            if ! parser.allow_types {
+                return Err(ArgumentError::new(format!("No event code provided for the key \"{}\".", key_str)));
+            }
+
+            let virtual_type = match event_type_name {
+                VirtualEventType::KEY => VirtualEventType::Key,
+                VirtualEventType::BUTTON => VirtualEventType::Button,
+                _ => VirtualEventType::Other(event_type),
+            };
+            key.add_property(KeyProperty::VirtualType(virtual_type));
+        },
         Some(event_code_name) => {
             let event_code = ecodes::event_code(event_type_name, event_code_name).ok_or_else(||
                 ArgumentError::new(format!(
@@ -363,20 +378,6 @@ fn interpret_key(key_str: &str, parser: &KeyParser) -> Result<Key, ArgumentError
             if ecodes::is_abs_mt(event_code) {
                 utils::warn_once("Warning: it seems you're trying to manipulate ABS_MT events. Keep in mind that evsieve's support for ABS_MT is considered unstable. Evsieve's behaviour with respect to ABS_MT events is subject to change in the future.");
             }
-        }
-        // If no event code is available, then either throw an error or return a key that matches only on
-        // the virtual type depending on whether parser.allow_types is set.
-        None => {
-            if ! parser.allow_types {
-                return Err(ArgumentError::new(format!("No event code provided for the key \"{}\".", key_str)));
-            }
-
-            let virtual_type = match event_type_name {
-                VirtualEventType::KEY => VirtualEventType::Key,
-                VirtualEventType::BUTTON => VirtualEventType::Button,
-                _ => VirtualEventType::Other(event_type),
-            };
-            key.add_property(KeyProperty::VirtualType(virtual_type));
         }
     };
     
