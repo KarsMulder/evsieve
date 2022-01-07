@@ -564,11 +564,13 @@ def unittest_type():
         "--input", "/dev/input/by-id/unittest-type-in-2", "domain=in2", "grab=force",
         "--map", "key@in1", "key:a",
         "--map", "btn", "btn:left",
-        "--output", "btn", "@in1", "create-link=/dev/input/by-id/unittest-type-out-1",
+        "--map", "key::2", "rel:y:3",
+        "--output", "btn", "@in1", "rel", "create-link=/dev/input/by-id/unittest-type-out-1",
         "--output", "create-link=/dev/input/by-id/unittest-type-out-2"],
         {
             "/dev/input/by-id/unittest-type-in-1": [
                 (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_B, 2),
                 (e.EV_KEY, e.KEY_B, 0),
                 (e.EV_ABS, e.ABS_X, 1),
                 (e.EV_ABS, e.ABS_X, 0),
@@ -583,6 +585,7 @@ def unittest_type():
         {
             "/dev/input/by-id/unittest-type-out-1": [
                 (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_REL, e.REL_Y, 3),
                 (e.EV_KEY, e.KEY_A, 0),
                 (e.EV_ABS, e.ABS_X, 1),
                 (e.EV_ABS, e.ABS_X, 0),
