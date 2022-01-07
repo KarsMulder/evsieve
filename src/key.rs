@@ -340,9 +340,13 @@ fn interpret_key(key_str: &str, parser: &KeyParser) -> Result<Key, ArgumentError
     // Interpret the event type.
     let event_type_name = parts.next().unwrap();
     let event_type = ecodes::event_type(event_type_name).ok_or_else(||
-        ArgumentError::new(format!(
-            "Unknown event type \"{}\".", event_type_name
-        ))
+        // TODO: Consider allowing this instead of throwing an error.
+        match event_type_name {
+            "" => ArgumentError::new("Cannot specify event code or value without specifying event type."),
+            _ => ArgumentError::new(format!(
+                "Unknown event type \"{}\".", event_type_name
+            )),
+        }
     )?;
     if event_type.is_syn() {
         return Err(ArgumentError::new("Cannot use event type \"syn\": it is impossible to manipulate synchronisation events because synchronisation is automatically taken care of by evsieve."));
