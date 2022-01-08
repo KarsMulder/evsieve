@@ -141,7 +141,7 @@ impl<'a> LoopbackHandle<'a> {
     }
 
     /// Like self.now, but lazily computes the current time if it wasn't already stored
-    /// int self.now.
+    /// in self.now.
     fn now(&mut self) -> Instant {
         let time = match self.now {
             Some(time) => time,
