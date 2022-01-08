@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use crate::loopback::{Loopback, Token};
+use crate::loopback::{LoopbackHandle, Token};
 use crate::event::Event;
 use crate::key::Key;
 use std::time::Duration;
@@ -26,7 +26,7 @@ impl Delay {
 
     /// Checks if some events matches this delay's keys, and if so, withholds them for a
     /// specified period.
-    pub fn apply_to_all(&mut self, events: &[Event], output_events: &mut Vec<Event>, loopback: &mut Loopback) {
+    pub fn apply_to_all(&mut self, events: &[Event], output_events: &mut Vec<Event>, loopback: &mut LoopbackHandle) {
         let mut events_to_withhold: Vec<Event> = Vec::new();
         for &event in events {
             if self.keys.iter().any(|key| key.matches(&event)) {

@@ -5,7 +5,7 @@ use crate::event::Event;
 use crate::state::State;
 use crate::subprocess;
 use crate::loopback;
-use crate::loopback::Loopback;
+use crate::loopback::LoopbackHandle;
 use crate::capability::{Capability, CapMatch};
 use std::time::Duration;
 use std::collections::HashSet;
@@ -127,7 +127,7 @@ impl Hook {
         }
     }
 
-    fn apply(&mut self, event: Event, events_out: &mut Vec<Event>, state: &mut State, loopback: &mut Loopback) {
+    fn apply(&mut self, event: Event, events_out: &mut Vec<Event>, state: &mut State, loopback: &mut LoopbackHandle) {
         let mut any_tracker_matched: bool = false;
         for tracker in self.trackers.iter_mut()
             .filter(|tracker| tracker.matches(&event))
@@ -213,7 +213,7 @@ impl Hook {
         events: &[Event],
         events_out: &mut Vec<Event>,
         state: &mut State,
-        loopback: &mut Loopback,
+        loopback: &mut LoopbackHandle,
     ) {
         for event in events {
             self.apply(*event, events_out, state, loopback);
@@ -310,7 +310,7 @@ impl Hook {
 
 /// If this hook has a period set, acquires a Token from the loopback and arranges for a
 /// `wakeup()` call later. If no period is set, return `ExpirationTime::Never`.
-fn acquire_expiration_token(period: Option<Duration>, loopback: &mut Loopback) -> ExpirationTime {
+fn acquire_expiration_token(period: Option<Duration>, loopback: &mut LoopbackHandle) -> ExpirationTime {
     match period {
         Some(duration) => ExpirationTime::Until(loopback.schedule_wakeup_in(duration)),
         None => ExpirationTime::Never,

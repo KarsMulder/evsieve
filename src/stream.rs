@@ -11,7 +11,7 @@ use crate::print::EventPrinter;
 use crate::capability::{Capability, InputCapabilites};
 use crate::io::output::OutputSystem;
 use crate::error::RuntimeError;
-use crate::loopback::{Loopback, Delay};
+use crate::loopback::{Loopback, LoopbackHandle, Delay};
 
 /// An enum of everything that can be part of the event processing stream.
 ///
@@ -98,12 +98,14 @@ pub fn run(setup: &mut Setup, event: Event) {
     if event.ev_type().is_syn() {
         syn(setup);
     } else {
+        // TODO: time handling.
+        let mut loopback_handle = setup.loopback.get_handle(std::time::Instant::now());
         run_event(
             event,
             &mut setup.staged_events,
             &mut setup.stream,
             &mut setup.state,
-            &mut setup.loopback,
+            &mut loopback_handle,
         );
     }
 }
@@ -111,12 +113,14 @@ pub fn run(setup: &mut Setup, event: Event) {
 pub fn wakeup(setup: &mut Setup) {
     let wakeup_instants = setup.loopback.poll();
     for instant in wakeup_instants {
+        // TODO: time handling.
+        let mut loopback_handle = setup.loopback.get_handle(std::time::Instant::now());
         run_wakeup(
             instant,
             &mut setup.staged_events,
             &mut setup.stream,
             &mut setup.state,
-            &mut setup.loopback,
+            &mut loopback_handle,
         );
         // TODO: consider the pooling behaviour for events with the same instant.
         syn(setup);
@@ -129,7 +133,7 @@ pub fn syn(setup: &mut Setup) {
     setup.output.synchronize();
 }
 
-fn run_event(event_in: Event, events_out: &mut Vec<Event>, stream: &mut [StreamEntry], state: &mut State, loopback: &mut Loopback) {
+fn run_event(event_in: Event, events_out: &mut Vec<Event>, stream: &mut [StreamEntry], state: &mut State, loopback: &mut LoopbackHandle) {
     let mut events: Vec<Event> = vec![event_in];
     let mut buffer: Vec<Event> = Vec::new();
 
@@ -171,7 +175,7 @@ fn run_event(event_in: Event, events_out: &mut Vec<Event>, stream: &mut [StreamE
     );
 }
 
-fn run_wakeup(token: crate::loopback::Token, events_out: &mut Vec<Event>, stream: &mut [StreamEntry], state: &mut State, loopback: &mut Loopback) {
+fn run_wakeup(token: crate::loopback::Token, events_out: &mut Vec<Event>, stream: &mut [StreamEntry], state: &mut State, loopback: &mut LoopbackHandle) {
     let mut events: Vec<Event> = Vec::new();
 
     for index in 0 .. stream.len() {

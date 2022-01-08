@@ -25,6 +25,12 @@ pub struct Loopback {
     token_index: u64,
 }
 
+// TODO: add a doccomment for the purpose of this thing.
+pub struct LoopbackHandle<'a> {
+    loopback: &'a mut Loopback,
+    now: Instant,
+}
+
 pub enum Delay {
     Now,
     Never,
@@ -38,16 +44,6 @@ impl Loopback {
             schedule: Vec::new(),
             token_index: 0,
         }
-    }
-
-    pub fn schedule_wakeup_at(&mut self, time: Instant) -> Token {
-        let token = self.generate_token();
-        self.schedule.push((time, token.clone()));
-        token
-    }
-
-    pub fn schedule_wakeup_in(&mut self, delay: Duration) -> Token {
-        self.schedule_wakeup_at(Instant::now() + delay)
     }
 
     pub fn time_until_next_wakeup(&self) -> Delay {
@@ -111,5 +107,24 @@ impl Loopback {
             self.token_index = self.token_index.wrapping_add(1);
         }
         Token(self.token_index)
+    }
+
+    pub fn get_handle(&mut self, now: Instant) -> LoopbackHandle {
+        LoopbackHandle {
+            loopback: self,
+            now
+        }
+    }
+}
+
+impl<'a> LoopbackHandle<'a> {
+    fn schedule_wakeup_at(&mut self, time: Instant) -> Token {
+        let token = self.loopback.generate_token();
+        self.loopback.schedule.push((time, token.clone()));
+        token
+    }
+
+    pub fn schedule_wakeup_in(&mut self, delay: Duration) -> Token {
+        self.schedule_wakeup_at(self.now + delay)
     }
 }
