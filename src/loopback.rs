@@ -80,6 +80,8 @@ impl Loopback {
         }
     }
 
+    /// TODO: stably sort this so the most overdue ready tokens are returned first.
+    /// Tokens due at the same time should be returned in the order they were added.
     pub fn poll(&mut self) -> Vec<Token> {
         let mut ready_tokens: Vec<Token> = Vec::new();
         let mut remaining_schedule: Vec<(Instant, Token)> = Vec::new();

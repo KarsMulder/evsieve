@@ -19,6 +19,8 @@ enum ExpirationTime {
     Until(loopback::Token),
 }
 
+/// TODO: ISSUE This does not work well with domains: it is possible that key:a@foo activates
+/// it, and key:a@bar is then dropped by Residual. Fix this.
 enum TrackerState {
     /// This tracker's corresponding key is held down.
     /// This tracker remembers the last event that activated this tracker and until when the tracker
