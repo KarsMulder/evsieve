@@ -112,11 +112,10 @@ pub fn run(setup: &mut Setup, event: Event) {
 
 pub fn wakeup(setup: &mut Setup) {
     let wakeup_instants = setup.loopback.poll();
-    for instant in wakeup_instants {
-        // TODO: time handling.
-        let mut loopback_handle = setup.loopback.get_handle(std::time::Instant::now());
+    for (instant, token) in wakeup_instants {
+        let mut loopback_handle = setup.loopback.get_handle(instant);
         run_wakeup(
-            instant,
+            token,
             &mut setup.staged_events,
             &mut setup.stream,
             &mut setup.state,
