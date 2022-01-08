@@ -99,7 +99,7 @@ pub fn run(setup: &mut Setup, event: Event) {
         syn(setup);
     } else {
         // TODO: time handling.
-        let mut loopback_handle = setup.loopback.get_handle(std::time::Instant::now());
+        let mut loopback_handle = setup.loopback.get_handle_lazy();
         run_event(
             event,
             &mut setup.staged_events,

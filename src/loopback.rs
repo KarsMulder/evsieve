@@ -28,7 +28,12 @@ pub struct Loopback {
 // TODO: add a doccomment for the purpose of this thing.
 pub struct LoopbackHandle<'a> {
     loopback: &'a mut Loopback,
-    now: Instant,
+    /// If Some, then we shall emulate the current time being a certain moment in time, even
+    /// if it isn't that time right now. If it is None, then it represents the actual time
+    /// of the current moment, but it has not been computed yet because that would cost a
+    /// syscall and we're not actually sure if we'll actually need it, and it must be computed
+    /// when we actually need it.
+    now: Option<Instant>,
 }
 
 pub enum Delay {
@@ -111,7 +116,14 @@ impl Loopback {
     pub fn get_handle(&mut self, now: Instant) -> LoopbackHandle {
         LoopbackHandle {
             loopback: self,
-            now
+            now: Some(now),
+        }
+    }
+
+    pub fn get_handle_lazy(&mut self) -> LoopbackHandle {
+        LoopbackHandle {
+            loopback: self,
+            now: None,
         }
     }
 }
@@ -124,6 +136,18 @@ impl<'a> LoopbackHandle<'a> {
     }
 
     pub fn schedule_wakeup_in(&mut self, delay: Duration) -> Token {
-        self.schedule_wakeup_at(self.now + delay)
+        let now = self.now();
+        self.schedule_wakeup_at(now + delay)
+    }
+
+    /// Like self.now, but lazily computes the current time if it wasn't already stored
+    /// int self.now.
+    fn now(&mut self) -> Instant {
+        let time = match self.now {
+            Some(time) => time,
+            None => Instant::now(),
+        };
+        self.now = Some(time);
+        time
     }
 }
