@@ -80,23 +80,28 @@ impl Loopback {
         }
     }
 
-    /// TODO: stably sort this so the most overdue ready tokens are returned first.
-    /// Tokens due at the same time should be returned in the order they were added.
+    /// Returns all tokens that are due or overdue and removes them from self's schedule.
+    /// Tokens are returned in the order in which they should be processesed, i.e. the oldest
+    /// tokens are returned first.
     pub fn poll(&mut self) -> Vec<Token> {
-        let mut ready_tokens: Vec<Token> = Vec::new();
+        let mut ready_tokens: Vec<(Instant, Token)> = Vec::new();
         let mut remaining_schedule: Vec<(Instant, Token)> = Vec::new();
         let now = Instant::now();
 
         for (instant, token) in std::mem::take(&mut self.schedule) {
             if instant <= now {
-                ready_tokens.push(token);
+                ready_tokens.push((instant, token));
             } else {
                 remaining_schedule.push((instant, token));
             }
         }
         self.schedule = remaining_schedule;
 
-        return ready_tokens;
+        // Stably sort: make sure that the most overdue token is yielded first. Tokens that
+        // are due at the exact same time should be yielded in the order they were added.
+        ready_tokens.sort_by_key(|(time, _token)| *time);
+
+        return ready_tokens.into_iter().map(|(_time, token)| token).collect();
     }
 
     fn generate_token(&mut self) -> Token {
