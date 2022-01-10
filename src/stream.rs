@@ -111,8 +111,7 @@ pub fn run(setup: &mut Setup, event: Event) {
 }
 
 pub fn wakeup(setup: &mut Setup) {
-    let wakeup_instants = setup.loopback.poll();
-    for (instant, token) in wakeup_instants {
+    while let Some((instant, token)) = setup.loopback.poll_once() {
         let mut loopback_handle = setup.loopback.get_handle(instant);
         run_wakeup(
             token,

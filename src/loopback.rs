@@ -81,10 +81,15 @@ impl Loopback {
         }
     }
 
-    /// Returns all tokens that are due or overdue and removes them from self's schedule.
-    /// Tokens are returned in the order in which they should be processesed, i.e. the oldest
-    /// tokens are returned first.
-    pub fn poll(&mut self) -> Vec<(Instant, Token)> {
+    /// The most overdue token that is due or overdue and removes it from self's schedule.
+    /// If two due tokens are due at the exact same time, returns them in the order they
+    /// were added to the Loopback device.
+    /// 
+    /// The reason this returns only one token is because it is possible that while processing
+    /// that one token, new tokens get added to the schedule that are due before any other tokens
+    /// that are actually due already. The new token should then be handled first, and that is
+    /// not possible if this function were to return multiple tokens at once.
+    pub fn poll_once(&mut self) -> Option<(Instant, Token)> {
         let mut ready_tokens: Vec<(Instant, Token)> = Vec::new();
         let mut remaining_schedule: Vec<(Instant, Token)> = Vec::new();
         let now = Instant::now();
@@ -96,12 +101,16 @@ impl Loopback {
                 remaining_schedule.push((instant, token));
             }
         }
-        self.schedule = remaining_schedule;
-
         // Stably sort: make sure that the most overdue token is yielded first. Tokens that
         // are due at the exact same time should be yielded in the order they were added.
         ready_tokens.sort_by_key(|(time, _token)| *time);
-        ready_tokens
+
+        // Take the first ready token, add the rest back to the schedule.
+        let mut ready_tokens_iter = ready_tokens.into_iter();
+        let first_token = ready_tokens_iter.next();
+        self.schedule = ready_tokens_iter.chain(remaining_schedule).collect();
+
+        first_token
     }
 
     fn generate_token(&mut self) -> Token {
