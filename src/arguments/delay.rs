@@ -40,19 +40,53 @@ impl DelayArg {
     }
 }
 
-fn parse_period_value(value: &str) -> Result<Duration, ArgumentError> {
-    match crate::utils::parse_number(&value) {
-        Some(seconds) => {
-            if seconds == 0.0 {
-                return Err(ArgumentError::new("The period must be nonzero."));
-            } else if seconds < 0.0 {
-                return Err(ArgumentError::new("The period must be nonnegative."));
-            } else {
-                Ok(Duration::from_secs_f64(seconds))
-            }
-        },
-        None => return Err(ArgumentError::new(format!(
-            "Cannot interpret {} as a number. The period must be a number of seconds.", value
-        )))
+/// Parses a number of seconds with up to nanosecond precision.
+pub fn parse_period_value(value: &str) -> Result<Duration, ArgumentError> {
+    let first_token = match value.chars().next() {
+        Some(token) => token,
+        None => return Err(ArgumentError::new("Empty period specified.")),
+    };
+    if first_token == '-' {
+        return Err(ArgumentError::new("The period must be nonnegative."));
     }
+
+    let (before_decimal, after_decimal) = crate::utils::split_once(value, ".");
+    let seconds = before_decimal.parse::<u64>().map_err(|_| ArgumentError::new(format!(
+        "Cannot interpret {} as a number.", value,
+    )))?;
+
+    // Compute the amount of nanoseconds after the period.
+    let nanoseconds = match after_decimal {
+        Some(string) => {
+            let as_uint = string.parse::<u64>().map_err(|_| ArgumentError::new(format!(
+                "Cannot interpret {} as a number.", value,
+            )))?;
+            let digits_after_period = string.len();
+            if digits_after_period > 9 {
+                return Err(ArgumentError::new("Cannot specify time periods with higher than nanosecond precision."));
+            }
+            as_uint * (10 as u64).pow((9 - digits_after_period) as u32)
+        },
+        None => 0,
+    };
+
+    let total_nanoseconds: u64 = seconds * 1_000_000_000 + nanoseconds;
+    if total_nanoseconds == 0 {
+        return Err(ArgumentError::new("Cannot specify a period of zero."));
+    }
+
+    Ok(Duration::from_nanos(total_nanoseconds))
+}
+
+#[test]
+fn unittest() {
+    assert_eq!(parse_period_value("1").unwrap(), Duration::from_secs(1));
+    assert_eq!(parse_period_value("5").unwrap(), Duration::from_secs(5));
+    assert_eq!(parse_period_value("2.04").unwrap(), Duration::from_millis(2_040));
+    assert_eq!(parse_period_value("0.049874").unwrap(), Duration::from_micros(49874));
+    assert_eq!(parse_period_value("0.000082339").unwrap(), Duration::from_nanos(82339));
+    parse_period_value("0.0000823391").unwrap_err();
+    parse_period_value("0").unwrap_err();
+    parse_period_value("0.0").unwrap_err();
+    parse_period_value("-1").unwrap_err();
 }

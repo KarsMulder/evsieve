@@ -44,20 +44,7 @@ impl HookArg {
         // TODO: deduplicate with DelayArg.
         let period = match arg_group.get_unique_clause("period")? {
             None => None,
-            Some(value) => match crate::utils::parse_number(&value) {
-                Some(seconds) => {
-                    if seconds == 0.0 {
-                        return Err(ArgumentError::new("The period must be nonzero."));
-                    } else if seconds < 0.0 {
-                        return Err(ArgumentError::new("The period must be nonnegative."));
-                    } else {
-                        Some(Duration::from_secs_f64(seconds))
-                    }
-                },
-                None => return Err(ArgumentError::new(format!(
-                    "Cannot interpret {} as a number. The period must be a number of seconds.", value
-                )))
-            }
+            Some(value) => Some(crate::arguments::delay::parse_period_value(&value)?),
         };
 
         // TODO: Enforce that this is EV_KEY.
