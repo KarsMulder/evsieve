@@ -149,6 +149,12 @@ impl<'a> LoopbackHandle<'a> {
         self.schedule_wakeup_at(now + delay)
     }
 
+    /// If a previously-scheduled wakeup no longer seems needed, you can cancel it to save some
+    /// CPU cycles later.
+    pub fn cancel_token(&mut self, token: Token) {
+        self.loopback.schedule.retain(|(_, other_token)| token != *other_token);
+    }
+
     /// Like self.now, but lazily computes the current time if it wasn't already stored
     /// in self.now.
     fn now(&mut self) -> Instant {
