@@ -94,13 +94,13 @@ fn unescape_path(path: &str) -> Result<String, ParseError> {
 }
 
 fn format_device_path(path: String) -> String {
-    let mut result = "Path: ".to_owned();
+    let mut result = "path: ".to_owned();
     result.push_str(&escape_path(path));
     result
 }
 
 fn parse_device_path(path_line: &str) -> Result<String, ParseError> {
-    let path = match path_line.strip_prefix("Path: ") {
+    let path = match path_line.strip_prefix("path: ") {
         Some(path_escaped) => unescape_path(&path_escaped)?,
         None => return Err(ParseError::new(format!(
             "Expected \"Path: something\", encountered: \"{}\"", path_line
@@ -116,9 +116,9 @@ fn parse_device_path(path_line: &str) -> Result<String, ParseError> {
     }
 }
 
-const MAGICAL_NUMBER_HEADER: &str = "Evsieve event device capabilities description file";
-const FORMAT_VERSION_HEADER: &str = "Format version: 1.0";
-const CAPABILITIES_HEADER: &str = "Capabilities:";
+const MAGICAL_NUMBER_HEADER: &str = "# Evsieve event device capabilities description file";
+const FORMAT_VERSION_HEADER: &str = "# Format version: 1.0";
+const CAPABILITIES_HEADER: &str = "capabilities:";
 const EMPTY_LINE: &str = "";
 
 fn write() -> Result<String, std::fmt::Error> {
