@@ -37,6 +37,7 @@ pub mod daemon;
 pub mod merge;
 pub mod loopback;
 pub mod delay;
+pub mod withhold;
 
 pub mod io {
     pub mod input;
