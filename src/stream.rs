@@ -182,7 +182,7 @@ fn run_wakeup(token: crate::loopback::Token, events_out: &mut Vec<Event>, stream
             StreamEntry::Toggle(_toggle) => {},
             StreamEntry::Merge(_merge) => {},
             StreamEntry::Hook(hook) => {
-                hook.wakeup(&token, &mut events);
+                hook.wakeup(&token);
             },
             StreamEntry::Delay(delay) => {
                 delay.wakeup(&token, &mut events);

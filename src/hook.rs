@@ -19,22 +19,11 @@ enum ExpirationTime {
     Until(loopback::Token),
 }
 
-/// TODO: ISSUE This does not work well with domains: it is possible that key:a@foo activates
-/// it, and key:a@bar is then dropped by Residual. Fix this.
 enum TrackerState {
     /// This tracker's corresponding key is held down.
     /// This tracker remembers the last event that activated this tracker and until when the tracker
     /// should stay active.
-    Active(Event, ExpirationTime),
-    /// The distinction between Active and Residual only matters if the hook has the `withhold`
-    /// flag. (TODO: verify)
-    ///
-    /// This tracker has been active and should withold the next key that would deactivate it.
-    /// It still counts as active, but no longer witholds a key. It can be re-activated to
-    /// forget about witholding the key that should de-activate it.
-    // TODO: Consider whether that behaviour is sensible.
-    // TODO: Consider how this should interact with expiration.
-    Residual,
+    Active(ExpirationTime),
     /// This tracker's corresponding key is not held down.
     Inactive,
     /// This tracker was active, but then expired and now can't become active again until a
@@ -45,7 +34,7 @@ enum TrackerState {
 impl TrackerState {
     fn is_active(&self) -> bool {
         match self {
-            TrackerState::Active (_, _) | TrackerState::Residual => true,
+            TrackerState::Active (_) => true,
             TrackerState::Inactive | TrackerState::Expired => false,
         }
     }
@@ -79,13 +68,38 @@ impl Tracker {
 
     /// Returns whether this event would turn this tracker on or off.
     /// Only returns sensible values if self.matches(event) is true.
-    fn activates(&self, event: Event) -> bool {
+    fn activates_by(&self, event: Event) -> bool {
         self.range.contains(event.value)
     }
 }
 
+/// The Trigger is the inner part of the hook that keeps track of when the hook is supposed to
+/// activate.
+struct Trigger {
+    /// If Some, then all trackers must be activated within a certain duration from the first
+    /// tracker to activate in order to trigger the hook.
+    period: Option<Duration>,
+
+    trackers: Vec<Tracker>,
+    state: TriggerState,
+}
+
+/// Returned by Trigger::apply to inform the caller what effect the provided event had on
+/// the hook.
+enum TriggerResponse {
+    /// This event does not interact with this hook in any way.
+    None,
+    /// This event may or may not have affected the current state of the hook.
+    Matched,
+    /// The hook has activated because of this event. Its effects should be triggered.
+    Activates,
+    /// The hook has released because of this event. Its on-release effects should be triggered.
+    /// It reminds the caller of the event that originally activated this trigger.
+    Releases { activating_event: Event },
+}
+
 #[derive(Clone, Copy)]
-enum HookState {
+enum TriggerState {
     /// All trackers are currently pressed.
     /// Remembers the event that activated this hook.
     Active { activating_event: Event },
@@ -93,11 +107,82 @@ enum HookState {
     Inactive,
 }
 
-pub struct Hook {
-    /// Options that can be configured by the user.
-    withhold: bool,
-    period: Option<Duration>, // TODO: unimplemented.
+impl Trigger {
+    fn new(keys: Vec<Key>, period: Option<Duration>) -> Trigger {
+        let trackers = keys.into_iter().map(Tracker::new).collect();
+        Trigger {
+            period, trackers,
+            state: TriggerState::Inactive,
+        }
+    }
 
+    fn apply(&mut self, event: Event, loopback: &mut LoopbackHandle) -> TriggerResponse {
+        let mut any_tracker_matched: bool = false;
+        for tracker in self.trackers.iter_mut()
+            .filter(|tracker| tracker.matches(&event))
+        {
+            any_tracker_matched = true;
+
+            // TODO: Refactor?
+            if tracker.activates_by(event) {
+                tracker.state = match std::mem::replace(&mut tracker.state, TrackerState::Inactive) {
+                    active @ TrackerState::Active(..) => active,
+                    TrackerState::Inactive => {
+                        TrackerState::Active(
+                            acquire_expiration_token(self.period, loopback)
+                        )
+                    },
+                    TrackerState::Expired => TrackerState::Expired,
+                }
+            } else {
+                tracker.state = TrackerState::Inactive;
+            };
+        }
+        
+        if ! any_tracker_matched {
+            // No trackers care about this event.
+            return TriggerResponse::None;
+        }
+
+        // Check if we transitioned between active and inactive.
+        let all_trackers_active = self.trackers.iter().all(|tracker| tracker.state.is_active());
+
+        match (self.state, all_trackers_active) {
+            (TriggerState::Inactive, true) => {
+                self.state = TriggerState::Active { activating_event: event };
+                // TODO: Cancel tokens?
+                for tracker in &mut self.trackers {
+                    tracker.state = TrackerState::Active(ExpirationTime::Never);
+                }
+                TriggerResponse::Activates
+            },
+            (TriggerState::Active { activating_event }, false) => {
+                self.state = TriggerState::Inactive;
+                TriggerResponse::Releases { activating_event }
+            },
+            (TriggerState::Active {..}, true) | (TriggerState::Inactive, false)
+                => TriggerResponse::Matched,
+        }
+    }
+
+    /// Release all events that have expired.
+    fn wakeup(&mut self, token: &loopback::Token) {
+        for tracker in &mut self.trackers {
+            match tracker.state {
+                TrackerState::Inactive => {},
+                TrackerState::Expired => {},
+                TrackerState::Active(ExpirationTime::Never) => {},
+                TrackerState::Active(ExpirationTime::Until(ref other_token)) => {
+                    if token == other_token {
+                        tracker.state = TrackerState::Expired;
+                    }
+                }
+            }
+        }
+    }
+}
+
+pub struct Hook {
     /// Effects that shall be triggered if this hook activates, i.e. all keys are held down simultaneously.
     effects: Vec<Effect>,
     /// Effects that shall be released after one of the keys has been released after activating.
@@ -107,19 +192,13 @@ pub struct Hook {
     send_keys: Vec<Key>,
 
     /// The current state mutable at runtime.
-    trackers: Vec<Tracker>,
-    state: HookState,
+    trigger: Trigger,
 }
 
 impl Hook {
-    pub fn new(keys: Vec<Key>, withhold: bool, period: Option<Duration>) -> Hook {
-        let trackers = keys.into_iter().map(Tracker::new).collect();
+    pub fn new(keys: Vec<Key>, period: Option<Duration>) -> Hook {
         Hook {
-            withhold,
-            period,
-
-            trackers,
-            state: HookState::Inactive,
+            trigger: Trigger::new(keys, period),
 
             effects: Vec::new(),
             release_effects: Vec::new(),
@@ -127,90 +206,14 @@ impl Hook {
         }
     }
 
-    /// Returns true is any tracker might be affected by the provided event.
-    /// This function does not affect the tracker state and is not affected by the tracker state.
-    pub fn matches(&self, event: Event) -> bool {
-        self.trackers.iter().any(|tracker| tracker.matches(&event))
-    }
-
     fn apply(&mut self, event: Event, events_out: &mut Vec<Event>, state: &mut State, loopback: &mut LoopbackHandle) {
-        let mut any_tracker_matched: bool = false;
-        for tracker in self.trackers.iter_mut()
-            .filter(|tracker| tracker.matches(&event))
-        {
-            any_tracker_matched = true;
-
-            let new_state = if tracker.activates(event) {
-                // Put a temporary dummy value in tracker.state. We will soon put
-                // a sensible value back.
-                match std::mem::replace(&mut tracker.state, TrackerState::Inactive) {
-                    active @ TrackerState::Active(..) => active,
-                    TrackerState::Inactive => {
-                        TrackerState::Active(
-                            event, acquire_expiration_token(self.period, loopback)
-                        )
-                    },
-                    TrackerState::Residual => TrackerState::Residual,
-                    TrackerState::Expired => TrackerState::Expired,
-                }
-            } else {
-                TrackerState::Inactive
-            };
-            let previous_state = std::mem::replace(&mut tracker.state, new_state);
-
-            // If this hook does not withold events, write the event out and carry on.
-            // Otherwise, do some complex logic to determine if this events needs to be
-            // withheld and/or old events must be released.
-            if ! self.withhold {
-                events_out.push(event);
-                continue;
-            }
-            
-            match tracker.activates(event) {
-                // If this tracker is activated by this event, withhold it.
-                true => {},
-                false => {
-                    match previous_state {
-                        TrackerState::Residual => {},
-                        // If an event was previously held up, release it together with
-                        // the new event.
-                        TrackerState::Active(old_event, _expiration) => {
-                            events_out.push(old_event);
-                            events_out.push(event);
-                        },
-                        TrackerState::Inactive | TrackerState::Expired => {
-                            events_out.push(event);
-                        },
-                    }
-                },
-            }
-
-            // ISSUE: withholding hooks do not work if multiple keys can potentially overlap.
-            break;
-        }
-        
-        if ! any_tracker_matched {
-            // No trackers care about this event.
-            events_out.push(event);
-            return;
-        }
-
-        // Check if we transitioned between active and inactive.
-        let all_trackers_active = self.trackers.iter().all(|tracker| tracker.state.is_active());
-
-        match (self.state, all_trackers_active) {
-            (HookState::Inactive, true) => {
-                self.state = HookState::Active { activating_event: event };
-                for tracker in &mut self.trackers {
-                    tracker.state = TrackerState::Residual;
-                }
-                self.apply_effects(event, events_out, state);
-            },
-            (HookState::Active { activating_event }, false) => {
-                self.state = HookState::Inactive;
-                self.apply_release_effects(activating_event, events_out, state);
-            },
-            (HookState::Active {..}, true) | (HookState::Inactive, false) => {},
+        events_out.push(event);
+        let response = self.trigger.apply(event, loopback);
+        match response {
+            TriggerResponse::Activates => self.apply_effects(event, events_out, state),
+            TriggerResponse::Releases {activating_event }
+                => self.apply_release_effects(activating_event, events_out, state),
+            TriggerResponse::Matched | TriggerResponse::None => (),
         }
     }
 
@@ -233,30 +236,14 @@ impl Hook {
     ) {
         caps_out.extend(caps);
         if ! self.send_keys.is_empty() {
-            let keys: Vec<&Key> = self.trackers.iter().map(|tracker| &tracker.key).collect();
+            // TODO: This is bad encapsulation. Refactor.
+            let keys: Vec<&Key> = self.trigger.trackers.iter().map(|tracker| &tracker.key).collect();
             generate_additional_caps(&keys, &self.send_keys, caps, caps_out);
         }
     }
 
-    pub fn wakeup(&mut self, token: &loopback::Token, events_out: &mut Vec<Event>) {
-        // TODO: try maintaining weak ordering when releasing events?
-        // Release all events that have expired.
-        for tracker in &mut self.trackers {
-            match tracker.state {
-                TrackerState::Active(_event, ExpirationTime::Never) => {},
-                TrackerState::Residual => {}, // TODO: handle expiration of residual.
-                TrackerState::Inactive => {},
-                TrackerState::Expired => {},
-                TrackerState::Active(event, ExpirationTime::Until(ref other_token)) => {
-                    if token == other_token {
-                        tracker.state = TrackerState::Expired;
-                        if self.withhold {
-                            events_out.push(event);
-                        }
-                    }
-                }
-            }
-        }
+    pub fn wakeup(&mut self, token: &loopback::Token) {
+        self.trigger.wakeup(token);
     }
 
     /// Runs all effects that should be ran when this hook triggers.

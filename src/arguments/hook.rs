@@ -15,7 +15,6 @@ pub(super) struct HookArg {
     pub exec_shell: Vec<String>,
     pub hold_keys: Vec<Key>,
     pub toggle_action: HookToggleAction,
-    pub withhold: bool,
     pub period: Option<Duration>,
     pub send_keys: Vec<Key>,
 }
@@ -23,7 +22,7 @@ pub(super) struct HookArg {
 impl HookArg {
 	pub fn parse(args: Vec<String>) -> Result<HookArg, ArgumentError> {
         let arg_group = ComplexArgGroup::parse(args,
-            &["toggle", "withhold"],
+            &["toggle"],
             &["exec-shell", "toggle", "period", "send-key"],
             false,
             true,
@@ -39,7 +38,6 @@ impl HookArg {
             allow_relative_values: false,
             namespace: Namespace::User,
         }.parse_all(&arg_group.keys)?;
-        let withhold = arg_group.has_flag("withhold");
 
         // TODO: deduplicate with DelayArg.
         let period = match arg_group.get_unique_clause("period")? {
@@ -63,7 +61,7 @@ impl HookArg {
         } else {
             Ok(HookArg {
                 exec_shell: arg_group.get_clauses("exec-shell"),
-                hold_keys, toggle_action, withhold, period, send_keys,
+                hold_keys, toggle_action, period, send_keys,
             })
         }
     }
