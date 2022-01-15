@@ -127,6 +127,12 @@ impl Hook {
         }
     }
 
+    /// Returns true is any tracker might be affected by the provided event.
+    /// This function does not affect the tracker state and is not affected by the tracker state.
+    pub fn matches(&self, event: Event) -> bool {
+        self.trackers.iter().any(|tracker| tracker.matches(&event))
+    }
+
     fn apply(&mut self, event: Event, events_out: &mut Vec<Event>, state: &mut State, loopback: &mut LoopbackHandle) {
         let mut any_tracker_matched: bool = false;
         for tracker in self.trackers.iter_mut()
