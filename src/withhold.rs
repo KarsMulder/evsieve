@@ -6,72 +6,98 @@ use crate::capability::Capability;
 use crate::key::Key;
 use crate::state::State;
 use crate::loopback::LoopbackHandle;
+use crate::hook::{Trigger, TriggerResponse};
 
 use std::collections::HashMap;
 
+/// Used as array index to identify a Trigger in Withhold::triggers.
+type TriggerIndex = usize;
+
 /// Represents a --withhold argument.
 struct Withhold {
-    /// TODO: doccomment.
-    hooks: Vec<Hook>,
-    /// Must only contain keys of type EV_KEY and must not specify any values.
-    withholdable_keys: Vec<Key>,
+    /// Copies of the triggers of the associated hooks.
+    /// The index of each trigger in this vector must remain unchanged.
+    triggers: Vec<Trigger>,
+
+    channel_state: HashMap<Channel, ChannelState>,
 }
 
 impl Withhold {
-    pub fn apply_to_all(&mut self, events: &[Event], events_out: &mut Vec<Event>, state: &mut State, loopback: &mut LoopbackHandle) {
+    pub fn apply_to_all(&mut self, events: &[Event], events_out: &mut Vec<Event>, loopback: &mut LoopbackHandle) {
         for event in events {
-            apply(*event, events_out, &mut self.hooks, 0, state, loopback);
+            self.apply(*event, events_out, loopback);
         }
     }
 
-    pub fn apply_to_all_caps(&self, caps: &[Capability], caps_out: &mut Vec<Capability>) {
-        // TODO: can the caps_out buffer be reused?
-        let mut caps = caps.to_vec();
-        let mut buffer: Vec<Capability> = Vec::new();
-        for hook in &self.hooks {
-            hook.apply_to_all_caps(&caps, &mut buffer);
-            caps.clear();
-            std::mem::swap(&mut caps, &mut buffer);
+    pub fn apply(&mut self, event: Event, events_out: &mut Vec<Event>, loopback: &mut LoopbackHandle) {
+        // Check with which indices this event is related in any way, as well as which triggers
+        // just activated because of this event.
+        let mut matching_trigger_indices: Vec<TriggerIndex> = Vec::new();
+        let mut activated_trigger_indices: Vec<TriggerIndex> = Vec::new();
+        for (index, trigger) in self.triggers.iter_mut().enumerate() {
+            match trigger.apply(event, loopback) {
+                TriggerResponse::None => (),
+                TriggerResponse::Matched | TriggerResponse::Releases { .. }
+                    => matching_trigger_indices.push(index),
+                TriggerResponse::Activates => {
+                    matching_trigger_indices.push(index);
+                    activated_trigger_indices.push(index);
+                }
+            }
         }
-        *caps_out = caps;
-    }
-}
 
-fn apply(
-        event: Event,
-        events_out: &mut Vec<Event>,
-        hooks: &mut [Hook],
-        hook_index: usize,
-        state: &mut State,
-        loopback: &mut LoopbackHandle
-) {
-    // TODO: consider optimising stack usage.
-    if let Some(hook) = hooks.get_mut(hook_index) {
-        let mut buffer: Vec<Event> = Vec::new();
-        hook.apply_to_all(&[event], &mut buffer, state, loopback);
-        for next_event in buffer {
-            apply(next_event, events_out, hooks, hook_index + 1, state, loopback);
+        if matching_trigger_indices.is_empty() {
+            events_out.push(event);
+            return;
         }
-    } else {
-        events_out.push(event);
-    }
-}
 
-/// This part of the Withhold is actually responsible for blocking events until they are deemed
-/// ready to release.
-struct Blocker {
-    keys: Vec<Key>,
-    state: HashMap<Channel, ChannelState>,
-}
+        // Update which triggers withhold the events of this channel.
+        let state: &mut ChannelState = self.channel_state
+            .entry(event.channel()).or_default();
+        let mut withholding_triggers = match std::mem::take(state) {
+            ChannelState::Withheld { withholding_triggers } => withholding_triggers,
+            ChannelState::Inactive | ChannelState::Residual => Vec::new(),
+        };
+        if event.value >= 1 {
+            withholding_triggers.extend(matching_trigger_indices);
+            withholding_triggers.sort_unstable();
+            withholding_triggers.dedup();
 
-enum ChannelState {
-    Inactive,
-    Withheld,
-    Residual,
-}
+            *state = ChannelState::Withheld { withholding_triggers };
+        } else {
+            withholding_triggers.retain(|index| !matching_trigger_indices.contains(index));
+            *state = match withholding_triggers.is_empty() {
+                true => ChannelState::Inactive,
+                false => ChannelState::Withheld { withholding_triggers },
+            }
+            // TODO: Release withheld events.
+        }
 
-impl Blocker {
-    fn apply(&mut self, event: Event, events_out: &mut Vec<Event>, hooks: &[Hook]) {
+        // All events which were withheld by a trigger that just activated shall be considered
+        // to have been consumed.
+        for (_channel, state) in &mut self.channel_state {
+            if let ChannelState::Withheld { withholding_triggers } = state {
+                for activated_index in &activated_trigger_indices {
+                    if withholding_triggers.contains(activated_index) {
+                        *state = ChannelState::Residual;
+                        break;
+                    }
+                }
+            }
+        }
         unimplemented!()
+    }
+}
+
+// TODO: Doccomment.
+enum ChannelState {
+    Withheld { withholding_triggers: Vec<TriggerIndex> },
+    Residual,
+    Inactive,
+}
+
+impl Default for ChannelState {
+    fn default() -> Self {
+        ChannelState::Inactive
     }
 }

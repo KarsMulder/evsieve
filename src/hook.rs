@@ -75,7 +75,7 @@ impl Tracker {
 
 /// The Trigger is the inner part of the hook that keeps track of when the hook is supposed to
 /// activate.
-struct Trigger {
+pub struct Trigger {
     /// If Some, then all trackers must be activated within a certain duration from the first
     /// tracker to activate in order to trigger the hook.
     period: Option<Duration>,
@@ -86,7 +86,7 @@ struct Trigger {
 
 /// Returned by Trigger::apply to inform the caller what effect the provided event had on
 /// the hook.
-enum TriggerResponse {
+pub enum TriggerResponse {
     /// This event does not interact with this hook in any way.
     None,
     /// This event may or may not have affected the current state of the hook.
@@ -108,7 +108,7 @@ enum TriggerState {
 }
 
 impl Trigger {
-    fn new(keys: Vec<Key>, period: Option<Duration>) -> Trigger {
+    pub fn new(keys: Vec<Key>, period: Option<Duration>) -> Trigger {
         let trackers = keys.into_iter().map(Tracker::new).collect();
         Trigger {
             period, trackers,
@@ -116,7 +116,7 @@ impl Trigger {
         }
     }
 
-    fn apply(&mut self, event: Event, loopback: &mut LoopbackHandle) -> TriggerResponse {
+    pub fn apply(&mut self, event: Event, loopback: &mut LoopbackHandle) -> TriggerResponse {
         let mut any_tracker_matched: bool = false;
         for tracker in self.trackers.iter_mut()
             .filter(|tracker| tracker.matches(&event))
@@ -166,7 +166,7 @@ impl Trigger {
     }
 
     /// Release all events that have expired.
-    fn wakeup(&mut self, token: &loopback::Token) {
+    pub fn wakeup(&mut self, token: &loopback::Token) {
         for tracker in &mut self.trackers {
             match tracker.state {
                 TrackerState::Inactive => {},
