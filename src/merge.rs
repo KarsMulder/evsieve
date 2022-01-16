@@ -3,8 +3,7 @@
 use std::collections::HashMap;
 
 use crate::key::Key;
-use crate::event::{Event, EventCode};
-use crate::domain::Domain;
+use crate::event::{Event, Channel};
 
 /// Represents a --merge argument.
 pub struct Merge {
@@ -12,7 +11,7 @@ pub struct Merge {
     keys: Vec<Key>,
     
     /// How many down events each (type, code, domain) pair has.
-    state: HashMap<(EventCode, Domain), usize>,
+    state: HashMap<Channel, usize>,
 }
 
 impl Merge {
@@ -28,7 +27,7 @@ impl Merge {
             return;
         }
 
-        let current_down_count: &mut usize = self.state.entry((event.code, event.domain)).or_insert(0);
+        let current_down_count: &mut usize = self.state.entry(event.channel()).or_insert(0);
         let last_down_count: usize = *current_down_count;
         match event.value {
             // If this is a KEY_DOWN (1) event, add one to the down count.
