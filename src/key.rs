@@ -2,13 +2,12 @@
 
 use crate::domain;
 use crate::domain::Domain;
-use crate::event::{Event, EventType, Namespace, VirtualEventType};
+use crate::event::{Event, EventType, EventCode, Channel, Namespace, VirtualEventType};
 use crate::utils;
 use crate::error::ArgumentError;
 use crate::capability::{Capability, CapMatch};
 use crate::range::Range;
 use crate::ecodes;
-use crate::event::EventCode;
 use crate::error::Context;
 
 #[derive(Clone, Debug)]
@@ -41,6 +40,11 @@ impl Key {
 
     pub fn matches(&self, event: &Event) -> bool {
         self.properties.iter().all(|prop| prop.matches(event))
+    }
+
+    /// Returns true if this Key might match any Event with a given channel.
+    pub fn matches_channel(&self, channel: Channel) -> bool {
+        self.properties.iter().all(|prop| prop.matches_channel(channel))
     }
 
     /// Returns Yes if this key will guaranteedly match any event said Capability might emit,
@@ -138,6 +142,21 @@ impl KeyProperty {
                 }
                 false
             },
+        }
+    }
+
+    /// Checks whether this Keyproperty might match any event with a given channel.
+    pub fn matches_channel(&self, channel: Channel) -> bool {
+        let (code, domain) = channel;
+        match *self {
+            KeyProperty::Code(value) => code == value,
+            KeyProperty::Domain(value) => domain == value,
+            KeyProperty::VirtualType(value) => value.ev_type() == code.ev_type(),
+            KeyProperty::Namespace(_)
+            | KeyProperty::Value(_)
+            | KeyProperty::PreviousValue(_)
+            | KeyProperty::DeltaFactor(_)
+                => true,
         }
     }
 

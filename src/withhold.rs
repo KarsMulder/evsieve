@@ -37,22 +37,24 @@ impl Withhold {
 
         // Check with which indices this event is related in any way, as well as which triggers
         // just activated because of this event.
-        let mut matching_trigger_indices: Vec<TriggerIndex> = Vec::new();
+        let mut matchpos_trigger_indices: Vec<TriggerIndex> = Vec::new();
+        let mut matchneg_trigger_indices: Vec<TriggerIndex> = Vec::new();
         let mut activated_trigger_indices: Vec<TriggerIndex> = Vec::new();
         for (index, trigger) in self.triggers.iter_mut().enumerate() {
             match trigger.apply(event, loopback) {
                 TriggerResponse::None => (),
-                TriggerResponse::Matched | TriggerResponse::Releases { .. }
-                    => matching_trigger_indices.push(index),
+                TriggerResponse::MatchPositive => matchpos_trigger_indices.push(index),
                 TriggerResponse::Activates => {
-                    matching_trigger_indices.push(index);
+                    matchpos_trigger_indices.push(index);
                     activated_trigger_indices.push(index);
-                }
+                },
+                TriggerResponse::MatchNegative | TriggerResponse::Releases { .. }
+                    => matchneg_trigger_indices.push(index),
             }
         }
 
         // If this event does not interact with any trigger, ignore it.
-        if matching_trigger_indices.is_empty() {
+        if matchpos_trigger_indices.is_empty() && matchneg_trigger_indices.is_empty() {
             return events_out.push(event);
         }
 
@@ -67,7 +69,7 @@ impl Withhold {
                 ChannelState::Inactive | ChannelState::Residual => (Vec::new(), event),
             };
 
-            withholding_triggers.extend(matching_trigger_indices);
+            withholding_triggers.extend(matchpos_trigger_indices);
             withholding_triggers.sort_unstable();
             withholding_triggers.dedup();
 
@@ -106,6 +108,16 @@ impl Withhold {
     }
 
     pub fn wakeup(&mut self, token: &Token, events_out: &mut Vec<Event>) {
+        let mut expired_triggers: Vec<TriggerIndex> = Vec::new();
+        for (index, trigger) in self.triggers.iter_mut().enumerate() {
+            if let Some(expired_key) = trigger.wakeup(token) {
+                for (channel, state) in self.channel_state.iter_mut() {
+                    if expired_key.matches_channel(*channel) {
+                        unimplemented!();
+                    }
+                }
+            }
+        }
         unimplemented!();
     }
 }

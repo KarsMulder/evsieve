@@ -14,7 +14,10 @@ pub type Effect = Box<dyn Fn(&mut State)>;
 
 /// Represents the point at time after which a pressed tracker is no longer valid.
 /// Usually determined by the --hook period= clause.
-enum ExpirationTime {
+///
+/// IMPORTANT: no two ExpirationTimes must have the same token. This is necessary for
+/// the correctness of Trigger::wakeup().
+pub enum ExpirationTime {
     Never,
     Until(loopback::Token),
 }
@@ -89,8 +92,13 @@ pub struct Trigger {
 pub enum TriggerResponse {
     /// This event does not interact with this hook in any way.
     None,
-    /// This event may or may not have affected the current state of the hook.
-    Matched,
+    /// This event activates one of the trackers. The tracker may or may not have already been
+    /// active before this event arrived. Returns the latest time that any of the activated
+    /// trackers expire.
+    MatchPositive,
+    /// This event deactivates one of the trackers, regardless of whether that tracker was
+    /// active to start with.
+    MatchNegative,
     /// The hook has activated because of this event. Its effects should be triggered.
     Activates,
     /// The hook has released because of this event. Its on-release effects should be triggered.
@@ -160,13 +168,14 @@ impl Trigger {
                 self.state = TriggerState::Inactive;
                 TriggerResponse::Releases { activating_event }
             },
-            (TriggerState::Active {..}, true) | (TriggerState::Inactive, false)
-                => TriggerResponse::Matched,
+            (TriggerState::Active {..}, true) => TriggerResponse::MatchPositive,
+            (TriggerState::Inactive, false) => TriggerResponse::MatchNegative,
         }
     }
 
-    /// Release all events that have expired.
-    pub fn wakeup(&mut self, token: &loopback::Token) {
+    /// Release a tracker that has expired. If a tracker expired, returns the associated key.
+    /// It is important that the Tokens are unique for this function to work correctly.
+    pub fn wakeup(&mut self, token: &loopback::Token) -> Option<&Key> {
         for tracker in &mut self.trackers {
             match tracker.state {
                 TrackerState::Inactive => {},
@@ -175,10 +184,12 @@ impl Trigger {
                 TrackerState::Active(ExpirationTime::Until(ref other_token)) => {
                     if token == other_token {
                         tracker.state = TrackerState::Expired;
+                        return Some(&tracker.key);
                     }
                 }
             }
         }
+        None
     }
 }
 
@@ -213,7 +224,9 @@ impl Hook {
             TriggerResponse::Activates => self.apply_effects(event, events_out, state),
             TriggerResponse::Releases {activating_event }
                 => self.apply_release_effects(activating_event, events_out, state),
-            TriggerResponse::Matched | TriggerResponse::None => (),
+            TriggerResponse::MatchPositive
+            | TriggerResponse::MatchNegative
+            | TriggerResponse::None => (),
         }
     }
 
