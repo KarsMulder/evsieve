@@ -8,6 +8,7 @@ use crate::predevice::PreOutputDevice;
 use crate::state::State;
 use crate::event::{Event, Namespace};
 use crate::print::EventPrinter;
+use crate::withhold::Withhold;
 use crate::capability::{Capability, InputCapabilites};
 use crate::io::output::OutputSystem;
 use crate::error::RuntimeError;
@@ -36,6 +37,7 @@ pub enum StreamEntry {
     Toggle(Toggle),
     Print(EventPrinter),
     Merge(Merge),
+    Withhold(Withhold),
     Delay(crate::delay::Delay),
 }
 
@@ -162,6 +164,11 @@ fn run_event(event_in: Event, events_out: &mut Vec<Event>, stream: &mut [StreamE
                 events.clear();
                 std::mem::swap(&mut events, &mut buffer);
             },
+            StreamEntry::Withhold(withhold) => {
+                withhold.apply_to_all(&events, &mut buffer, loopback);
+                events.clear();
+                std::mem::swap(&mut events, &mut buffer);
+            },
             StreamEntry::Print(printer) => {
                 printer.apply_to_all(&events);
             },
@@ -186,6 +193,9 @@ fn run_wakeup(token: crate::loopback::Token, events_out: &mut Vec<Event>, stream
             },
             StreamEntry::Delay(delay) => {
                 delay.wakeup(&token, &mut events);
+            },
+            StreamEntry::Withhold(withhold) => {
+                withhold.wakeup(&token, &mut events);
             },
             StreamEntry::Print(_printer) => {},
         }
@@ -223,6 +233,7 @@ pub fn run_caps(stream: &[StreamEntry], capabilities: Vec<Capability>) -> Vec<Ca
             },
             StreamEntry::Print(_) => (),
             StreamEntry::Delay(_) => (),
+            StreamEntry::Withhold(_) => (),
         }
 
         // Merge capabilities that differ only in value together when possible.

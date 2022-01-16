@@ -2,7 +2,7 @@
 
 use crate::event::{Event, Channel};
 use crate::key::Key;
-use crate::loopback::LoopbackHandle;
+use crate::loopback::{LoopbackHandle, Token};
 use crate::hook::{Trigger, TriggerResponse};
 
 use std::collections::HashMap;
@@ -103,6 +103,10 @@ impl Withhold {
                 }
             }
         }
+    }
+
+    pub fn wakeup(&mut self, token: &Token, events_out: &mut Vec<Event>) {
+        unimplemented!();
     }
 }
 
