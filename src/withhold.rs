@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use crate::hook::Hook;
 use crate::event::{Event, Channel};
-use crate::capability::Capability;
 use crate::key::Key;
-use crate::state::State;
 use crate::loopback::LoopbackHandle;
 use crate::hook::{Trigger, TriggerResponse};
 
@@ -14,10 +11,14 @@ use std::collections::HashMap;
 type TriggerIndex = usize;
 
 /// Represents a --withhold argument.
-struct Withhold {
+pub struct Withhold {
     /// Copies of the triggers of the associated hooks.
     /// The index of each trigger in this vector must remain unchanged.
     triggers: Vec<Trigger>,
+
+    /// Only withhold events that match one of the following keys.
+    /// Regardless of what the keys say, the Withhold is only applicable to events of type EV_KEY.
+    keys: Vec<Key>,
 
     channel_state: HashMap<Channel, ChannelState>,
 }
@@ -29,7 +30,11 @@ impl Withhold {
         }
     }
 
-    pub fn apply(&mut self, event: Event, events_out: &mut Vec<Event>, loopback: &mut LoopbackHandle) {
+    fn apply(&mut self, event: Event, events_out: &mut Vec<Event>, loopback: &mut LoopbackHandle) {
+        if ! event.ev_type().is_key() || ! self.keys.iter().any(|key| key.matches(&event)) {
+            return events_out.push(event);
+        }
+
         // Check with which indices this event is related in any way, as well as which triggers
         // just activated because of this event.
         let mut matching_trigger_indices: Vec<TriggerIndex> = Vec::new();
@@ -46,37 +51,50 @@ impl Withhold {
             }
         }
 
+        // If this event does not interact with any trigger, ignore it.
         if matching_trigger_indices.is_empty() {
-            events_out.push(event);
-            return;
+            return events_out.push(event);
         }
 
-        // Update which triggers withhold the events of this channel.
-        let state: &mut ChannelState = self.channel_state
-            .entry(event.channel()).or_default();
-        let mut withholding_triggers = match std::mem::take(state) {
-            ChannelState::Withheld { withholding_triggers } => withholding_triggers,
-            ChannelState::Inactive | ChannelState::Residual => Vec::new(),
-        };
         if event.value >= 1 {
+            // If this event is a key_down event, associate all matching triggers with this channel.
+            let state: &mut ChannelState = self.channel_state
+                .entry(event.channel()).or_default();
+
+            let (mut withholding_triggers, withheld_event) = match std::mem::take(state) {
+                ChannelState::Withheld { withholding_triggers, withheld_event }
+                    => (withholding_triggers, withheld_event),
+                ChannelState::Inactive | ChannelState::Residual => (Vec::new(), event),
+            };
+
             withholding_triggers.extend(matching_trigger_indices);
             withholding_triggers.sort_unstable();
             withholding_triggers.dedup();
 
-            *state = ChannelState::Withheld { withholding_triggers };
+            // TODO: Consider only withholding events with value 1.
+            *state = ChannelState::Withheld { withholding_triggers, withheld_event };
         } else {
-            withholding_triggers.retain(|index| !matching_trigger_indices.contains(index));
-            *state = match withholding_triggers.is_empty() {
-                true => ChannelState::Inactive,
-                false => ChannelState::Withheld { withholding_triggers },
+            // If it is a key_up event, all associated triggers are assumed to have released.
+            let state = self.channel_state
+                .remove(&event.channel())
+                .unwrap_or(ChannelState::Inactive);
+
+            match state {
+                ChannelState::Withheld { withheld_event, .. } => {
+                    events_out.push(withheld_event);
+                    events_out.push(event);
+                },
+                ChannelState::Inactive => {
+                    events_out.push(event);
+                },
+                ChannelState::Residual => {},
             }
-            // TODO: Release withheld events.
         }
 
         // All events which were withheld by a trigger that just activated shall be considered
         // to have been consumed.
         for (_channel, state) in &mut self.channel_state {
-            if let ChannelState::Withheld { withholding_triggers } = state {
+            if let ChannelState::Withheld { withholding_triggers, .. } = state {
                 for activated_index in &activated_trigger_indices {
                     if withholding_triggers.contains(activated_index) {
                         *state = ChannelState::Residual;
@@ -85,13 +103,12 @@ impl Withhold {
                 }
             }
         }
-        unimplemented!()
     }
 }
 
 // TODO: Doccomment.
 enum ChannelState {
-    Withheld { withholding_triggers: Vec<TriggerIndex> },
+    Withheld { withheld_event: Event, withholding_triggers: Vec<TriggerIndex> },
     Residual,
     Inactive,
 }
