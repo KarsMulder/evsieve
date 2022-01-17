@@ -38,7 +38,7 @@ impl Withhold {
     }
 
     fn apply(&mut self, event: Event, events_out: &mut Vec<Event>, loopback: &mut LoopbackHandle) {
-        if ! event.ev_type().is_key() || ! self.keys.iter().any(|key| key.matches(&event)) {
+        if ! event.ev_type().is_key() {
             return events_out.push(event);
         }
 
@@ -63,42 +63,49 @@ impl Withhold {
             return events_out.push(event);
         }
 
-        if event.value >= 1 {
-            // If this event is a key_down event, associate all matching triggers with this channel.
-            let state: &mut ChannelState = self.channel_state
-                .entry(event.channel()).or_default();
+        if self.keys.iter().any(|key| key.matches(&event)) {
+            if event.value >= 1 {
+                // If this event is a key_down event, associate all matching triggers with
+                // this channel.
+                let state: &mut ChannelState = self.channel_state
+                    .entry(event.channel()).or_default();
 
-            match state {
-                ChannelState::Withheld { ref mut withholding_triggers, .. } => {
-                    withholding_triggers.extend(matching_trigger_indices);
-                    withholding_triggers.sort_unstable();
-                    withholding_triggers.dedup();
-                }
-                ChannelState::Inactive => {
-                    *state = ChannelState::Withheld {
-                        withholding_triggers: matching_trigger_indices,
-                        // TODO: consider only storing KEY_DOWN events and not KEY_HOLD.
-                        withheld_event: event,
-                    };
-                }
-                ChannelState::Residual => {},
-            };
-        } else {
-            // If it is a key_up event, all associated triggers are assumed to have released.
-            let state = self.channel_state
-                .remove(&event.channel())
-                .unwrap_or(ChannelState::Inactive);
+                match state {
+                    ChannelState::Withheld { ref mut withholding_triggers, .. } => {
+                        withholding_triggers.extend(matching_trigger_indices);
+                        withholding_triggers.sort_unstable();
+                        withholding_triggers.dedup();
+                    }
+                    ChannelState::Inactive => {
+                        *state = ChannelState::Withheld {
+                            withholding_triggers: matching_trigger_indices,
+                            // TODO: consider only storing KEY_DOWN events and not KEY_HOLD.
+                            withheld_event: event,
+                        };
+                    }
+                    ChannelState::Residual => {},
+                };
+            } else {
+                // If it is a key_up event, all associated triggers are assumed to have been
+                // released. To make this assumption true, the associated --hook's must only
+                // use EV_KEY-type keys with default values.
+                let state = self.channel_state
+                    .remove(&event.channel())
+                    .unwrap_or(ChannelState::Inactive);
 
-            match state {
-                ChannelState::Withheld { withheld_event, .. } => {
-                    events_out.push(withheld_event);
-                    events_out.push(event);
-                },
-                ChannelState::Inactive => {
-                    events_out.push(event);
-                },
-                ChannelState::Residual => {},
+                match state {
+                    ChannelState::Withheld { withheld_event, .. } => {
+                        events_out.push(withheld_event);
+                        events_out.push(event);
+                    },
+                    ChannelState::Inactive => {
+                        events_out.push(event);
+                    },
+                    ChannelState::Residual => {},
+                }
             }
+        } else {
+            events_out.push(event);
         }
 
         // All events which were withheld by a trigger that just activated shall be considered
