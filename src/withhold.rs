@@ -108,17 +108,26 @@ impl Withhold {
     }
 
     pub fn wakeup(&mut self, token: &Token, events_out: &mut Vec<Event>) {
-        let mut expired_triggers: Vec<TriggerIndex> = Vec::new();
-        for (index, trigger) in self.triggers.iter_mut().enumerate() {
-            if let Some(expired_key) = trigger.wakeup(token) {
-                for (channel, state) in self.channel_state.iter_mut() {
-                    if expired_key.matches_channel(*channel) {
-                        unimplemented!();
+        for trigger in &mut self.triggers {
+            trigger.wakeup(token);
+        }
+        // TODO: quadratic algorithm?
+        for (channel, state) in &mut self.channel_state {
+            match state {
+                ChannelState::Inactive | ChannelState::Residual => (),
+                ChannelState::Withheld { withheld_event, ref mut withholding_triggers } => {
+                    let triggers = &mut self.triggers;
+                    withholding_triggers.retain(
+                        |&index| triggers[index].has_active_tracker_matching_channel(*channel)
+                    );
+                    if withholding_triggers.is_empty() {
+                        // TODO: consider preserving proper order.
+                        events_out.push(*withheld_event);
+                        *state = ChannelState::Inactive;
                     }
                 }
             }
         }
-        unimplemented!();
     }
 }
 

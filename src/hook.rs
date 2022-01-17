@@ -1,7 +1,7 @@
 use crate::error::Context;
 use crate::range::Range;
 use crate::key::Key;
-use crate::event::Event;
+use crate::event::{Event, Channel};
 use crate::state::State;
 use crate::subprocess;
 use crate::loopback;
@@ -14,9 +14,6 @@ pub type Effect = Box<dyn Fn(&mut State)>;
 
 /// Represents the point at time after which a pressed tracker is no longer valid.
 /// Usually determined by the --hook period= clause.
-///
-/// IMPORTANT: no two ExpirationTimes must have the same token. This is necessary for
-/// the correctness of Trigger::wakeup().
 pub enum ExpirationTime {
     Never,
     Until(loopback::Token),
@@ -69,10 +66,23 @@ impl Tracker {
         self.key.matches(event)
     }
 
+    /// Returns true if any event with the given channel might interact with this
+    /// tracker in some way.
+    fn matches_channel(&self, channel: Channel) -> bool {
+        self.key.matches_channel(channel)
+    }
+
     /// Returns whether this event would turn this tracker on or off.
     /// Only returns sensible values if self.matches(event) is true.
     fn activates_by(&self, event: Event) -> bool {
         self.range.contains(event.value)
+    }
+
+    fn is_active(&self) -> bool {
+        match self.state {
+            TrackerState::Active(_) => true,
+            TrackerState::Expired | TrackerState::Inactive => false,
+        }
     }
 }
 
@@ -175,7 +185,7 @@ impl Trigger {
 
     /// Release a tracker that has expired. If a tracker expired, returns the associated key.
     /// It is important that the Tokens are unique for this function to work correctly.
-    pub fn wakeup(&mut self, token: &loopback::Token) -> Option<&Key> {
+    pub fn wakeup(&mut self, token: &loopback::Token) {
         for tracker in &mut self.trackers {
             match tracker.state {
                 TrackerState::Inactive => {},
@@ -184,12 +194,18 @@ impl Trigger {
                 TrackerState::Active(ExpirationTime::Until(ref other_token)) => {
                     if token == other_token {
                         tracker.state = TrackerState::Expired;
-                        return Some(&tracker.key);
                     }
                 }
             }
         }
-        None
+    }
+
+    /// Returns true if any of the active trackers might have been activated by an event
+    /// with the provided channel, regardless of whether that channel actually activated them.
+    pub fn has_active_tracker_matching_channel(&self, channel: Channel) -> bool {
+        self.trackers.iter()
+            .filter(|tracker| tracker.is_active())
+            .any(   |tracker| tracker.matches_channel(channel))
     }
 }
 
