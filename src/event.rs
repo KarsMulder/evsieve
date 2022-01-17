@@ -162,6 +162,13 @@ impl fmt::Display for Event {
     }
 }
 
+impl fmt::Debug for Event {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let name = ecodes::event_name(self.code);
+        write!(f, "{}:{}..{}@{:?}", name, self.previous_value, self.value, self.domain)
+    }
+}
+
 
 /// Namespaces are an internal concept that is not visible to the user. They are like domains, but
 /// then on a higher level such that even a filter with an empty domain cannot match events within a

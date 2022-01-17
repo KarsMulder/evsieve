@@ -111,13 +111,9 @@ pub struct Trigger {
 pub enum TriggerResponse {
     /// This event does not interact with this hook in any way.
     None,
-    /// This event activates one of the trackers. The tracker may or may not have already been
-    /// active before this event arrived. Returns the latest time that any of the activated
-    /// trackers expire.
-    MatchPositive,
-    /// This event deactivates one of the trackers, regardless of whether that tracker was
-    /// active to start with.
-    MatchNegative,
+    /// This event matches the key one of the trackers. Does not guarantee that the actual
+    /// state of the tracker was changed.
+    Matches,
     /// The hook has activated because of this event. Its effects should be triggered.
     Activates,
     /// The hook has released because of this event. Its on-release effects should be triggered.
@@ -187,8 +183,8 @@ impl Trigger {
                 self.state = TriggerState::Inactive;
                 TriggerResponse::Releases { activating_event }
             },
-            (TriggerState::Active {..}, true) => TriggerResponse::MatchPositive,
-            (TriggerState::Inactive, false) => TriggerResponse::MatchNegative,
+            (TriggerState::Active {..}, true) | (TriggerState::Inactive, false)
+                => TriggerResponse::Matches,
         }
     }
 
@@ -258,8 +254,7 @@ impl Hook {
             TriggerResponse::Activates => self.apply_effects(event, events_out, state),
             TriggerResponse::Releases {activating_event }
                 => self.apply_release_effects(activating_event, events_out, state),
-            TriggerResponse::MatchPositive
-            | TriggerResponse::MatchNegative
+            TriggerResponse::Matches
             | TriggerResponse::None => (),
         }
     }

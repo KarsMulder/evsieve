@@ -44,24 +44,22 @@ impl Withhold {
 
         // Check with which indices this event is related in any way, as well as which triggers
         // just activated because of this event.
-        let mut matchpos_trigger_indices: Vec<TriggerIndex> = Vec::new();
-        let mut matchneg_trigger_indices: Vec<TriggerIndex> = Vec::new();
+        let mut matching_trigger_indices: Vec<TriggerIndex> = Vec::new();
         let mut activated_trigger_indices: Vec<TriggerIndex> = Vec::new();
         for (index, trigger) in self.triggers.iter_mut().enumerate() {
             match trigger.apply(event, loopback) {
                 TriggerResponse::None => (),
-                TriggerResponse::MatchPositive => matchpos_trigger_indices.push(index),
                 TriggerResponse::Activates => {
-                    matchpos_trigger_indices.push(index);
+                    matching_trigger_indices.push(index);
                     activated_trigger_indices.push(index);
                 },
-                TriggerResponse::MatchNegative | TriggerResponse::Releases { .. }
-                    => matchneg_trigger_indices.push(index),
+                TriggerResponse::Matches | TriggerResponse::Releases { .. }
+                    => matching_trigger_indices.push(index),
             }
         }
 
         // If this event does not interact with any trigger, ignore it.
-        if matchpos_trigger_indices.is_empty() && matchneg_trigger_indices.is_empty() {
+        if matching_trigger_indices.is_empty() {
             return events_out.push(event);
         }
 
@@ -70,18 +68,21 @@ impl Withhold {
             let state: &mut ChannelState = self.channel_state
                 .entry(event.channel()).or_default();
 
-            let (mut withholding_triggers, withheld_event) = match std::mem::take(state) {
-                ChannelState::Withheld { withholding_triggers, withheld_event }
-                    => (withholding_triggers, withheld_event),
-                ChannelState::Inactive | ChannelState::Residual => (Vec::new(), event),
+            match state {
+                ChannelState::Withheld { ref mut withholding_triggers, .. } => {
+                    withholding_triggers.extend(matching_trigger_indices);
+                    withholding_triggers.sort_unstable();
+                    withholding_triggers.dedup();
+                }
+                ChannelState::Inactive => {
+                    *state = ChannelState::Withheld {
+                        withholding_triggers: matching_trigger_indices,
+                        // TODO: consider only storing KEY_DOWN events and not KEY_HOLD.
+                        withheld_event: event,
+                    };
+                }
+                ChannelState::Residual => {},
             };
-
-            withholding_triggers.extend(matchpos_trigger_indices);
-            withholding_triggers.sort_unstable();
-            withholding_triggers.dedup();
-
-            // TODO: Consider only withholding events with value 1.
-            *state = ChannelState::Withheld { withholding_triggers, withheld_event };
         } else {
             // If it is a key_up event, all associated triggers are assumed to have released.
             let state = self.channel_state
@@ -144,6 +145,7 @@ impl Withhold {
 }
 
 // TODO: Doccomment.
+#[derive(Debug)]
 enum ChannelState {
     Withheld { withheld_event: Event, withholding_triggers: Vec<TriggerIndex> },
     Residual,

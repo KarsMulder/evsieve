@@ -260,6 +260,11 @@ pub fn implement(args_str: Vec<String>)
                         _ => unreachable!(),
                     }).collect();
                 applicable_triggers.reverse();
+
+                if applicable_triggers.is_empty() {
+                    return Err(ArgumentError::new("A --withhold argument must be preceded by at least one --hook argument.").into());
+                }
+
                 stream.push(StreamEntry::Withhold(
                     Withhold::new(withhold_arg.keys, applicable_triggers)
                 ));
