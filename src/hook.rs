@@ -84,6 +84,15 @@ impl Tracker {
             TrackerState::Expired | TrackerState::Inactive => false,
         }
     }
+
+    /// Like Clone::clone, but does not clone the runtime state of the Tracker.
+    fn clone_empty(&self) -> Tracker {
+        Tracker {
+            key: self.key.clone(),
+            range: self.range,
+            state: TrackerState::Inactive,
+        }
+    }
 }
 
 /// The Trigger is the inner part of the hook that keeps track of when the hook is supposed to
@@ -207,6 +216,15 @@ impl Trigger {
             .filter(|tracker| tracker.is_active())
             .any(   |tracker| tracker.matches_channel(channel))
     }
+
+    /// Like Clone::clone, but does not clone the runtime state of the Trigger.
+    pub fn clone_empty(&self) -> Trigger {
+        Trigger {
+            period: self.period,
+            trackers: self.trackers.iter().map(Tracker::clone_empty).collect(),
+            state: TriggerState::Inactive,
+        }
+    }
 }
 
 pub struct Hook {
@@ -219,7 +237,7 @@ pub struct Hook {
     send_keys: Vec<Key>,
 
     /// The current state mutable at runtime.
-    trigger: Trigger,
+    pub trigger: Trigger, // TODO: fix encapsulation.
 }
 
 impl Hook {

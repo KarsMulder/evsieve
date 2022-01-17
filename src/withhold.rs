@@ -24,6 +24,13 @@ pub struct Withhold {
 }
 
 impl Withhold {
+    pub fn new(keys: Vec<Key>, triggers: Vec<Trigger>) -> Withhold {
+        Withhold {
+            keys, triggers,
+            channel_state: HashMap::new(),
+        }
+    }
+
     pub fn apply_to_all(&mut self, events: &[Event], events_out: &mut Vec<Event>, loopback: &mut LoopbackHandle) {
         for event in events {
             self.apply(*event, events_out, loopback);
@@ -112,6 +119,11 @@ impl Withhold {
             trigger.wakeup(token);
         }
         // TODO: quadratic algorithm?
+        // At least don't run this loop for EVERY token.
+
+        // Some trackers might have just expired. For all events that are being withheld,
+        // check whether the respective triggers are still withholding them. Events that
+        // are no longer withheld by any trigger shall be released bach to the stream.
         for (channel, state) in &mut self.channel_state {
             match state {
                 ChannelState::Inactive | ChannelState::Residual => (),

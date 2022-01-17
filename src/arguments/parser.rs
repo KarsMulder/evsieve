@@ -6,6 +6,7 @@ use crate::key::Key;
 use crate::event::Namespace;
 use crate::hook::Hook;
 use crate::map::{Map, Toggle};
+use crate::withhold::Withhold;
 use crate::stream::{StreamEntry, Setup};
 use crate::predevice::{PreInputDevice, PreOutputDevice};
 use crate::state::{State, ToggleIndex};
@@ -16,6 +17,7 @@ use crate::arguments::toggle::ToggleArg;
 use crate::arguments::map::{MapArg, BlockArg};
 use crate::arguments::print::PrintArg;
 use crate::arguments::delay::DelayArg;
+use crate::arguments::withhold::WithholdArg;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
@@ -44,6 +46,7 @@ enum Argument {
     PrintArg(PrintArg),
     MergeArg(MergeArg),
     DelayArg(DelayArg),
+    WithholdArg(WithholdArg),
 }
 
 impl Argument {
@@ -60,6 +63,7 @@ impl Argument {
             "--print" => Ok(Argument::PrintArg(PrintArg::parse(args)?)),
             "--merge" => Ok(Argument::MergeArg(MergeArg::parse(args)?)),
             "--delay" => Ok(Argument::DelayArg(DelayArg::parse(args)?)),
+            "--withhold" => Ok(Argument::WithholdArg(WithholdArg::parse(args)?)),
             _ => Err(ArgumentError::new(format!("Encountered unknown argument: {}", first_arg)).into()),
         }
     }
@@ -243,6 +247,22 @@ pub fn implement(args_str: Vec<String>)
                 }
                 
                 stream.push(StreamEntry::Hook(hook));
+            },
+            Argument::WithholdArg(withhold_arg) => {
+                // TODO: this is fragile. What if --hook gets changed to compile to more than one
+                // argument?
+                let mut applicable_triggers: Vec<crate::hook::Trigger> = stream.iter().rev()
+                    // The following two lines can be turned into Iterator::map_while,
+                    // but that function is only introduced in Rust 1.57.0.
+                    .take_while(|entry| matches!(entry, StreamEntry::Hook(_)))
+                    .map(|entry| match entry {
+                        StreamEntry::Hook(hook) => hook.trigger.clone_empty(),
+                        _ => unreachable!(),
+                    }).collect();
+                applicable_triggers.reverse();
+                stream.push(StreamEntry::Withhold(
+                    Withhold::new(withhold_arg.keys, applicable_triggers)
+                ));
             },
             Argument::ToggleArg(toggle_arg) => {
                 let index = match &toggle_arg.id {
