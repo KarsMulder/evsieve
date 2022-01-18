@@ -49,6 +49,7 @@ def run_unittest(
             output_devices.append((output_device, events))
 
         # Send the input events.
+        output_events = [list() for dev in output_devices]
         for device, events in input_devices.items():
             for event in events:
                 device.write(*event)
@@ -56,18 +57,25 @@ def run_unittest(
                     device.syn()
                 time.sleep(0.01)
 
+                # Read the output events already so we don't overflow the buffer.
+                for ((output_device, _), events) in zip(output_devices, output_events):
+                    try:
+                        for event in output_device.read():
+                            if event.type != e.EV_SYN:
+                                events.append(event)
+                    except BlockingIOError:
+                        pass
+
         # Check whether the output devices have the expected events.
         time.sleep(0.05)
-        for device, events in output_devices:
-            for event in device.read():
-                if auto_syn and event.type == e.EV_SYN:
-                    continue
-                expected_event = events.pop(0)
+        for (events, (_, expected_events)) in zip(output_events, output_devices):
+            for event in events:
+                expected_event = expected_events.pop(0)
                 event = (event.type, event.code, event.value)
                 if event != expected_event:
                     raise Exception(f"Unit test failed. Expected event {expected_event}, encountered {event}")
-            if len(events) > 0:
-                raise Exception(f"Unit test failed. Expected events {events}, but the output device closed.")
+            if len(expected_events) > 0:
+                raise Exception(f"Unit test failed. Expected events {expected_events}, but the output device closed.")
 
     finally:
         # Clean up.
@@ -681,6 +689,156 @@ def unittest_delta():
         },
     )
 
+def unittest_withhold():
+    run_unittest(
+        ["--input", "/dev/input/by-id/unittest-withhold-in", "grab=force",
+        "--hook", "key:a", "key:b", "send-key=key:x",
+        "--withhold",
+        "--hook", "key:c",
+        "--map", "key:c", "key:c@bar",
+        "--hook", "key:c@foo",
+        "--hook", "key:d",
+        "--hook", "key:e",
+        "--withhold", "key:c", "key:d", "key:f",
+        "--hook", "key:g", "key:h", "key:i",
+        "--hook", "key:h", "key:j",
+        "--withhold",
+        "--map", "key:k", "key:k@foo",
+        "--map", "key:l", "key:k@bar",
+        "--hook", "key:k", "key:m",
+        "--withhold",
+        "--map", "key:k@bar", "key:l",
+        "--output", "create-link=/dev/input/by-id/unittest-withhold-out"],
+        {
+            "/dev/input/by-id/unittest-withhold-in": [
+                # Part 1
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_S, 1),
+                (e.EV_KEY, e.KEY_S, 0),
+                (e.EV_KEY, e.KEY_A, 0),
+
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_B, 0),
+
+                (e.EV_KEY, e.KEY_T, 1),
+                (e.EV_KEY, e.KEY_T, 0),
+
+                # Part 2
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_S, 1),
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_S, 2),
+                (e.EV_KEY, e.KEY_A, 0),
+                (e.EV_KEY, e.KEY_S, 0),
+                (e.EV_KEY, e.KEY_B, 0),
+
+                # Part 3
+                (e.EV_KEY, e.KEY_C, 1),
+                (e.EV_KEY, e.KEY_C, 0),
+
+                (e.EV_KEY, e.KEY_D, 1),
+                (e.EV_KEY, e.KEY_D, 0),
+                (e.EV_KEY, e.KEY_E, 1),
+                (e.EV_KEY, e.KEY_E, 0),
+                (e.EV_KEY, e.KEY_F, 1),
+                (e.EV_KEY, e.KEY_F, 0),
+
+                # Part 4
+                (e.EV_KEY, e.KEY_H, 1),
+                (e.EV_KEY, e.KEY_H, 0),
+
+                (e.EV_KEY, e.KEY_G, 1),
+                (e.EV_KEY, e.KEY_H, 1),
+                (e.EV_KEY, e.KEY_H, 0),
+                (e.EV_KEY, e.KEY_I, 1),
+                (e.EV_KEY, e.KEY_I, 0),
+                (e.EV_KEY, e.KEY_G, 0),
+
+                (e.EV_KEY, e.KEY_S, 1),
+                (e.EV_KEY, e.KEY_S, 0),
+
+                (e.EV_KEY, e.KEY_G, 1),
+                (e.EV_KEY, e.KEY_H, 1),
+                (e.EV_KEY, e.KEY_J, 1),
+                (e.EV_KEY, e.KEY_G, 0),
+                (e.EV_KEY, e.KEY_H, 0),
+                (e.EV_KEY, e.KEY_J, 0),
+
+                # Part 5
+                (e.EV_KEY, e.KEY_K, 1),
+                (e.EV_KEY, e.KEY_L, 1),
+                (e.EV_KEY, e.KEY_K, 0),
+                (e.EV_KEY, e.KEY_L, 0),
+
+                (e.EV_KEY, e.KEY_S, 1),
+                (e.EV_KEY, e.KEY_K, 1),
+                (e.EV_KEY, e.KEY_L, 1),
+                (e.EV_KEY, e.KEY_M, 1),
+                (e.EV_KEY, e.KEY_K, 0),
+                (e.EV_KEY, e.KEY_L, 0),
+                (e.EV_KEY, e.KEY_M, 0),
+                (e.EV_KEY, e.KEY_S, 0),
+            ],
+        },
+        {
+            "/dev/input/by-id/unittest-withhold-out": [
+                # Part 1
+                (e.EV_KEY, e.KEY_S, 1),
+                (e.EV_KEY, e.KEY_S, 0),
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_A, 0),
+
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_B, 0),
+
+                (e.EV_KEY, e.KEY_T, 1),
+                (e.EV_KEY, e.KEY_T, 0),
+
+                # Part 2
+                (e.EV_KEY, e.KEY_S, 1),
+                (e.EV_KEY, e.KEY_X, 1),
+                (e.EV_KEY, e.KEY_S, 2),
+                (e.EV_KEY, e.KEY_X, 0),
+                (e.EV_KEY, e.KEY_S, 0),
+
+                # Part 3
+                (e.EV_KEY, e.KEY_C, 1),
+                (e.EV_KEY, e.KEY_C, 0),
+
+                (e.EV_KEY, e.KEY_E, 1),
+                (e.EV_KEY, e.KEY_E, 0),
+                (e.EV_KEY, e.KEY_F, 1),
+                (e.EV_KEY, e.KEY_F, 0),
+
+                # Part 4
+                (e.EV_KEY, e.KEY_H, 1),
+                (e.EV_KEY, e.KEY_H, 0),
+
+                (e.EV_KEY, e.KEY_H, 1),
+                (e.EV_KEY, e.KEY_H, 0),
+                (e.EV_KEY, e.KEY_I, 1),
+                (e.EV_KEY, e.KEY_I, 0),
+                (e.EV_KEY, e.KEY_G, 1),
+                (e.EV_KEY, e.KEY_G, 0),
+
+                (e.EV_KEY, e.KEY_S, 1),
+                (e.EV_KEY, e.KEY_S, 0),
+
+                (e.EV_KEY, e.KEY_G, 1),
+                (e.EV_KEY, e.KEY_G, 0),
+
+                # Part 5
+                (e.EV_KEY, e.KEY_K, 1),
+                (e.EV_KEY, e.KEY_K, 0),
+                (e.EV_KEY, e.KEY_L, 1),
+                (e.EV_KEY, e.KEY_L, 0),
+
+                (e.EV_KEY, e.KEY_S, 1),
+                (e.EV_KEY, e.KEY_S, 0),
+            ],
+        },
+    )
+
 
 unittest_mirror()
 unittest_capslock()
@@ -697,3 +855,4 @@ unittest_consistency()
 unittest_type()
 unittest_merge()
 unittest_delta()
+unittest_withhold()
