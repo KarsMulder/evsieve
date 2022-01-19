@@ -130,7 +130,7 @@ pub struct Implementation {
 pub fn implement(args_str: Vec<String>)
         -> Result<Implementation, RuntimeError>
 {
-    let args: Vec<Argument> = parse(args_str)?;
+    let mut args: Vec<Argument> = parse(args_str)?;
     let mut input_devices: Vec<PreInputDevice> = Vec::new();
     let mut output_devices: Vec<PreOutputDevice> = Vec::new();
     let mut stream: Vec<StreamEntry> = Vec::new();
@@ -158,7 +158,20 @@ pub fn implement(args_str: Vec<String>)
         }
     }
 
-    // Keep trach of the real paths for the input devices we've opened so we don't open the same
+    // Associate the --withhold argument with all --hook arguments before it.
+    let mut consecutive_hooks: Vec<&HookArg> = Vec::new();
+    for arg in &mut args {
+        match arg {
+            Argument::HookArg(hook_arg) => consecutive_hooks.push(hook_arg),
+            Argument::WithholdArg(withhold_arg) => {
+                withhold_arg.associate_hooks(&consecutive_hooks);
+                consecutive_hooks.clear();
+            },
+            _ => consecutive_hooks.clear(),
+        }
+    }
+
+    // Keep track of the real paths for the input devices we've opened so we don't open the same
     // one twice.
     let mut input_device_real_paths: HashSet<PathBuf> = HashSet::new();
 
@@ -233,7 +246,7 @@ pub fn implement(args_str: Vec<String>)
                 }
             },
             Argument::HookArg(hook_arg) => {
-                let mut hook = Hook::new(hook_arg.hold_keys, hook_arg.period);
+                let mut hook = Hook::new(hook_arg.compile_trigger());
                 for exec_shell in hook_arg.exec_shell {
                     hook.add_command("/bin/sh".to_owned(), vec!["-c".to_owned(), exec_shell]);
                 }
@@ -249,24 +262,12 @@ pub fn implement(args_str: Vec<String>)
                 stream.push(StreamEntry::Hook(hook));
             },
             Argument::WithholdArg(withhold_arg) => {
-                // TODO: this is fragile. What if --hook gets changed to compile to more than one
-                // argument?
-                let mut applicable_triggers: Vec<crate::hook::Trigger> = stream.iter().rev()
-                    // The following two lines can be turned into Iterator::map_while,
-                    // but that function is only introduced in Rust 1.57.0.
-                    .take_while(|entry| matches!(entry, StreamEntry::Hook(_)))
-                    .map(|entry| match entry {
-                        StreamEntry::Hook(hook) => hook.trigger.clone_empty(),
-                        _ => unreachable!(),
-                    }).collect();
-                applicable_triggers.reverse();
-
-                if applicable_triggers.is_empty() {
+                if withhold_arg.associated_triggers.is_empty() {
                     return Err(ArgumentError::new("A --withhold argument must be preceded by at least one --hook argument.").into());
                 }
 
                 stream.push(StreamEntry::Withhold(
-                    Withhold::new(withhold_arg.keys, applicable_triggers)
+                    Withhold::new(withhold_arg.keys, withhold_arg.associated_triggers)
                 ));
             },
             Argument::ToggleArg(toggle_arg) => {

@@ -237,10 +237,9 @@ pub struct Hook {
 }
 
 impl Hook {
-    pub fn new(keys: Vec<Key>, period: Option<Duration>) -> Hook {
+    pub fn new(trigger: Trigger) -> Hook {
         Hook {
-            trigger: Trigger::new(keys, period),
-
+            trigger,
             effects: Vec::new(),
             release_effects: Vec::new(),
             send_keys: Vec::new(),

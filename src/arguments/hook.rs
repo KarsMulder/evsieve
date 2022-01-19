@@ -7,10 +7,12 @@ use crate::hook::Effect;
 use crate::key::{Key, KeyParser};
 use crate::event::Namespace;
 use crate::arguments::lib::ComplexArgGroup;
+use crate::hook::Trigger;
 use std::collections::HashMap;
 use std::time::Duration;
 
 /// Represents a --hook argument.
+#[derive(Clone)]
 pub(super) struct HookArg {
     pub exec_shell: Vec<String>,
     pub hold_keys: Vec<Key>,
@@ -65,6 +67,10 @@ impl HookArg {
             })
         }
     }
+
+    pub fn compile_trigger(&self) -> Trigger {
+        Trigger::new(self.hold_keys.clone(), self.period)
+    }
 }
 
 /// Represents how a single toggle clause on a hook should modify some toggle.
@@ -78,6 +84,7 @@ enum HookToggleShift {
 
 /// Represents the aggregate effect of all toggle= clauses on a single --hook.
 /// This is used to track arguments, this is not the implementation of such an effect.
+#[derive(Clone)]
 pub struct HookToggleAction {
     /// The action based on a toggle flag or a toggle= without id.
     global_action: Option<HookToggleShift>,
