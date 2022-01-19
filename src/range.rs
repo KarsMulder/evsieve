@@ -150,7 +150,7 @@ pub struct Range {
 }
 
 impl Range {
-    pub fn new(min: Option<i32>, max: Option<i32>) -> Range {
+    pub const fn new(min: Option<i32>, max: Option<i32>) -> Range {
         Range {
             min: match min {
                 Some(value) => ExtendedInteger::Discrete(value),

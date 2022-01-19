@@ -164,7 +164,7 @@ pub fn implement(args_str: Vec<String>)
         match arg {
             Argument::HookArg(hook_arg) => consecutive_hooks.push(hook_arg),
             Argument::WithholdArg(withhold_arg) => {
-                withhold_arg.associate_hooks(&consecutive_hooks);
+                withhold_arg.associate_hooks(&consecutive_hooks)?;
                 consecutive_hooks.clear();
             },
             _ => consecutive_hooks.clear(),
@@ -262,10 +262,6 @@ pub fn implement(args_str: Vec<String>)
                 stream.push(StreamEntry::Hook(hook));
             },
             Argument::WithholdArg(withhold_arg) => {
-                if withhold_arg.associated_triggers.is_empty() {
-                    return Err(ArgumentError::new("A --withhold argument must be preceded by at least one --hook argument.").into());
-                }
-
                 stream.push(StreamEntry::Withhold(
                     Withhold::new(withhold_arg.keys, withhold_arg.associated_triggers)
                 ));
