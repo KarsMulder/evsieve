@@ -288,6 +288,20 @@ impl<'a> KeyParser<'a> {
         }
     }
 
+    /// Returns a Keyparser that only interprets "pure" keys, i.e. keys for which
+    /// `key.matches(event) == key.matches_channel(event.channel)` is true for all events.
+    pub fn pure() -> KeyParser<'static> {
+        KeyParser {
+            default_value: "",
+            allow_values: false,
+            allow_ranges: false,
+            allow_transitions: false,
+            allow_types: true,
+            allow_relative_values: false,
+            namespace: Namespace::User,
+        }
+    }
+
     pub fn with_namespace(&mut self, namespace: Namespace) -> &mut Self {
         self.namespace = namespace;
         self

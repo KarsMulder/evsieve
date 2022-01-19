@@ -22,8 +22,7 @@ impl WithholdArg {
             true,
         )?;
 
-        // TODO: accept only pure keys.
-        let keys = KeyParser::default_filter()
+        let keys = KeyParser::pure()
             .parse_all(&arg_group.get_keys_or_empty_key())?;
 
         Ok(WithholdArg { keys, associated_triggers: Vec::new() })
