@@ -14,10 +14,17 @@ use std::time::Duration;
 /// Represents a --hook argument.
 #[derive(Clone)]
 pub(super) struct HookArg {
+    /// The keys on which this --hook triggers and their string representations.
+    /// `keys` and `keys_str` need to have a one-to-one correspondence and be in
+    /// the same order.
+    pub keys_str: Vec<String>,
+    pub keys: Vec<Key>,
+
     pub exec_shell: Vec<String>,
-    pub hold_keys: Vec<Key>,
     pub toggle_action: HookToggleAction,
     pub period: Option<Duration>,
+    /// Specified by the send-key clause. Whenever this hook is triggered, a kEY_DOWN
+    /// of the following keys is sent, and a KEY_UP is sent when this hook is released.
     pub send_keys: Vec<Key>,
 }
 
@@ -31,7 +38,7 @@ impl HookArg {
         )?;
 
         let toggle_action = HookToggleAction::parse(arg_group.has_flag("toggle"), arg_group.get_clauses("toggle"))?;
-        let hold_keys = KeyParser {
+        let keys = KeyParser {
             allow_transitions: false,
             allow_values: true,
             allow_ranges: true,
@@ -62,14 +69,15 @@ impl HookArg {
             Err(ArgumentError::new("A --hook argument requires at least one key."))
         } else {
             Ok(HookArg {
+                keys, keys_str: arg_group.keys.clone(),
                 exec_shell: arg_group.get_clauses("exec-shell"),
-                hold_keys, toggle_action, period, send_keys,
+                toggle_action, period, send_keys,
             })
         }
     }
 
     pub fn compile_trigger(&self) -> Trigger {
-        Trigger::new(self.hold_keys.clone(), self.period)
+        Trigger::new(self.keys.clone(), self.period)
     }
 }
 

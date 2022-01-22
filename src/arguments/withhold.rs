@@ -38,12 +38,15 @@ impl WithholdArg {
 
         // Verify that the constrains on the preceding hooks are upheld.
         for hook_arg in hooks {
-            for key in &hook_arg.hold_keys {
+            for (key, key_str) in hook_arg.keys.iter().zip(&hook_arg.keys_str) {
                 // TODO: Ignore keys that have no intersection with self.key.
                 // Only permit matching on events of type EV_KEY.
                 if key.requires_event_type() != Some(EventType::KEY) {
-                    // TODO: more helpful error
-                    return Err(ArgumentError::new("Cannot use --withhold after a hook that triggers on event of types other than \"key\" or \"btn\"."));
+                    // TODO: more helpful error: suggest --withhold key btn instead.
+                    return Err(ArgumentError::new(format!(
+                        "Cannot use --withhold after a hook that triggers on the key \"{}\". Only events of type \"key\" or \"btn\" can be withheld.",
+                        key_str,
+                    )));
                 }
                 // Only permit matching with default (unspecified) values.
                 // TODO: forbid keys like "key:a:1~"" instead of a plain "key:a"
