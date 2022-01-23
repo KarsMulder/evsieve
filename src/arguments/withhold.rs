@@ -64,8 +64,10 @@ impl WithholdArg {
                 match key.clone().pop_value() {
                     None | Some(DEFAULT_RANGE) => (),
                     Some(_) => {
-                        // TODO: more helpful error.
-                        return Err(ArgumentError::new("Cannot use --withhold after a hook that activates on events with a specified value."));
+                        return Err(ArgumentError::new(format!(
+                            "Cannot use --withhold after a --hook that activates on events with a specific value such as \"{}\".",
+                            key_str
+                        )));
                     }
                 }
             }
