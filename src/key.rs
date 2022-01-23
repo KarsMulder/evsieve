@@ -267,6 +267,7 @@ impl KeyProperty {
 }
 
 /// Represents the options for how a key can be parsed in different contexts.
+#[allow(non_snake_case)]
 pub struct KeyParser<'a> {
     pub default_value: &'a str,
     /// Whether event values like the :1 in "key:a:1" are allowed.
@@ -279,6 +280,10 @@ pub struct KeyParser<'a> {
     /// Whether keys with an event value that depends on which event is getting masked, are allowed.
     /// Only ever set this to true for mask keys.
     pub allow_relative_values: bool,
+    /// Allows the empty key "" and all keys starting with "btn" or "key". Forbids keys that
+    /// explicitly require another type.
+    /// TODO: add a KeyProperty::EventType.
+    pub forbid_non_EV_KEY: bool,
 
     pub namespace: Namespace,
 }
@@ -294,6 +299,7 @@ impl<'a> KeyParser<'a> {
             allow_transitions: true,
             allow_types: true,
             allow_relative_values: false,
+            forbid_non_EV_KEY: false,
             namespace: Namespace::User,
         }
     }
@@ -308,6 +314,7 @@ impl<'a> KeyParser<'a> {
             allow_transitions: false,
             allow_types: false,
             allow_relative_values: true,
+            forbid_non_EV_KEY: false,
             namespace: Namespace::User,
         }
     }
@@ -322,6 +329,7 @@ impl<'a> KeyParser<'a> {
             allow_transitions: false,
             allow_types: true,
             allow_relative_values: false,
+            forbid_non_EV_KEY: false,
             namespace: Namespace::User,
         }
     }
@@ -363,6 +371,7 @@ pub fn resembles_key(key_str: &str) -> bool {
             allow_transitions: true,
             allow_types: true,
             allow_relative_values: true,
+            forbid_non_EV_KEY: false,
             namespace: Namespace::User,
         }.parse(key_str).is_ok()
         // Otherwise, check if it contains some of the key-like characters.
@@ -407,6 +416,11 @@ fn interpret_key(key_str: &str, parser: &KeyParser) -> Result<Key, ArgumentError
     )?;
     if event_type.is_syn() {
         return Err(ArgumentError::new("Cannot use event type \"syn\": it is impossible to manipulate synchronisation events because synchronisation is automatically taken care of by evsieve."));
+    }
+    if parser.forbid_non_EV_KEY && event_type != EventType::KEY {
+        return Err(ArgumentError::new(
+            "Only events of type EV_KEY (i.e. \"key:something\" or \"btn:something\") can be specified in this position."
+        ))
     }
 
     // Extract the event code, or return a key that matches on type only.

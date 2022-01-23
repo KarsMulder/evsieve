@@ -46,6 +46,7 @@ impl HookArg {
             allow_types: false,
             default_value: "1~",
             allow_relative_values: false,
+            forbid_non_EV_KEY: false,
             namespace: Namespace::User,
         }.parse_all(&keys_str)?;
 
@@ -55,7 +56,6 @@ impl HookArg {
             Some(value) => Some(crate::arguments::delay::parse_period_value(&value)?),
         };
 
-        // TODO: Enforce that this is EV_KEY.
         let send_keys = KeyParser {
             allow_transitions: false,
             allow_values: false,
@@ -63,6 +63,7 @@ impl HookArg {
             allow_types: false,
             default_value: "",
             allow_relative_values: false,
+            forbid_non_EV_KEY: true,
             namespace: Namespace::User,
         }.parse_all(&arg_group.get_clauses("send-key"))?;
 

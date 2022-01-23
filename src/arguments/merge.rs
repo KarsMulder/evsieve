@@ -2,7 +2,6 @@
 
 use crate::error::ArgumentError;
 use crate::arguments::lib::ComplexArgGroup;
-use crate::event::EventType;
 use crate::key::{Key, KeyParser};
 use crate::merge::Merge;
 
@@ -27,20 +26,11 @@ impl MergeArg {
             allow_transitions: false,
             allow_types: true,
             allow_relative_values: false,
+            forbid_non_EV_KEY: true,
             namespace: crate::event::Namespace::User,
         };
 
-        let mut keys: Vec<Key> = Vec::new();
-        for key_str in arg_group.get_keys_or_empty_key() {
-            let key = parser.parse(&key_str)?;
-            match key.requires_event_type() {
-                None | Some(EventType::KEY) => keys.push(key),
-                Some(_) => return Err(ArgumentError::new(format!(
-                    "The --merge argument is only applicable to EV_KEY type events (\"key:something\" or \"btn:something\"). As such, it does not make sense to give it the key \"{}\".",
-                    key_str
-                )))
-            }
-        }
+        let keys: Vec<Key> = parser.parse_all(&arg_group.get_keys_or_empty_key())?;
 
         Ok(MergeArg { keys })
     }
