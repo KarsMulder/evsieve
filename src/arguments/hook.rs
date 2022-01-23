@@ -38,6 +38,7 @@ impl HookArg {
         )?;
 
         let toggle_action = HookToggleAction::parse(arg_group.has_flag("toggle"), arg_group.get_clauses("toggle"))?;
+        let keys_str = arg_group.keys.clone();
         let keys = KeyParser {
             allow_transitions: false,
             allow_values: true,
@@ -46,7 +47,7 @@ impl HookArg {
             default_value: "1~",
             allow_relative_values: false,
             namespace: Namespace::User,
-        }.parse_all(&arg_group.keys)?;
+        }.parse_all(&keys_str)?;
 
         // TODO: deduplicate with DelayArg.
         let period = match arg_group.get_unique_clause("period")? {
@@ -69,7 +70,7 @@ impl HookArg {
             Err(ArgumentError::new("A --hook argument requires at least one key."))
         } else {
             Ok(HookArg {
-                keys, keys_str: arg_group.keys.clone(),
+                keys, keys_str,
                 exec_shell: arg_group.get_clauses("exec-shell"),
                 toggle_action, period, send_keys,
             })
