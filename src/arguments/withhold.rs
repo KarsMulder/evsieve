@@ -24,9 +24,9 @@ impl WithholdArg {
             true,
         )?;
 
-        // TODO: require EV_KEY here.
-        let keys = KeyParser::pure()
-            .parse_all(&arg_group.get_keys_or_empty_key())?;
+        let mut parser = KeyParser::pure();
+        parser.forbid_non_EV_KEY = true;
+        let keys = parser.parse_all(&arg_group.get_keys_or_empty_key())?;
 
         Ok(WithholdArg { keys, associated_triggers: Vec::new() })
     }
@@ -36,15 +36,25 @@ impl WithholdArg {
             return Err(ArgumentError::new("A --withhold argument must be preceded by at least one --hook argument."));
         }
 
+        #[allow(non_snake_case)]
+        // If the user has explicitly specified that this --withhold should only apply to
+        // events of type EV_KEY, then we don't care what keys were added to the hooks.
+        // If the user has not explicitly stated their wishes, we must verify that all hooks
+        // only have keys of type EV_KEY.
+        // TODO: this is fragile code that runs at risk of getting broken by adding an
+        // KeyProperty::EventType(EventType::KEY) as default.
+        let inherently_requires_EV_KEY: bool = self.keys.iter().all(
+            |key| key.requires_event_type() == Some(EventType::KEY)
+        );
+
         // Verify that the constrains on the preceding hooks are upheld.
         for hook_arg in hooks {
             for (key, key_str) in hook_arg.keys.iter().zip(&hook_arg.keys_str) {
-                // TODO: Ignore keys that have no intersection with self.key.
-                // Only permit matching on events of type EV_KEY.
-                if key.requires_event_type() != Some(EventType::KEY) {
-                    // TODO: more helpful error: suggest --withhold key btn instead.
+                if !  inherently_requires_EV_KEY
+                   && key.requires_event_type() != Some(EventType::KEY)
+                {
                     return Err(ArgumentError::new(format!(
-                        "Cannot use --withhold after a hook that triggers on the key \"{}\". Only events of type \"key\" or \"btn\" can be withheld.",
+                        "Cannot use --withhold after a hook that triggers on the key \"{}\". Only events of type \"key\" or \"btn\" can be withheld. If you wish for this --withhold to ignore non-EV_KEY-type events, then you can get rid of this error by explicitly specifying \"--withhold key btn\".",
                         key_str,
                     )));
                 }
