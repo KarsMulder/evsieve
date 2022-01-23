@@ -240,6 +240,30 @@ impl KeyProperty {
         };
         cap
     }
+
+    /// Returns true if there can exist an event that matches both `self` and `other`.
+    fn intersects_with(&self, other: &KeyProperty) -> bool {
+        match (self, other) {
+            (KeyProperty::Code(code), KeyProperty::VirtualType(vtype))
+            | (KeyProperty::VirtualType(vtype), KeyProperty::Code(code))
+             => code.virtual_ev_type() == *vtype,
+
+            (KeyProperty::Code(code_1), KeyProperty::Code(code_2)) => code_1 == code_2,
+            (KeyProperty::VirtualType(vtype_1), KeyProperty::VirtualType(vtype_2)) => vtype_1 == vtype_2,
+            (KeyProperty::Domain(domain_1), KeyProperty::Domain(domain_2)) => domain_1 == domain_2,
+            (KeyProperty::Namespace(ns_1), KeyProperty::Namespace(ns_2)) => ns_1 == ns_2,
+            (KeyProperty::PreviousValue(pval_1), KeyProperty::PreviousValue(pval_2)) => pval_1.intersects_with(pval_2),
+            (KeyProperty::Value(val_1), KeyProperty::Value(val_2)) => val_1.intersects_with(val_2),
+            (KeyProperty::DeltaFactor(_), _) => true,
+
+            (KeyProperty::Code(_), _) => true,
+            (KeyProperty::VirtualType(_), _) => true,
+            (KeyProperty::Domain(_), _) => true,
+            (KeyProperty::Namespace(_), _) => true,
+            (KeyProperty::PreviousValue(_), _) => true,
+            (KeyProperty::Value(_), _) => true,
+        }
+    }
 }
 
 /// Represents the options for how a key can be parsed in different contexts.

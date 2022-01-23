@@ -229,6 +229,11 @@ impl Range {
         }
     }
 
+    /// Returns true if a nonzero amount of values belong to both ranges.
+    pub fn intersects_with(&self, other: &Range) -> bool {
+        self.intersect(other).is_some()
+    }
+
     /// Returns the smallest range that contains both self and other.
     /// We don't call this `union` because values that are in neither original range
     /// may show up in the merged range.
