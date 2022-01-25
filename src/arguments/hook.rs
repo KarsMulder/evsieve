@@ -50,7 +50,6 @@ impl HookArg {
             namespace: Namespace::User,
         }.parse_all(&keys_str)?;
 
-        // TODO: deduplicate with DelayArg.
         let period = match arg_group.get_unique_clause("period")? {
             None => None,
             Some(value) => Some(crate::arguments::delay::parse_period_value(&value)?),
