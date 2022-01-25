@@ -47,9 +47,9 @@ impl WithholdArg {
             |key| key.requires_event_type() == Some(EventType::KEY)
         );
 
-        // Verify that the constrains on the preceding hooks are upheld.
+        // Verify that the constraints on the preceding hooks are upheld.
         for hook_arg in hooks {
-            for (key, key_str) in hook_arg.keys.iter().zip(&hook_arg.keys_str) {
+            for (key, key_str) in &hook_arg.keys_and_str {
                 if !  inherently_requires_EV_KEY
                    && key.requires_event_type() != Some(EventType::KEY)
                 {

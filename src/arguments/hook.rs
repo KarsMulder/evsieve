@@ -14,11 +14,8 @@ use std::time::Duration;
 /// Represents a --hook argument.
 #[derive(Clone)]
 pub(super) struct HookArg {
-    /// The keys on which this --hook triggers and their string representations.
-    /// `keys` and `keys_str` need to have a one-to-one correspondence and be in
-    /// the same order.
-    pub keys_str: Vec<String>,
-    pub keys: Vec<Key>,
+    /// The keys on which this --hook triggers and their original string representations.
+    pub keys_and_str: Vec<(Key, String)>,
 
     pub exec_shell: Vec<String>,
     pub toggle_action: HookToggleAction,
@@ -49,6 +46,7 @@ impl HookArg {
             forbid_non_EV_KEY: false,
             namespace: Namespace::User,
         }.parse_all(&keys_str)?;
+        let keys_and_str = keys.into_iter().zip(keys_str).collect();
 
         let period = match arg_group.get_unique_clause("period")? {
             None => None,
@@ -70,7 +68,7 @@ impl HookArg {
             Err(ArgumentError::new("A --hook argument requires at least one key."))
         } else {
             Ok(HookArg {
-                keys, keys_str,
+                keys_and_str,
                 exec_shell: arg_group.get_clauses("exec-shell"),
                 toggle_action, period, send_keys,
             })
@@ -78,7 +76,8 @@ impl HookArg {
     }
 
     pub fn compile_trigger(&self) -> Trigger {
-        Trigger::new(self.keys.clone(), self.period)
+        let keys: Vec<Key> = self.keys_and_str.iter().map(|(key, _)| key.clone()).collect();
+        Trigger::new(keys, self.period)
     }
 }
 
