@@ -10,9 +10,17 @@ import time
 
 EVSIEVE_PROGRAM = ["target/debug/evsieve"]
 
+# Pass a delay to a input list of run_unittest to signify that it should wait a bit before
+# sending the next events.
+class Delay:
+    period: float
+
+    def __init__(self, period):
+        self.period = period
+
 def run_unittest(
     arguments: List[str],
-    input: Dict[str, List[Tuple[int, int, int]]],
+    input: Dict[str, List[Union[Tuple[int, int, int], Delay]]],
     output: Dict[str, List[Tuple[int, int, int]]],
     auto_syn = True,
     expected_output = None,
@@ -20,11 +28,16 @@ def run_unittest(
     # Create virtual input devices.
     input_devices = dict()
     for path, events in input.items():
-        type_capabilities = set([type for (type, _, _) in events])
+        non_delay_events = [
+            event
+            for event in events
+            if not isinstance(event, Delay)
+        ]
+        type_capabilities = set([type for (type, _, _) in non_delay_events])
         capabilities = {
             type: [
                 code
-                for (_type, code, _) in events
+                for (_type, code, _) in non_delay_events
                 if _type == type
             ]
             for type in type_capabilities
@@ -52,22 +65,33 @@ def run_unittest(
         output_events = [list() for dev in output_devices]
         for device, events in input_devices.items():
             for event in events:
+                if isinstance(event, Delay):
+                    time.sleep(event.period)
+                    # Read the output events at this point in time.
+                    for ((output_device, _), events) in zip(output_devices, output_events):
+                        try:
+                            for event in output_device.read():
+                                if event.type != e.EV_SYN:
+                                    events.append(event)
+                        except BlockingIOError:
+                            pass
+                    continue
+
                 device.write(*event)
                 if auto_syn:
                     device.syn()
-                time.sleep(0.01)
-
-                # Read the output events already so we don't overflow the buffer.
-                for ((output_device, _), events) in zip(output_devices, output_events):
-                    try:
-                        for event in output_device.read():
-                            if event.type != e.EV_SYN:
-                                events.append(event)
-                    except BlockingIOError:
-                        pass
+        
+        # Final read pass.
+        time.sleep(0.01)
+        for ((output_device, _), events) in zip(output_devices, output_events):
+            try:
+                for event in output_device.read():
+                    if event.type != e.EV_SYN:
+                        events.append(event)
+            except BlockingIOError:
+                pass
 
         # Check whether the output devices have the expected events.
-        time.sleep(0.05)
         for (events, (_, expected_events)) in zip(output_events, output_devices):
             for event in events:
                 expected_event = expected_events.pop(0)
@@ -298,8 +322,10 @@ def unittest_execshell():
                 (e.EV_KEY, e.KEY_T, 1),
                 (e.EV_KEY, e.KEY_T, 2),
                 (e.EV_KEY, e.KEY_T, 0),
+                Delay(0.01),
                 (e.EV_KEY, e.KEY_T, 1),
                 (e.EV_KEY, e.KEY_T, 0),
+                Delay(0.01),
 
                 (e.EV_KEY, e.KEY_B, 1),
                 (e.EV_KEY, e.KEY_B, 2),
@@ -307,6 +333,7 @@ def unittest_execshell():
                 (e.EV_KEY, e.KEY_A, 2),
                 (e.EV_KEY, e.KEY_A, 0),
                 (e.EV_KEY, e.KEY_B, 0),
+                Delay(0.01),
 
                 (e.EV_KEY, e.KEY_Q, 1),
                 (e.EV_KEY, e.KEY_W, 1),
@@ -316,6 +343,7 @@ def unittest_execshell():
                 (e.EV_KEY, e.KEY_W, 0),
                 (e.EV_KEY, e.KEY_Q, 1),
                 (e.EV_KEY, e.KEY_Q, 0),
+                Delay(0.01),
 
                 (e.EV_KEY, e.KEY_X, 1),
                 (e.EV_KEY, e.KEY_C, 1), 
@@ -323,6 +351,7 @@ def unittest_execshell():
                 (e.EV_KEY, e.KEY_X, 0),
                 (e.EV_KEY, e.KEY_C, 0),
                 (e.EV_KEY, e.KEY_Z, 0),
+                Delay(0.01),
                 
                 # Should not trigger: O is not pressed.
                 (e.EV_KEY, e.KEY_O, 1),
@@ -331,6 +360,7 @@ def unittest_execshell():
                 (e.EV_KEY, e.KEY_E, 1),
                 (e.EV_KEY, e.KEY_E, 0),
                 (e.EV_KEY, e.KEY_I, 0),
+                Delay(0.01),
 
                 (e.EV_KEY, e.KEY_N, 1),
                 (e.EV_KEY, e.KEY_N, 0),
@@ -342,6 +372,7 @@ def unittest_execshell():
                 (e.EV_KEY, e.KEY_N, 1),
                 (e.EV_KEY, e.KEY_N, 2),
                 (e.EV_KEY, e.KEY_N, 0),
+                Delay(0.01),
             ],
         },
         {},
@@ -742,6 +773,9 @@ def unittest_withhold():
                 (e.EV_KEY, e.KEY_E, 0),
                 (e.EV_KEY, e.KEY_F, 1),
                 (e.EV_KEY, e.KEY_F, 0),
+
+                # Read events now so we don't overflow the buffer.
+                Delay(0.01),
 
                 # Part 4
                 (e.EV_KEY, e.KEY_H, 1),
