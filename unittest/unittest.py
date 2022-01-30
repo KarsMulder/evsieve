@@ -720,6 +720,59 @@ def unittest_delta():
         },
     )
 
+def unittest_delay():
+    run_unittest(
+        ["--input", "/dev/input/by-id/unittest-delay-in-1", "grab=force",
+        "--delay", "key:a", "key:b", "period=0.01",
+        "--output", "create-link=/dev/input/by-id/unittest-delay-out-1"],
+        {
+            "/dev/input/by-id/unittest-delay-in-1": [
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_A, 2),
+                (e.EV_KEY, e.KEY_A, 0),
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_B, 2),
+                (e.EV_KEY, e.KEY_B, 0),
+                Delay(0.005),
+                (e.EV_KEY, e.KEY_C, 1),
+                (e.EV_KEY, e.KEY_C, 0),
+                Delay(0.01),
+
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_A, 2),
+                (e.EV_KEY, e.KEY_A, 0),
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_B, 2),
+                (e.EV_KEY, e.KEY_B, 0),
+                Delay(0.015),
+                (e.EV_KEY, e.KEY_C, 1),
+                (e.EV_KEY, e.KEY_C, 0),
+                Delay(0.005),
+            ]
+        },
+        {
+            "/dev/input/by-id/unittest-delay-out-1": [
+                (e.EV_KEY, e.KEY_C, 1),
+                (e.EV_KEY, e.KEY_C, 0),
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_A, 2),
+                (e.EV_KEY, e.KEY_A, 0),
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_B, 2),
+                (e.EV_KEY, e.KEY_B, 0),
+
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_A, 2),
+                (e.EV_KEY, e.KEY_A, 0),
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_B, 2),
+                (e.EV_KEY, e.KEY_B, 0),
+                (e.EV_KEY, e.KEY_C, 1),
+                (e.EV_KEY, e.KEY_C, 0),
+            ],
+        },
+    )
+
 def unittest_withhold():
     run_unittest(
         ["--input", "/dev/input/by-id/unittest-withhold-in", "grab=force",
@@ -889,4 +942,5 @@ unittest_consistency()
 unittest_type()
 unittest_merge()
 unittest_delta()
+unittest_delay()
 unittest_withhold()
