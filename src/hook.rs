@@ -188,7 +188,10 @@ impl Trigger {
 
     /// Release a tracker that has expired. If a tracker expired, returns the associated key.
     /// It is important that the Tokens are unique for this function to work correctly.
-    pub fn wakeup(&mut self, token: &loopback::Token) {
+    /// 
+    /// Returns true if at least one tracker expired. Returns false otherwise.
+    pub fn wakeup(&mut self, token: &loopback::Token) -> bool {
+        let mut result = false;
         for tracker in &mut self.trackers {
             match tracker.state {
                 TrackerState::Inactive => {},
@@ -197,10 +200,12 @@ impl Trigger {
                 TrackerState::Active(ExpirationTime::Until(ref other_token)) => {
                     if token == other_token {
                         tracker.state = TrackerState::Expired;
+                        result = true;
                     }
                 }
             }
         }
+        result
     }
 
     /// Returns true if any of the active trackers might have been activated by an event

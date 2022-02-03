@@ -113,13 +113,17 @@ impl Withhold {
     }
 
     pub fn wakeup(&mut self, token: &Token, events_out: &mut Vec<Event>) {
+        let mut some_tracker_expired = false;
         for trigger in &mut self.triggers {
-            trigger.wakeup(token);
+            if trigger.wakeup(token) {
+                some_tracker_expired = true;
+            }
         }
-        // TODO: quadratic algorithm?
-        // At least don't run this loop for EVERY token.
+        if ! some_tracker_expired {
+            return;
+        }
 
-        // Some trackers might have just expired. For all events that are being withheld,
+        // Some trackers might have expired. For all events that are being withheld,
         // check whether the respective triggers are still withholding them. Events that
         // are no longer withheld by any trigger shall be released bach to the stream.
         for (channel, state) in &mut self.channel_state {
