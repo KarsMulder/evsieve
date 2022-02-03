@@ -7,13 +7,9 @@ use crate::hook::{Trigger, TriggerResponse};
 
 use std::collections::HashMap;
 
-/// Used as array index to identify a Trigger in Withhold::triggers.
-type TriggerIndex = usize;
-
 /// Represents a --withhold argument.
 pub struct Withhold {
     /// Copies of the triggers of the associated hooks.
-    /// The index of each trigger in this vector must remain unchanged.
     triggers: Vec<Trigger>,
 
     /// Only withhold events that match one of the following keys.
@@ -44,22 +40,21 @@ impl Withhold {
 
         // Check with which indices this event is related in any way, as well as which triggers
         // just activated because of this event.
-        let mut matching_trigger_indices: Vec<TriggerIndex> = Vec::new();
-        let mut activated_trigger_indices: Vec<TriggerIndex> = Vec::new();
-        for (index, trigger) in self.triggers.iter_mut().enumerate() {
+        let mut activated_triggers: Vec<&mut Trigger> = Vec::new();
+        let mut matching_triggers: Vec<&mut Trigger> = Vec::new();
+        for trigger in &mut self.triggers {
             match trigger.apply(event, loopback) {
                 TriggerResponse::None => (),
                 TriggerResponse::Activates => {
-                    matching_trigger_indices.push(index);
-                    activated_trigger_indices.push(index);
+                    activated_triggers.push(trigger);
                 },
                 TriggerResponse::Matches | TriggerResponse::Releases
-                    => matching_trigger_indices.push(index),
+                    => matching_triggers.push(trigger),
             }
         }
 
         // If this event does not interact with any trigger, ignore it.
-        if matching_trigger_indices.is_empty() {
+        if matching_triggers.is_empty() && activated_triggers.is_empty() {
             return events_out.push(event);
         }
 
@@ -107,8 +102,8 @@ impl Withhold {
         // to have been consumed.
         for (channel, state) in &mut self.channel_state {
             if let ChannelState::Withheld { .. } = state {
-                for &activated_index in &activated_trigger_indices {
-                    if self.triggers[activated_index].has_tracker_matching_channel(*channel) {
+                for trigger in &mut activated_triggers {
+                    if trigger.has_tracker_matching_channel(*channel) {
                         *state = ChannelState::Residual;
                         break;
                     }
