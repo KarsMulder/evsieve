@@ -117,15 +117,13 @@ pub enum TriggerResponse {
     /// The hook has activated because of this event. Its effects should be triggered.
     Activates,
     /// The hook has released because of this event. Its on-release effects should be triggered.
-    /// It reminds the caller of the event that originally activated this trigger.
-    Releases { activating_event: Event },
+    Releases,
 }
 
 #[derive(Clone, Copy)]
 enum TriggerState {
     /// All trackers are currently pressed.
-    /// Remembers the event that activated this hook.
-    Active { activating_event: Event },
+    Active,
     /// Not all trackers are currently pressed.
     Inactive,
 }
@@ -172,16 +170,16 @@ impl Trigger {
 
         match (self.state, all_trackers_active) {
             (TriggerState::Inactive, true) => {
-                self.state = TriggerState::Active { activating_event: event };
+                self.state = TriggerState::Active;
                 // TODO: Cancel tokens?
                 for tracker in &mut self.trackers {
                     tracker.state = TrackerState::Active(ExpirationTime::Never);
                 }
                 TriggerResponse::Activates
             },
-            (TriggerState::Active { activating_event }, false) => {
+            (TriggerState::Active, false) => {
                 self.state = TriggerState::Inactive;
-                TriggerResponse::Releases { activating_event }
+                TriggerResponse::Releases
             },
             (TriggerState::Active {..}, true) | (TriggerState::Inactive, false)
                 => TriggerResponse::Matches,
@@ -234,6 +232,8 @@ pub struct Hook {
 
     /// The current state mutable at runtime.
     pub trigger: Trigger, // TODO: fix encapsulation.
+    /// The last event that activated this tracker.
+    activating_event: Option<Event>,
 }
 
 impl Hook {
@@ -243,6 +243,7 @@ impl Hook {
             effects: Vec::new(),
             release_effects: Vec::new(),
             send_keys: Vec::new(),
+            activating_event: None,
         }
     }
 
@@ -250,11 +251,18 @@ impl Hook {
         events_out.push(event);
         let response = self.trigger.apply(event, loopback);
         match response {
-            TriggerResponse::Activates => self.apply_effects(event, events_out, state),
-            TriggerResponse::Releases {activating_event }
-                => self.apply_release_effects(activating_event, events_out, state),
-            TriggerResponse::Matches
-            | TriggerResponse::None => (),
+            TriggerResponse::Activates => {
+                self.activating_event = Some(event);
+                self.apply_effects(event, events_out, state);
+            },
+            TriggerResponse::Releases => {
+                let activating_event = self.activating_event.take().unwrap_or_else(|| {
+                    crate::utils::warn_once("Internal error: a hook released while its activating_event is None.");
+                    event // The sanest default I can think of.
+                });
+                self.apply_release_effects(activating_event, events_out, state);
+            },
+            TriggerResponse::Matches | TriggerResponse::None => (),
         }
     }
 
