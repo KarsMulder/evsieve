@@ -53,7 +53,7 @@ impl Withhold {
                     matching_trigger_indices.push(index);
                     activated_trigger_indices.push(index);
                 },
-                TriggerResponse::Matches | TriggerResponse::Releases { .. }
+                TriggerResponse::Matches | TriggerResponse::Releases
                     => matching_trigger_indices.push(index),
             }
         }
@@ -71,14 +71,9 @@ impl Withhold {
                     .entry(event.channel()).or_default();
 
                 match state {
-                    ChannelState::Withheld { ref mut withholding_triggers, .. } => {
-                        withholding_triggers.extend(matching_trigger_indices);
-                        withholding_triggers.sort_unstable();
-                        withholding_triggers.dedup();
-                    }
+                    ChannelState::Withheld { .. } => {},
                     ChannelState::Inactive => {
                         *state = ChannelState::Withheld {
-                            withholding_triggers: matching_trigger_indices,
                             // TODO: consider only storing KEY_DOWN events and not KEY_HOLD.
                             withheld_event: event,
                         };
@@ -94,7 +89,7 @@ impl Withhold {
                     .unwrap_or(ChannelState::Inactive);
 
                 match state {
-                    ChannelState::Withheld { withheld_event, .. } => {
+                    ChannelState::Withheld { withheld_event } => {
                         events_out.push(withheld_event);
                         events_out.push(event);
                     },
@@ -110,10 +105,10 @@ impl Withhold {
 
         // All events which were withheld by a trigger that just activated shall be considered
         // to have been consumed.
-        for (_channel, state) in &mut self.channel_state {
-            if let ChannelState::Withheld { withholding_triggers, .. } = state {
-                for activated_index in &activated_trigger_indices {
-                    if withholding_triggers.contains(activated_index) {
+        for (channel, state) in &mut self.channel_state {
+            if let ChannelState::Withheld { .. } = state {
+                for &activated_index in &activated_trigger_indices {
+                    if self.triggers[activated_index].has_tracker_matching_channel(*channel) {
                         *state = ChannelState::Residual;
                         break;
                     }
@@ -135,12 +130,11 @@ impl Withhold {
         for (channel, state) in &mut self.channel_state {
             match state {
                 ChannelState::Inactive | ChannelState::Residual => (),
-                ChannelState::Withheld { withheld_event, ref mut withholding_triggers } => {
-                    let triggers = &mut self.triggers;
-                    withholding_triggers.retain(
-                        |&index| triggers[index].has_active_tracker_matching_channel(*channel)
+                ChannelState::Withheld { withheld_event } => {
+                    let should_still_withhold = self.triggers.iter().any(
+                        |trigger| trigger.has_active_tracker_matching_channel(*channel)
                     );
-                    if withholding_triggers.is_empty() {
+                    if ! should_still_withhold {
                         // TODO: consider preserving proper order.
                         events_out.push(*withheld_event);
                         *state = ChannelState::Inactive;
@@ -154,7 +148,7 @@ impl Withhold {
 // TODO: Doccomment.
 #[derive(Debug)]
 enum ChannelState {
-    Withheld { withheld_event: Event, withholding_triggers: Vec<TriggerIndex> },
+    Withheld { withheld_event: Event },
     Residual,
     Inactive,
 }

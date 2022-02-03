@@ -211,6 +211,12 @@ impl Trigger {
             .any(   |tracker| tracker.matches_channel(channel))
     }
 
+    /// Returns true if any of the might be activated by an event with the provided channel.
+    pub fn has_tracker_matching_channel(&self, channel: Channel) -> bool {
+        self.trackers.iter()
+            .any(|tracker| tracker.matches_channel(channel))
+    }
+
     /// Like Clone::clone, but does not clone the runtime state of the Trigger.
     pub fn clone_empty(&self) -> Trigger {
         Trigger {
