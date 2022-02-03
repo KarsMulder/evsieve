@@ -231,7 +231,7 @@ pub struct Hook {
     send_keys: Vec<Key>,
 
     /// The current state mutable at runtime.
-    pub trigger: Trigger, // TODO: fix encapsulation.
+    trigger: Trigger,
     /// The last event that activated this tracker.
     activating_event: Option<Event>,
 }
