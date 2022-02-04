@@ -32,5 +32,3 @@ lto = true
 [features]
 # If enabled, evsieve will link against libsystemd. If not, it will fall back on systemd-notify.
 systemd = []
-# If enabled, evsieve will print various messages at different points of the shutdown process.
-trace_shutdown = []
