@@ -40,25 +40,28 @@ impl Withhold {
 
         // Check with which indices this event is related in any way, as well as which triggers
         // just activated because of this event.
-        let mut activated_triggers: Vec<&mut Trigger> = Vec::new();
-        let mut matching_triggers: Vec<&mut Trigger> = Vec::new();
+        let mut activated_triggers: Vec<&Trigger> = Vec::new();
+        let mut any_trigger_matched: bool = false;
         for trigger in &mut self.triggers {
             match trigger.apply(event, loopback) {
                 TriggerResponse::None => (),
                 TriggerResponse::Activates => {
                     activated_triggers.push(trigger);
+                    any_trigger_matched = true;
                 },
                 TriggerResponse::Matches | TriggerResponse::Releases
-                    => matching_triggers.push(trigger),
+                    => any_trigger_matched = true,
             }
         }
 
         // If this event does not interact with any trigger, ignore it.
-        if matching_triggers.is_empty() && activated_triggers.is_empty() {
+        if ! any_trigger_matched {
             return events_out.push(event);
         }
 
         if self.keys.iter().any(|key| key.matches(&event)) {
+            // If this event matched a trigger and matches a key of self, then withhold it if
+            // it is an activating event (value >= 1) or release it if it is a releasing event.
             if event.value >= 1 {
                 // If this event is a key_down event, associate all matching triggers with
                 // this channel.
@@ -102,7 +105,7 @@ impl Withhold {
         // to have been consumed.
         for (channel, state) in &mut self.channel_state {
             if let ChannelState::Withheld { .. } = state {
-                for trigger in &mut activated_triggers {
+                for trigger in &activated_triggers {
                     if trigger.has_tracker_matching_channel(*channel) {
                         *state = ChannelState::Residual;
                         break;
@@ -123,8 +126,8 @@ impl Withhold {
             return;
         }
 
-        // Some trackers might have expired. For all events that are being withheld,
-        // check whether the respective triggers are still withholding them. Events that
+        // Some trackers have expired. For all events that are being withheld, check
+        // whether the respective triggers are still withholding them. Events that
         // are no longer withheld by any trigger shall be released bach to the stream.
         for (channel, state) in &mut self.channel_state {
             match state {
