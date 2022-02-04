@@ -4,9 +4,12 @@ use std::io;
 use std::fmt;
 use std::fmt::Write;
 
+/// A trait for errors similiar in concept to anyhow::Error.
 pub trait Context {
     fn context(&self) -> &[String];
     fn with_context<T: Into<String>>(self, context: T) -> Self;
+    /// Like Context::with_context(), but lazily evaluated.
+    fn with_context_of<F: Fn() -> String>(self, context: F) -> Self;
     fn print_err(self);
 }
 
@@ -49,6 +52,10 @@ macro_rules! context_error {
                 self
             }
 
+            fn with_context_of<F: Fn() -> String>(self, context: F) -> Self {
+                self.with_context(context())
+            }
+
             fn print_err(self) {
                 eprintln!("{}", self);
             }
@@ -73,6 +80,14 @@ macro_rules! runtime_errors {
                 match self {
                     $(
                         RuntimeError::$name(error) => RuntimeError::$name(error.with_context(context.into())),
+                    )*
+                }
+            }
+
+            fn with_context_of<T: Fn() -> String>(self, context: T) -> RuntimeError {
+                match self {
+                    $(
+                        RuntimeError::$name(error) => RuntimeError::$name(error.with_context(context())),
                     )*
                 }
             }
@@ -155,6 +170,13 @@ impl<T, E> Context for Result<T, E> where E: Context {
         match self {
             Ok(value) => Ok(value),
             Err(error) => Err(error.with_context(context.into())),
+        }
+    }
+
+    fn with_context_of<F: Fn() -> String>(self, context: F) -> Self {
+        match self {
+            Ok(value) => Ok(value),
+            Err(error) => Err(error.with_context_of(context)),
         }
     }
 

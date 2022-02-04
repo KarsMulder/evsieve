@@ -252,7 +252,7 @@ fn handle_ready_file(program: &mut Program, index: FileIndex) -> Result<Action, 
     };
     match file {
         Pollable::InputDevice(device) => {
-            let events = device.poll().with_context(
+            let events = device.poll().with_context_of(||
                 format!("While polling the input device {}:", device.path().display())
             )?;
             for event in events {
