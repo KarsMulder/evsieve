@@ -62,39 +62,44 @@ impl Withhold {
         if self.keys.iter().any(|key| key.matches(&event)) {
             // If this event matched a trigger and matches a key of self, then withhold it if
             // it is an activating event (value >= 1) or release it if it is a releasing event.
-            if event.value >= 1 {
-                // If this event is a key_down event, associate all matching triggers with
-                // this channel.
-                let state: &mut ChannelState = self.channel_state
-                    .entry(event.channel()).or_default();
+            match event.value {
+                // TODO: Do not drop or withhold events that only match expired trackers.
+                2 .. => {
+                    // Key repeat events get dropped.
+                },
+                1 => {
+                    // If this event is a key_down event, withhold it.
+                    let state: &mut ChannelState = self.channel_state
+                        .entry(event.channel()).or_default();
 
-                match state {
-                    ChannelState::Withheld { .. } => {},
-                    ChannelState::Inactive => {
-                        *state = ChannelState::Withheld {
-                            // TODO: consider only storing KEY_DOWN events and not KEY_HOLD.
-                            withheld_event: event,
-                        };
+                    match state {
+                        ChannelState::Withheld { .. } => {},
+                        ChannelState::Inactive => {
+                            *state = ChannelState::Withheld {
+                                withheld_event: event,
+                            };
+                        }
+                        ChannelState::Residual => {},
+                    };
+                },
+                i32::MIN ..= 0 => {
+                    // If it is a key_up event, all associated triggers are assumed to have been
+                    // released. To make this assumption true, the associated --hook's must only
+                    // use EV_KEY-type keys with default values.
+                    let state = self.channel_state
+                        .remove(&event.channel())
+                        .unwrap_or(ChannelState::Inactive);
+
+                    match state {
+                        ChannelState::Withheld { withheld_event } => {
+                            events_out.push(withheld_event);
+                            events_out.push(event);
+                        },
+                        ChannelState::Inactive => {
+                            events_out.push(event);
+                        },
+                        ChannelState::Residual => {},
                     }
-                    ChannelState::Residual => {},
-                };
-            } else {
-                // If it is a key_up event, all associated triggers are assumed to have been
-                // released. To make this assumption true, the associated --hook's must only
-                // use EV_KEY-type keys with default values.
-                let state = self.channel_state
-                    .remove(&event.channel())
-                    .unwrap_or(ChannelState::Inactive);
-
-                match state {
-                    ChannelState::Withheld { withheld_event } => {
-                        events_out.push(withheld_event);
-                        events_out.push(event);
-                    },
-                    ChannelState::Inactive => {
-                        events_out.push(event);
-                    },
-                    ChannelState::Residual => {},
                 }
             }
         } else {
