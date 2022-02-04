@@ -42,15 +42,23 @@ impl Withhold {
         // just activated because of this event.
         let mut activated_triggers: Vec<&Trigger> = Vec::new();
         let mut any_trigger_matched: bool = false;
+        let mut any_trigger_withholds: bool = false;
         for trigger in &mut self.triggers {
             match trigger.apply(event, loopback) {
-                TriggerResponse::None => (),
+                TriggerResponse::None => continue,
                 TriggerResponse::Activates => {
                     activated_triggers.push(trigger);
                     any_trigger_matched = true;
                 },
-                TriggerResponse::Matches | TriggerResponse::Releases
-                    => any_trigger_matched = true,
+                TriggerResponse::Matches | TriggerResponse::Releases => {
+                    any_trigger_matched = true;
+                },
+            }
+
+            // It is possible that a trigger matches but all matching trackers are
+            // already expired, therefore we need an extra check here.
+            if trigger.has_active_tracker_matching_channel(event.channel()) {
+                any_trigger_withholds = true;
             }
         }
 
@@ -60,48 +68,9 @@ impl Withhold {
         }
 
         if self.keys.iter().any(|key| key.matches(&event)) {
-            // If this event matched a trigger and matches a key of self, then withhold it if
-            // it is an activating event (value >= 1) or release it if it is a releasing event.
-            match event.value {
-                // TODO: Do not drop or withhold events that only match expired trackers.
-                2 .. => {
-                    // Key repeat events get dropped.
-                },
-                1 => {
-                    // If this event is a key_down event, withhold it.
-                    let state: &mut ChannelState = self.channel_state
-                        .entry(event.channel()).or_default();
-
-                    match state {
-                        ChannelState::Withheld { .. } => {},
-                        ChannelState::Inactive => {
-                            *state = ChannelState::Withheld {
-                                withheld_event: event,
-                            };
-                        }
-                        ChannelState::Residual => {},
-                    };
-                },
-                i32::MIN ..= 0 => {
-                    // If it is a key_up event, all associated triggers are assumed to have been
-                    // released. To make this assumption true, the associated --hook's must only
-                    // use EV_KEY-type keys with default values.
-                    let state = self.channel_state
-                        .remove(&event.channel())
-                        .unwrap_or(ChannelState::Inactive);
-
-                    match state {
-                        ChannelState::Withheld { withheld_event } => {
-                            events_out.push(withheld_event);
-                            events_out.push(event);
-                        },
-                        ChannelState::Inactive => {
-                            events_out.push(event);
-                        },
-                        ChannelState::Residual => {},
-                    }
-                }
-            }
+            route_or_withhold_event(
+                event, any_trigger_withholds, &mut self.channel_state, events_out
+            );
         } else {
             events_out.push(event);
         }
@@ -163,5 +132,56 @@ enum ChannelState {
 impl Default for ChannelState {
     fn default() -> Self {
         ChannelState::Inactive
+    }
+}
+
+fn route_or_withhold_event(
+        event: Event,
+        any_trigger_withholds: bool,
+        channel_state: &mut HashMap<Channel, ChannelState>,
+        events_out: &mut Vec<Event>)
+{
+    if event.value > 0 {
+        // If it is a KEY_DOWN or KEY_REPEAT event, withhold/drop it unless all trackers matching
+        // this event have already expired.
+        if ! any_trigger_withholds {
+            return events_out.push(event);
+        }
+
+        if event.value == 1 {
+            // If this event is a key_down event, withhold it.
+            let state: &mut ChannelState = channel_state
+                .entry(event.channel()).or_default();
+
+            match state {
+                ChannelState::Withheld { .. } => {},
+                ChannelState::Inactive => {
+                    *state = ChannelState::Withheld {
+                        withheld_event: event,
+                    };
+                }
+                ChannelState::Residual => {},
+            };
+        } else {
+            // Drop key repeat events.
+        }
+    } else {
+        // If it is a key_up event, all associated triggers are assumed to have been released.
+        // To make this assumption true, the associated --hook's must only use EV_KEY-type keys
+        // with default values.
+        let state = channel_state
+            .remove(&event.channel())
+            .unwrap_or(ChannelState::Inactive);
+
+        match state {
+            ChannelState::Withheld { withheld_event } => {
+                events_out.push(withheld_event);
+                events_out.push(event);
+            },
+            ChannelState::Inactive => {
+                events_out.push(event);
+            },
+            ChannelState::Residual => {},
+        }
     }
 }
