@@ -6,6 +6,7 @@ use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::mem::MaybeUninit;
 use crate::bindings::libevdev;
 use crate::event::{Event, EventType, EventValue, EventCode, Namespace};
 use crate::domain::Domain;
@@ -123,7 +124,7 @@ impl InputDevice {
     }
 
     fn read_raw(&mut self) -> Result<Vec<(EventCode, EventValue)>, SystemError> {
-        let mut event: libevdev::input_event = unsafe { std::mem::zeroed() };
+        let mut event: MaybeUninit<libevdev::input_event> = MaybeUninit::uninit();
         let mut should_sync = false;
         let mut events: Vec<(EventCode, EventValue)> = Vec::new();
 
@@ -133,7 +134,7 @@ impl InputDevice {
                 false => libevdev::libevdev_read_flag_LIBEVDEV_READ_FLAG_NORMAL,
             };
             let res = unsafe {
-                libevdev::libevdev_next_event(self.evdev, flags, &mut event)
+                libevdev::libevdev_next_event(self.evdev, flags, event.as_mut_ptr())
             };
 
             const SUCCESS: i32 = libevdev::libevdev_read_status_LIBEVDEV_READ_STATUS_SUCCESS as i32;
@@ -141,14 +142,16 @@ impl InputDevice {
             const MINUS_EAGAIN: i32 = -libc::EAGAIN;
             const MINUS_EINTR: i32 = -libc::EINTR;
 
-            let event_type = unsafe { EventType::new(event.type_) };
-            let event_code = unsafe { EventCode::new(event_type, event.code) };
-
             match res {
-                SUCCESS => events.push((event_code, event.value)),
-                SYNC => {
-                    events.push((event_code, event.value));
-                    should_sync = true;
+                SUCCESS | SYNC => {
+                    unsafe {
+                        let event = event.assume_init();
+                        let event_type = EventType::new(event.type_);
+                        let event_code = EventCode::new(event_type, event.code);
+                        events.push((event_code, event.value));
+                    }
+
+                    should_sync = res == SYNC;
                 },
                 MINUS_EAGAIN => break,
                 MINUS_EINTR => break,
