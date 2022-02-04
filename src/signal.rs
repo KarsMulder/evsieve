@@ -20,7 +20,7 @@ pub struct SigMask(libc::sigset_t);
 impl SigMask {
     pub fn new() -> SigMask {
         unsafe {
-            let mut sigmask: std::mem::MaybeUninit<libc::sigset_t> = std::mem::zeroed();
+            let mut sigmask: std::mem::MaybeUninit<libc::sigset_t> = MaybeUninit::zeroed();
             libc::sigemptyset(sigmask.as_mut_ptr());
             SigMask(sigmask.assume_init())
         }
@@ -54,7 +54,7 @@ impl SignalBlock {
     /// # Safety
     /// Only one SignalBlock should exist at any time.
     pub unsafe fn new(mask: &SigMask) -> Result<SignalBlock, std::io::Error> {
-        let mut orig_sigmask: MaybeUninit<libc::sigset_t> = std::mem::zeroed();
+        let mut orig_sigmask: MaybeUninit<libc::sigset_t> = MaybeUninit::zeroed();
         let res = libc::sigprocmask(libc::SIG_SETMASK, mask.as_ref(), orig_sigmask.as_mut_ptr());
         if res < 0 {
             Err(std::io::Error::last_os_error())
