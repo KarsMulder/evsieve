@@ -108,6 +108,7 @@ pub struct Trigger {
 
 /// Returned by Trigger::apply to inform the caller what effect the provided event had on
 /// the hook.
+#[derive(Clone, Copy)]
 pub enum TriggerResponse {
     /// This event does not interact with this hook in any way.
     None,
@@ -237,14 +238,12 @@ pub struct Hook {
     effects: Vec<Effect>,
     /// Effects that shall be released after one of the keys has been released after activating.
     release_effects: Vec<Effect>,
-    /// Keys that shall be sent on press and release.
-    /// TODO: Consider integrating this with the effect system.
-    send_keys: Vec<Key>,
 
     /// The current state mutable at runtime.
     trigger: Trigger,
-    /// The last event that activated this tracker.
-    activating_event: Option<Event>,
+
+    /// The substructure responsible for generating additinal events for the send-key clause.
+    event_dispatcher: EventDispatcher,
 }
 
 impl Hook {
@@ -253,25 +252,20 @@ impl Hook {
             trigger,
             effects: Vec::new(),
             release_effects: Vec::new(),
-            send_keys: Vec::new(),
-            activating_event: None,
+            event_dispatcher: EventDispatcher::new(),
         }
     }
 
     fn apply(&mut self, event: Event, events_out: &mut Vec<Event>, state: &mut State, loopback: &mut LoopbackHandle) {
-        events_out.push(event);
         let response = self.trigger.apply(event, loopback);
+        events_out.push(event);
+        self.event_dispatcher.generate_additional_events(event, response, events_out);
         match response {
             TriggerResponse::Activates => {
-                self.activating_event = Some(event);
-                self.apply_effects(event, events_out, state);
+                self.apply_effects(state);
             },
             TriggerResponse::Releases => {
-                let activating_event = self.activating_event.take().unwrap_or_else(|| {
-                    crate::utils::warn_once("Internal error: a hook released while its activating_event is None.");
-                    event // The sanest default I can think of.
-                });
-                self.apply_release_effects(activating_event, events_out, state);
+                self.apply_release_effects(state);
             },
             TriggerResponse::Matches | TriggerResponse::None => (),
         }
@@ -295,11 +289,7 @@ impl Hook {
         caps_out: &mut Vec<Capability>,
     ) {
         caps_out.extend(caps);
-        if ! self.send_keys.is_empty() {
-            // TODO: This is bad encapsulation. Refactor.
-            let keys: Vec<&Key> = self.trigger.trackers.iter().map(|tracker| &tracker.key).collect();
-            generate_additional_caps(&keys, &self.send_keys, caps, caps_out);
-        }
+        self.event_dispatcher.generate_additional_caps(&self.trigger, caps, caps_out);
     }
 
     pub fn wakeup(&mut self, token: &loopback::Token) {
@@ -307,37 +297,19 @@ impl Hook {
     }
 
     /// Runs all effects that should be ran when this hook triggers.
-    fn apply_effects(
-            &self, activating_event: Event, events_out: &mut Vec<Event>, state: &mut State
-    ) {
+    fn apply_effects(&self, state: &mut State) {
         for effect in &self.effects {
             effect(state);
         }
-        // TODO: Consider integrating this special call into the Effect system.
-        send_keys_press(
-            &self.send_keys,
-            activating_event,
-            events_out,
-        )
     }
 
     /// Runs all effects that should be ran when this hook has triggered and
     /// a tracked key is released.
-    /// 
-    /// IMPORTANT: activating_event is the event that activated the hook, not the event that
-    /// caused it to be released.
-    fn apply_release_effects(
-            &self, activating_event: Event, events_out: &mut Vec<Event>, state: &mut State)
+    fn apply_release_effects(&self, state: &mut State)
     {
         for release_effect in &self.release_effects {
             release_effect(state);
         }
-        // TODO: Consider integrating this special call into the Effect system.
-        send_keys_release(
-            &self.send_keys,
-            activating_event,
-            events_out,
-        )
     }
 
     /// Makes this hook run an effect when it triggers.
@@ -357,7 +329,86 @@ impl Hook {
     /// Adds an effect: send a KEY_DOWN event of the provided key when the hook activates,
     /// and a KEY_UP event of the provided key when the hook releases.
     pub fn add_send_key(&mut self, key: Key) {
-        self.send_keys.push(key);
+        self.event_dispatcher.send_keys.push(key);
+    }
+}
+
+/// The part of the --hook that is responsible for handling the send-key= clause.
+/// Implemented separately from the hook because it is possible we want to remove this
+/// functionality from the --hook itself and move it to a --withhold instead.
+pub struct EventDispatcher {
+    /// Keys that shall be sent on press and release.
+    send_keys: Vec<Key>,
+    /// The last event that activated the corresponding Hook/Trigger.
+    activating_event: Option<Event>,
+}
+
+impl EventDispatcher {
+    fn new() -> EventDispatcher {
+        EventDispatcher {
+            send_keys: Vec::new(),
+            activating_event: None,
+        }
+    }
+
+    /// Similar in purpose to apply(), but does not copy the base event.
+    fn generate_additional_events(&mut self, event: Event, trigger_response: TriggerResponse, events_out: &mut Vec<Event>) {
+        match trigger_response {
+            TriggerResponse::Activates => {
+                self.activating_event = Some(event);
+                for key in &self.send_keys {
+                    let mut additional_event = key.merge(event);
+                    additional_event.value = 1;
+                    events_out.push(additional_event);
+                };
+            },
+            TriggerResponse::Releases => {
+                let activating_event = match self.activating_event {
+                    Some(activating_event) => activating_event,
+                    None => {
+                        crate::utils::warn_once("Internal error: a hook released without record of being activated by any event. This is a bug.");
+                        event
+                    }
+                };
+                for key in &self.send_keys {
+                    let mut additional_event = key.merge(activating_event);
+                    additional_event.value = 0;
+                    events_out.push(additional_event);
+                }
+            },
+            TriggerResponse::Matches | TriggerResponse::None => (),
+        }
+    }
+
+    /// Computes additional capabilities that can be generated by the send_keys and writes them
+    /// to caps_out. This function does not add the base capabilities to the output.
+    /// 
+    /// Similar in purpose to apply_to_all_caps(), but does not copy the base capabilities.
+    fn generate_additional_caps(&self, trigger: &Trigger, caps: &[Capability], caps_out: &mut Vec<Capability>) {
+        // TODO: Fix encapsulation?
+        let keys: Vec<&Key> = trigger.trackers.iter().map(|tracker| &tracker.key).collect();
+        // TODO: write unittest for this function.
+        let mut additional_caps: HashSet<Capability> = HashSet::new();
+        // TODO: reduce this implementation to a special case of Map.
+
+        for cap_in in caps {
+            let matches_cap = keys.iter()
+                .map(|key| key.matches_cap(cap_in)).max();
+            match matches_cap {
+                Some(CapMatch::Yes | CapMatch::Maybe) => {},
+                Some(CapMatch::No) | None => continue,
+            };
+
+            additional_caps.extend(self.send_keys.iter().map(
+                |key| {
+                    let mut new_cap = key.merge_cap(*cap_in);
+                    new_cap.value_range = Range::new(Some(0), Some(1));
+                    new_cap
+                }
+            ));
+        }
+
+        caps_out.extend(additional_caps);
     }
 }
 
@@ -367,63 +418,5 @@ fn acquire_expiration_token(period: Option<Duration>, loopback: &mut LoopbackHan
     match period {
         Some(duration) => ExpirationTime::Until(loopback.schedule_wakeup_in(duration)),
         None => ExpirationTime::Never,
-    }
-}
-
-/// Computes additional capabilities that can be generated by the send_keys and writes them
-/// to caps_out. This function does not add the base capabilities to the output.
-/// 
-/// trigger_keys must be a list of all keys that can possibly be used as base to merge
-/// send_keys with.
-fn generate_additional_caps(
-        trigger_keys: &[&Key], send_keys: &[Key],
-        caps_in: &[Capability], caps_out: &mut Vec<Capability>)
-{
-    // TODO: write unittest for this function.
-    let mut additional_caps: HashSet<Capability> = HashSet::new();
-
-    for cap_in in caps_in {
-        let matches_cap = trigger_keys.iter()
-            .map(|key| key.matches_cap(cap_in)).max();
-        match matches_cap {
-            Some(CapMatch::Yes | CapMatch::Maybe) => {},
-            Some(CapMatch::No) | None => continue,
-        };
-
-        additional_caps.extend(send_keys.iter().map(
-            |key| {
-                let mut new_cap = key.merge_cap(*cap_in);
-                new_cap.value_range = Range::new(Some(0), Some(1));
-                new_cap
-            }
-        ));
-    }
-
-    caps_out.extend(additional_caps);
-}
-
-fn send_keys_press(
-    send_keys: &[Key],
-    activating_event: Event,
-    events_out: &mut Vec<Event>)
-{
-    for key in send_keys {
-        let mut event = key.merge(activating_event);
-        event.value = 1;
-        events_out.push(event);
-    }
-}
-
-/// IMPORTANT: activating_event must be the event that caused the hook to ACTIVATE, not the 
-/// event that deactivated it.
-fn send_keys_release(
-    send_keys: &[Key],
-    activating_event: Event,
-    events_out: &mut Vec<Event>)
-{
-    for key in send_keys {
-        let mut event = key.merge(activating_event);
-        event.value = 0;
-        events_out.push(event);
     }
 }
