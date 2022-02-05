@@ -82,7 +82,7 @@ impl<T: 'static> Receiver<T> {
                 return Ok(unsafe { data.assume_init() });
             } else {
                 // A packet was partially read. This should not be possible given O_DIRECT was set.
-                return Err(SystemError::new("Partial write made to internal pipe."));
+                return Err(SystemError::new("Partial packet read from internal pipe."));
             }
         }
     }
