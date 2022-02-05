@@ -314,7 +314,7 @@ unsafe fn get_capabilities(evdev: *mut libevdev::libevdev) -> Capabilities {
     let rep_info = {
         let mut delay: libc::c_int = 0;
         let mut period: libc::c_int = 0;
-        let res = libevdev::libevdev_get_repeat(evdev, &mut delay as *mut libc::c_int, &mut period as *mut libc::c_int);
+        let res = libevdev::libevdev_get_repeat(evdev, &mut delay, &mut period);
         match res {
             0 => Some(RepeatInfo { delay, period }),
             _ => None,

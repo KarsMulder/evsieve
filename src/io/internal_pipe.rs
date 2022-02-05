@@ -28,7 +28,7 @@ impl<T: 'static> Sender<T> {
 
         loop {
             let result = unsafe { libc::write(
-                self.as_raw_fd(), &data as *const _ as *const libc::c_void, data_size
+                self.as_raw_fd(), data.as_ptr() as *const libc::c_void, data_size
             )};
             if result < 0 {
                 let error = std::io::Error::last_os_error();
@@ -69,7 +69,7 @@ impl<T: 'static> Receiver<T> {
 
         loop {
             let result = unsafe { libc::read(
-                self.as_raw_fd(), &mut data as *mut _ as *mut libc::c_void, data_size
+                self.as_raw_fd(), data.as_mut_ptr() as *mut libc::c_void, data_size
             )};
             if result < 0 {
                 let error = std::io::Error::last_os_error();
