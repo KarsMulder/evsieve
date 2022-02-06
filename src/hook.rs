@@ -243,7 +243,7 @@ pub struct Hook {
     trigger: Trigger,
 
     /// The substructure responsible for generating additinal events for the send-key clause.
-    event_dispatcher: EventDispatcher,
+    event_dispatcher: Option<EventDispatcher>,
 }
 
 impl Hook {
@@ -252,14 +252,17 @@ impl Hook {
             trigger,
             effects: Vec::new(),
             release_effects: Vec::new(),
-            event_dispatcher: EventDispatcher::new(),
+            event_dispatcher: None,
         }
     }
 
     fn apply(&mut self, event: Event, events_out: &mut Vec<Event>, state: &mut State, loopback: &mut LoopbackHandle) {
         let response = self.trigger.apply(event, loopback);
         events_out.push(event);
-        self.event_dispatcher.generate_additional_events(event, response, events_out);
+        if let Some(ref mut event_dispatcher) = self.event_dispatcher {
+            event_dispatcher.generate_additional_events(event, response, events_out);
+        }
+
         match response {
             TriggerResponse::Activates => {
                 self.apply_effects(state);
@@ -289,7 +292,9 @@ impl Hook {
         caps_out: &mut Vec<Capability>,
     ) {
         caps_out.extend(caps);
-        self.event_dispatcher.generate_additional_caps(&self.trigger, caps, caps_out);
+        if let Some(ref event_dispatcher) = self.event_dispatcher {
+            event_dispatcher.generate_additional_caps(&self.trigger, caps, caps_out);
+        }
     }
 
     pub fn wakeup(&mut self, token: &loopback::Token) {
@@ -326,10 +331,8 @@ impl Hook {
         );
     }
 
-    /// Adds an effect: send a KEY_DOWN event of the provided key when the hook activates,
-    /// and a KEY_UP event of the provided key when the hook releases.
-    pub fn add_send_key(&mut self, key: Key) {
-        self.event_dispatcher.send_keys.push(key);
+    pub fn set_event_dispatcher(&mut self, dispatcher: EventDispatcher) {
+        self.event_dispatcher = Some(dispatcher);
     }
 }
 
@@ -344,10 +347,10 @@ pub struct EventDispatcher {
 }
 
 impl EventDispatcher {
-    fn new() -> EventDispatcher {
+    pub fn from_send_keys(send_keys: Vec<Key>) -> EventDispatcher {
         EventDispatcher {
-            send_keys: Vec::new(),
-            activating_event: None,
+            send_keys,
+            activating_event: None
         }
     }
 

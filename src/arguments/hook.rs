@@ -3,11 +3,10 @@
 use crate::error::ArgumentError;
 use crate::utils;
 use crate::state::{State, ToggleIndex};
-use crate::hook::Effect;
+use crate::hook::{Effect, Trigger, EventDispatcher};
 use crate::key::{Key, KeyParser};
 use crate::event::Namespace;
 use crate::arguments::lib::ComplexArgGroup;
-use crate::hook::Trigger;
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -78,6 +77,10 @@ impl HookArg {
     pub fn compile_trigger(&self) -> Trigger {
         let keys: Vec<Key> = self.keys_and_str.iter().map(|(key, _)| key.clone()).collect();
         Trigger::new(keys, self.period)
+    }
+
+    pub fn compile_event_dispatcher(&self) -> EventDispatcher {
+        EventDispatcher::from_send_keys(self.send_keys.clone())
     }
 }
 
