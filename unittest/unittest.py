@@ -97,7 +97,9 @@ def run_unittest(
                 expected_event = expected_events.pop(0)
                 event = (event.type, event.code, event.value)
                 if event != expected_event:
-                    raise Exception(f"Unit test failed. Expected event {expected_event}, encountered {event}")
+                    expected_event_format = f"({e.EV[expected_event[0]]}, {e.bytype[expected_event[0]][expected_event[1]]}, {expected_event[2]})"
+                    event_format = f"({e.EV[event[0]]}, {e.bytype[event[0]][event[1]]}, {event[2]})"
+                    raise Exception(f"Unit test failed. Expected event {expected_event_format}, encountered {event_format}")
             if len(expected_events) > 0:
                 raise Exception(f"Unit test failed. Expected events {expected_events}, but the output device closed.")
 
@@ -926,6 +928,113 @@ def unittest_withhold():
         },
     )
 
+def unittest_withhold_period():
+    run_unittest(
+        ["--input", "/dev/input/by-id/unittest-withhold-period-in", "grab=force",
+        "--hook", "key:a", "key:b", "send-key=key:x", "period=0.004",
+        "--hook", "key:a", "key:c", "key:d", "send-key=key:w", "period=0.005",
+        "--withhold",
+        "--output", "create-link=/dev/input/by-id/unittest-withhold-period-out"],
+        {
+            "/dev/input/by-id/unittest-withhold-period-in": [
+                (e.EV_KEY, e.KEY_A, 1),
+                Delay(0.002),
+                (e.EV_KEY, e.KEY_Z, 1),
+                (e.EV_KEY, e.KEY_Z, 0),
+                (e.EV_KEY, e.KEY_A, 0),
+
+                (e.EV_KEY, e.KEY_A, 1),
+                Delay(0.005),
+                (e.EV_KEY, e.KEY_Z, 1),
+                (e.EV_KEY, e.KEY_Z, 0),
+                (e.EV_KEY, e.KEY_A, 0),
+
+                (e.EV_KEY, e.KEY_A, 1),
+                Delay(0.002),
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_Y, 1),
+                (e.EV_KEY, e.KEY_Y, 0),
+                (e.EV_KEY, e.KEY_A, 0),
+                (e.EV_KEY, e.KEY_B, 0),
+
+                (e.EV_KEY, e.KEY_A, 1),
+                Delay(0.005),
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_Z, 1),
+                (e.EV_KEY, e.KEY_Z, 0),
+                (e.EV_KEY, e.KEY_A, 0),
+                (e.EV_KEY, e.KEY_B, 0),
+
+                (e.EV_KEY, e.KEY_C, 1),
+                (e.EV_KEY, e.KEY_D, 1),
+                Delay(0.002),
+                (e.EV_KEY, e.KEY_C, 0),
+                (e.EV_KEY, e.KEY_Z, 1),
+                (e.EV_KEY, e.KEY_A, 1),
+                Delay(0.002),
+                (e.EV_KEY, e.KEY_C, 1),
+                Delay(0.003),
+                (e.EV_KEY, e.KEY_Z, 0),
+                (e.EV_KEY, e.KEY_C, 0),
+                (e.EV_KEY, e.KEY_D, 0),
+                (e.EV_KEY, e.KEY_A, 0),
+
+                (e.EV_KEY, e.KEY_C, 1),
+                Delay(0.003),
+                (e.EV_KEY, e.KEY_D, 1),
+                Delay(0.003),
+                (e.EV_KEY, e.KEY_Y, 1),
+                (e.EV_KEY, e.KEY_Y, 0),
+                (e.EV_KEY, e.KEY_C, 0),
+                (e.EV_KEY, e.KEY_A, 1),
+                Delay(0.001),
+                (e.EV_KEY, e.KEY_C, 1),
+                (e.EV_KEY, e.KEY_C, 0),
+                (e.EV_KEY, e.KEY_D, 0),
+                (e.EV_KEY, e.KEY_A, 0),
+            ],
+        },
+        {
+            "/dev/input/by-id/unittest-withhold-period-out": [
+                (e.EV_KEY, e.KEY_Z, 1),
+                (e.EV_KEY, e.KEY_Z, 0),
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_A, 0),
+
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_Z, 1),
+                (e.EV_KEY, e.KEY_Z, 0),
+                (e.EV_KEY, e.KEY_A, 0),
+
+                (e.EV_KEY, e.KEY_X, 1),
+                (e.EV_KEY, e.KEY_Y, 1),
+                (e.EV_KEY, e.KEY_Y, 0),
+                (e.EV_KEY, e.KEY_X, 0),
+
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_Z, 1),
+                (e.EV_KEY, e.KEY_Z, 0),
+                (e.EV_KEY, e.KEY_A, 0),
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_B, 0),
+
+                (e.EV_KEY, e.KEY_C, 1),
+                (e.EV_KEY, e.KEY_C, 0),
+                (e.EV_KEY, e.KEY_Z, 1),
+                (e.EV_KEY, e.KEY_W, 1),
+                (e.EV_KEY, e.KEY_Z, 0),
+                (e.EV_KEY, e.KEY_W, 0),
+
+                (e.EV_KEY, e.KEY_C, 1),
+                (e.EV_KEY, e.KEY_Y, 1),
+                (e.EV_KEY, e.KEY_Y, 0),
+                (e.EV_KEY, e.KEY_C, 0),
+                (e.EV_KEY, e.KEY_W, 1),
+                (e.EV_KEY, e.KEY_W, 0),
+            ],
+        },
+    )
+
 
 unittest_mirror()
 unittest_capslock()
@@ -944,3 +1053,4 @@ unittest_merge()
 unittest_delta()
 unittest_delay()
 unittest_withhold()
+unittest_withhold_period()
