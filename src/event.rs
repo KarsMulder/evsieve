@@ -119,6 +119,13 @@ impl VirtualEventType {
     }
 }
 
+/// Flags are little tags that are temporarily attached to events to help with the internal
+/// implementation of some arguments. Currently, they are only used for orchestrating the
+/// interaction between --hook send-key=... and --withhold.` (TODO: At least, that is the plan.)
+/// 
+/// IMPORTANT: capabilities are so far not subject to flags because of YAGNI. If you intend
+/// to expand the usage domain of flags, consider whether you need to implement them for
+/// capabilities as well.
 #[repr(u8)]
 pub enum EventFlag {
     /// This flag is tags events which have matched one key of a --hook argument since the
