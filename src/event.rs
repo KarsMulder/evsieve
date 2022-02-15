@@ -119,6 +119,36 @@ impl VirtualEventType {
     }
 }
 
+#[repr(u8)]
+pub enum EventFlag {
+    /// This flag is tags events which have matched one key of a --hook argument since the
+    /// last --withhold argument. It helps keeping tracks which events should be withheld
+    /// and which shouldn't.
+    HasMatchedHook = 0b0001,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct EventFlags(u8);
+
+impl EventFlags {
+    pub fn empty() -> EventFlags {
+        EventFlags(0)
+    }
+
+    pub fn set(&mut self, flag: EventFlag) {
+        self.0 |= flag as u8;
+    }
+
+    pub fn unset(&mut self, flag: EventFlag) {
+        self.0 &= !(flag as u8);
+    }
+
+    pub fn get(&mut self, flag: EventFlag) -> bool {
+        (self.0 & flag as u8) != 0
+    }
+}
+
+
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub struct Event {
     pub code: EventCode,
@@ -129,6 +159,7 @@ pub struct Event {
 
     pub domain: Domain,
     pub namespace: Namespace,
+    pub flags: EventFlags,
 }
 
 impl Event {
@@ -138,7 +169,8 @@ impl Event {
                domain: Domain,
                namespace: Namespace
     ) -> Event {
-        Event { code, value, previous_value, domain, namespace }
+        let flags = EventFlags::empty();
+        Event { code, value, previous_value, domain, namespace, flags }
     }
 
     pub fn with_domain(mut self, new_domain: Domain) -> Event {
