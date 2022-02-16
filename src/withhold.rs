@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use crate::event::{Event, Channel};
+use crate::event::{Event, Channel, EventFlag};
 use crate::key::Key;
 use crate::loopback::{LoopbackHandle, Token};
 use crate::hook::{Trigger, TriggerResponse};
@@ -33,7 +33,15 @@ impl Withhold {
         }
     }
 
-    fn apply(&mut self, event: Event, events_out: &mut Vec<Event>, loopback: &mut LoopbackHandle) {
+    fn apply(&mut self, mut event: Event, events_out: &mut Vec<Event>, loopback: &mut LoopbackHandle) {
+        // Skip all events that did not match any preceding hook.
+        if event.flags.get(EventFlag::Withholdable) {
+            event.flags.unset(EventFlag::Withholdable);
+        } else {
+            return events_out.push(event);
+        }
+
+        // Skip all events that are not of type EV_KEY.
         if ! event.ev_type().is_key() {
             return events_out.push(event);
         }
@@ -63,8 +71,10 @@ impl Withhold {
         }
 
         // If this event does not interact with any trigger, ignore it.
-        if ! any_trigger_matched {
-            return events_out.push(event);
+        if cfg!(debug_assertions) {
+            if ! any_trigger_matched {
+                panic!("Expected variant violated: an event was marked as withholdable, but no preceding triggers matched it.");
+            }
         }
 
         if self.keys.iter().any(|key| key.matches(&event)) {
