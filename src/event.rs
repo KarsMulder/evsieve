@@ -129,10 +129,10 @@ impl VirtualEventType {
 /// capabilities as well.
 #[repr(u8)]
 pub enum EventFlag {
-    /// This flag tags events which have matched one key of a --hook argument since the
-    /// last --withhold argument. It helps keeping track of which events should be withheld
+    /// This flag tags events which have matched one key of a --hook argument before the
+    /// next --withhold argument. It helps keeping track of which events should be withheld
     /// and which shouldn't.
-    HasMatchedHook = 0b0001,
+    Withholdable = 0b0001,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

@@ -31,7 +31,7 @@ impl WithholdArg {
         Ok(WithholdArg { keys, associated_triggers: Vec::new() })
     }
 
-    pub fn associate_hooks(&mut self, hooks: &[&HookArg]) -> Result<(), ArgumentError> {
+    pub fn associate_hooks(&mut self, hooks: &mut [&mut HookArg]) -> Result<(), ArgumentError> {
         if hooks.is_empty() {
             return Err(ArgumentError::new("A --withhold argument must be preceded by at least one --hook argument."));
         }
@@ -48,7 +48,7 @@ impl WithholdArg {
         );
 
         // Verify that the constraints on the preceding hooks are upheld.
-        for hook_arg in hooks {
+        for hook_arg in hooks.iter_mut() {
             for (key, key_str) in &hook_arg.keys_and_str {
                 if !  inherently_requires_EV_KEY
                    && key.requires_event_type() != Some(EventType::KEY)
@@ -71,6 +71,11 @@ impl WithholdArg {
                     }
                 }
             }
+        }
+
+        // Inform all associated hooks to mark events as withholdable.
+        for hook in hooks.iter_mut() {
+            hook.mark_withholdable = true;
         }
 
         self.associated_triggers.extend(

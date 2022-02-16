@@ -159,12 +159,12 @@ pub fn implement(args_str: Vec<String>)
     }
 
     // Associate the --withhold argument with all --hook arguments before it.
-    let mut consecutive_hooks: Vec<&HookArg> = Vec::new();
+    let mut consecutive_hooks: Vec<&mut HookArg> = Vec::new();
     for arg in &mut args {
         match arg {
             Argument::HookArg(hook_arg) => consecutive_hooks.push(hook_arg),
             Argument::WithholdArg(withhold_arg) => {
-                withhold_arg.associate_hooks(&consecutive_hooks)?;
+                withhold_arg.associate_hooks(&mut consecutive_hooks)?;
                 consecutive_hooks.clear();
             },
             _ => consecutive_hooks.clear(),
@@ -246,7 +246,7 @@ pub fn implement(args_str: Vec<String>)
                 }
             },
             Argument::HookArg(hook_arg) => {
-                let mut hook = Hook::new(hook_arg.compile_trigger());
+                let mut hook = Hook::new(hook_arg.compile_trigger(), hook_arg.mark_withholdable);
                 hook.set_event_dispatcher(hook_arg.compile_event_dispatcher());
 
                 for exec_shell in hook_arg.exec_shell {
