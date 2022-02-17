@@ -246,8 +246,11 @@ pub fn implement(args_str: Vec<String>)
                 }
             },
             Argument::HookArg(hook_arg) => {
-                let mut hook = Hook::new(hook_arg.compile_trigger(), hook_arg.mark_withholdable);
-                hook.set_event_dispatcher(hook_arg.compile_event_dispatcher());
+                let mut hook = Hook::new(
+                    hook_arg.compile_trigger(),
+                    hook_arg.compile_event_dispatcher(),
+                    hook_arg.mark_withholdable
+                );
 
                 for exec_shell in hook_arg.exec_shell {
                     hook.add_command("/bin/sh".to_owned(), vec!["-c".to_owned(), exec_shell]);

@@ -246,17 +246,17 @@ pub struct Hook {
     trigger: Trigger,
 
     /// The substructure responsible for generating additinal events for the send-key clause.
-    event_dispatcher: Option<EventDispatcher>,
+    event_dispatcher: EventDispatcher,
 }
 
 impl Hook {
-    pub fn new(trigger: Trigger, mark_withholdable: bool) -> Hook {
+    pub fn new(trigger: Trigger, event_dispatcher: EventDispatcher, mark_withholdable: bool) -> Hook {
         Hook {
             trigger,
             mark_withholdable,
             effects: Vec::new(),
             release_effects: Vec::new(),
-            event_dispatcher: None,
+            event_dispatcher,
         }
     }
 
@@ -272,9 +272,7 @@ impl Hook {
         }
         events_out.push(event);
 
-        if let Some(ref mut event_dispatcher) = self.event_dispatcher {
-            event_dispatcher.generate_additional_events(event, response, events_out);
-        }
+        self.event_dispatcher.generate_additional_events(event, response, events_out);
 
         match response {
             TriggerResponse::Activates => {
@@ -305,9 +303,7 @@ impl Hook {
         caps_out: &mut Vec<Capability>,
     ) {
         caps_out.extend(caps);
-        if let Some(ref event_dispatcher) = self.event_dispatcher {
-            event_dispatcher.generate_additional_caps(&self.trigger, caps, caps_out);
-        }
+        self.event_dispatcher.generate_additional_caps(&self.trigger, caps, caps_out);
     }
 
     pub fn wakeup(&mut self, token: &loopback::Token) {
@@ -342,10 +338,6 @@ impl Hook {
                 subprocess::try_spawn(program.clone(), args.clone()).print_err();
             })
         );
-    }
-
-    pub fn set_event_dispatcher(&mut self, dispatcher: EventDispatcher) {
-        self.event_dispatcher = Some(dispatcher);
     }
 }
 
