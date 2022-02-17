@@ -136,7 +136,7 @@ impl Toggle {
         match self.mode {
             ToggleMode::Passive => self.active_output_key(state),
             ToggleMode::Consistent => {
-                match state[self.state_index].memory.get(&(event.code, event.domain)) {
+                match state[self.state_index].memory.get(&event.channel()) {
                     Some(&index) => &self.output_keys[index],
                     None => self.active_output_key(state),
                 }
@@ -154,7 +154,7 @@ impl Toggle {
         if self.mode == ToggleMode::Consistent && event.ev_type().is_key() && self.input_key.matches(&event) {
             let active_value = state[self.state_index].value();
             let memory = &mut state[self.state_index].memory;
-            let event_channel = (event.code, event.domain);
+            let event_channel = event.channel();
             match event.value {
                 0 => { memory.remove(&event_channel); },
                 _ => { memory.entry(event_channel).or_insert(active_value); },
