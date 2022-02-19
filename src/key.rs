@@ -12,6 +12,9 @@ use crate::error::Context;
 
 #[derive(Clone, Debug)]
 pub struct Key {
+    /// Upholds invariant: at most one copy of each KeyProperty variant may be in this vector.
+    /// Putting multiple copies in it is a logical error; some functions may not function
+    /// correctly if this invariant is broken.
     properties: Vec<KeyProperty>,
 }
 
@@ -108,6 +111,46 @@ impl Key {
             }
         }
         None
+    }
+
+    /// Returns true if some event may match both key_1 and key_2.
+    pub fn intersects_with(&self, other: &Key) -> bool {
+        for prop_1 in &self.properties {
+            for prop_2 in &other.properties {
+                let these_properties_may_intersect = match (prop_1, prop_2) {
+                    (KeyProperty::Code(left), KeyProperty::Code(right))
+                        => left == right,
+                    (KeyProperty::Domain(left), KeyProperty::Domain(right))
+                        => left == right,
+                    (KeyProperty::Namespace(left), KeyProperty::Namespace(right))
+                        => left == right,
+                    (KeyProperty::VirtualType(left), KeyProperty::VirtualType(right))
+                        => left == right,
+                    
+                    (KeyProperty::VirtualType(v_type), KeyProperty::Code(code))
+                    | (KeyProperty::Code(code), KeyProperty::VirtualType(v_type))
+                        => *v_type == code.virtual_ev_type(),
+                    
+                    (KeyProperty::Value(left), KeyProperty::Value(right))
+                    | (KeyProperty::PreviousValue(left), KeyProperty::PreviousValue(right))
+                        => left.intersects_with(right),
+                    
+                    (KeyProperty::Code(_), _)
+                    | (KeyProperty::Domain(_), _)
+                    | (KeyProperty::Namespace(_), _)
+                    | (KeyProperty::VirtualType(_), _)
+                    | (KeyProperty::Value(_), _)
+                    | (KeyProperty::PreviousValue(_), _)
+                    | (KeyProperty::DeltaFactor(_), _)
+                        => true,
+                };
+                if ! these_properties_may_intersect {
+                    return false;
+                }
+            }
+        }
+
+        true
     }
 }
 
@@ -536,5 +579,35 @@ fn interpret_relative_value(value_str: &str) -> Result<Option<KeyProperty>, Argu
             };
             Ok(Some(KeyProperty::DeltaFactor(factor)))
         }
+    }
+}
+
+#[test]
+fn unittest_intersection() {
+    let parser = KeyParser::default_filter();
+    let expected_to_intersect = [
+        ("key:a", "key:a"),
+        ("key", "key:a"),
+        ("key:a", "key"),
+        ("key:a:1..2@foo", "key:a:1..2@foo"),
+        ("key:a:1..2@foo", "@foo"),
+        ("", ""),
+        ("", "key:a:1..2@foo"),
+    ];
+    let expected_not_to_intersect = [
+        ("key:a", "key:b"),
+        ("key:a", "btn"),
+        ("btn", "key:a"),
+        ("key:a@foo", "key:a@bar"),
+        ("key:a@foo", "@bar"),
+        ("key:a:1", "key:a:2"),
+        ("key:a:1..2", "key:a:0..2"),
+    ];
+
+    for (key_1, key_2) in expected_to_intersect {
+        assert!(parser.parse(key_1).unwrap().intersects_with(&parser.parse(key_2).unwrap()));
+    }
+    for (key_1, key_2) in expected_not_to_intersect {
+        assert!(! parser.parse(key_1).unwrap().intersects_with(&parser.parse(key_2).unwrap()));
     }
 }
