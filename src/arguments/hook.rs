@@ -10,6 +10,18 @@ use crate::arguments::lib::ComplexArgGroup;
 use std::collections::HashMap;
 use std::time::Duration;
 
+/// The KeyParser that is used to parse Hook keys.
+pub(super) const PARSER: KeyParser = KeyParser {
+    allow_transitions: false,
+    allow_values: true,
+    allow_ranges: true,
+    allow_types: false,
+    default_value: "1~",
+    allow_relative_values: false,
+    forbid_non_EV_KEY: false,
+    namespace: Namespace::User,
+};
+
 /// Represents a --hook argument.
 #[derive(Clone)]
 pub(super) struct HookArg {
@@ -39,16 +51,7 @@ impl HookArg {
 
         let toggle_action = HookToggleAction::parse(arg_group.has_flag("toggle"), arg_group.get_clauses("toggle"))?;
         let keys_str = arg_group.keys.clone();
-        let keys = KeyParser {
-            allow_transitions: false,
-            allow_values: true,
-            allow_ranges: true,
-            allow_types: false,
-            default_value: "1~",
-            allow_relative_values: false,
-            forbid_non_EV_KEY: false,
-            namespace: Namespace::User,
-        }.parse_all(&keys_str)?;
+        let keys = PARSER.parse_all(&keys_str)?;
         let keys_and_str = keys.into_iter().zip(keys_str).collect();
 
         let period = match arg_group.get_unique_clause("period")? {

@@ -164,7 +164,8 @@ pub fn implement(args_str: Vec<String>)
         match arg {
             Argument::HookArg(hook_arg) => consecutive_hooks.push(hook_arg),
             Argument::WithholdArg(withhold_arg) => {
-                withhold_arg.associate_hooks(&mut consecutive_hooks)?;
+                withhold_arg.associate_hooks(&mut consecutive_hooks)
+                    .with_context("While linking the --withhold arguments to their preceding hooks:")?;
                 consecutive_hooks.clear();
             },
             _ => consecutive_hooks.clear(),

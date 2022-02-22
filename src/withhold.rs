@@ -13,7 +13,6 @@ pub struct Withhold {
     triggers: Vec<Trigger>,
 
     /// Only withhold events that match one of the following keys.
-    /// Regardless of what the keys say, the Withhold is only applicable to events of type EV_KEY.
     keys: Vec<Key>,
 
     channel_state: HashMap<Channel, ChannelState>,
@@ -38,11 +37,6 @@ impl Withhold {
         if event.flags.get(EventFlag::Withholdable) {
             event.flags.unset(EventFlag::Withholdable);
         } else {
-            return events_out.push(event);
-        }
-
-        // Skip all events that are not of type EV_KEY.
-        if ! event.ev_type().is_key() {
             return events_out.push(event);
         }
 
