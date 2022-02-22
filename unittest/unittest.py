@@ -1006,6 +1006,53 @@ def unittest_withhold_2():
         },
     )
 
+def unittest_withhold_3():
+    run_unittest(
+        ["--input", "/dev/input/by-id/unittest-withhold-3-in", "domain=foo", "grab=force",
+        "--hook", "key:a", "abs:x:1~5", "send-key=key:x",
+        "--withhold", "key",
+        "--output", "create-link=/dev/input/by-id/unittest-withhold-3-out"],
+        {
+            "/dev/input/by-id/unittest-withhold-3-in": [
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_B, 0),
+                (e.EV_KEY, e.KEY_A, 0),
+
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_ABS, e.ABS_X, 3),
+                (e.EV_KEY, e.KEY_A, 0),
+
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_A, 0),
+                (e.EV_ABS, e.ABS_X, 7),
+
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_A, 0),
+
+            ],
+        },
+        {
+            "/dev/input/by-id/unittest-withhold-3-out": [
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_B, 0),
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_A, 0),
+
+                (e.EV_ABS, e.ABS_X, 3),
+                (e.EV_KEY, e.KEY_X, 1),
+                (e.EV_KEY, e.KEY_X, 0),
+
+                (e.EV_KEY, e.KEY_X, 1),
+                (e.EV_KEY, e.KEY_X, 0),
+                (e.EV_ABS, e.ABS_X, 7),
+
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_A, 0),
+            ],
+        },
+    )
+
 def unittest_withhold_period():
     run_unittest(
         ["--input", "/dev/input/by-id/unittest-withhold-period-in", "grab=force",
@@ -1132,4 +1179,5 @@ unittest_delta()
 unittest_delay()
 unittest_withhold()
 unittest_withhold_2()
+unittest_withhold_3()
 unittest_withhold_period()
