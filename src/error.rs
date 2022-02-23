@@ -69,6 +69,7 @@ macro_rules! runtime_errors {
             context_error!($name);
         )*
 
+        #[derive(Debug)]
         pub enum RuntimeError {
             $(
                 $name ( $name ),
