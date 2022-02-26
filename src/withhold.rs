@@ -5,8 +5,6 @@ use crate::key::Key;
 use crate::loopback::{LoopbackHandle, Token};
 use crate::hook::{Trigger, TriggerResponse};
 
-use std::collections::HashMap;
-
 /// Represents a --withhold argument.
 pub struct Withhold {
     /// Copies of the triggers of the associated hooks.
@@ -15,14 +13,14 @@ pub struct Withhold {
     /// Only withhold events that match one of the following keys.
     keys: Vec<Key>,
 
-    channel_state: HashMap<Channel, ChannelState>,
+    channel_state: Vec<(Channel, ChannelState)>,
 }
 
 impl Withhold {
     pub fn new(keys: Vec<Key>, triggers: Vec<Trigger>) -> Withhold {
         Withhold {
             keys, triggers,
-            channel_state: HashMap::new(),
+            channel_state: Vec::new(),
         }
     }
 
@@ -43,44 +41,65 @@ impl Withhold {
         // Check with which indices this event is related in any way, as well as which triggers
         // just activated because of this event.
         let mut activated_triggers: Vec<&Trigger> = Vec::new();
-        let mut any_trigger_matched: bool = false;
-        let mut any_trigger_withholds: bool = false;
         for trigger in &mut self.triggers {
             match trigger.apply(event, loopback) {
-                TriggerResponse::None => continue,
+                TriggerResponse::None
+                | TriggerResponse::Matches
+                | TriggerResponse::Releases => (),
                 TriggerResponse::Activates => {
                     activated_triggers.push(trigger);
-                    any_trigger_matched = true;
                 },
-                TriggerResponse::Matches | TriggerResponse::Releases => {
-                    any_trigger_matched = true;
-                },
-            }
-
-            // It is possible that a trigger matches but all matching trackers are
-            // already expired, therefore we need an extra check here.
-            if trigger.has_active_tracker_matching_channel(event.channel()) {
-                any_trigger_withholds = true;
             }
         }
 
-        // If this event does not interact with any trigger, ignore it.
-        if cfg!(debug_assertions) {
-            if ! any_trigger_matched {
-                panic!("Expected variant violated: an event was marked as withholdable, but no preceding triggers matched it.");
-            }
-        }
+        // If this is set to Some, then the provided event shall be added to events_out at the
+        // end of the function, i.e. after all other withheld events have been released.
+        //
+        // Setting this to Some(event) is pretty much a delayed `events_out.push(event)` call.
+        let final_event: Option<Event>;
 
         if self.keys.iter().any(|key| key.matches(&event)) {
-            route_or_withhold_event(
-                event, any_trigger_withholds, &mut self.channel_state, events_out
-            );
+            let current_channel_state: Option<&mut ChannelState> =
+                self.channel_state.iter_mut()
+                .find(|(channel, _state)| *channel == event.channel())
+                .map(|(_channel, state)| state);
+
+            if event.value == 1 {
+                // Withhold the event. If there are no active trackers withholding this event,
+                // it will be released later at `self.release_events()`.
+                match current_channel_state {
+                    None => self.channel_state.push(
+                        (event.channel(), ChannelState::Withheld { withheld_event: event })
+                    ),
+                    Some(state @ &mut ChannelState::Residual) => {
+                        *state = ChannelState::Withheld { withheld_event: event }
+                    },
+                    Some(ChannelState::Withheld { .. }) => {},
+                }
+                final_event = None;
+
+            } else if event.value == 0 {
+                // Remove a Residual block. If no Residual block is present, pass the event on.
+                match current_channel_state {
+                    None | Some(ChannelState::Withheld { .. }) => {
+                        final_event = Some(event);
+                    },
+                    Some(ChannelState::Residual) => {
+                        self.channel_state.retain(|(channel, _)| *channel != event.channel());
+                        final_event = None;
+                    }
+                }
+            } else {
+                // KEY_REP events and other invalid values get dropped.
+                final_event = None;
+            }
         } else {
-            events_out.push(event);
+            // This event can not be withheld. Add it to the stream after releasing past events.
+            final_event = Some(event);
         }
 
         // All events which were withheld by a trigger that just activated shall be considered
-        // to have been consumed.
+        // to have been consumed and their states are to be set to Residual.
         for (channel, state) in &mut self.channel_state {
             if let ChannelState::Withheld { .. } = state {
                 for trigger in &activated_triggers {
@@ -90,6 +109,13 @@ impl Withhold {
                     }
                 }
             }
+        }
+
+        // All events which are no longer withheld by any trigger shall be released.
+        self.release_events(events_out);
+
+        if let Some(event) = final_event {
+            events_out.push(event);
         }
     }
 
@@ -107,85 +133,30 @@ impl Withhold {
         // Some trackers have expired. For all events that are being withheld, check
         // whether the respective triggers are still withholding them. Events that
         // are no longer withheld by any trigger shall be released bach to the stream.
-        for (channel, state) in &mut self.channel_state {
-            match state {
-                ChannelState::Inactive | ChannelState::Residual => (),
-                ChannelState::Withheld { withheld_event } => {
-                    let should_still_withhold = self.triggers.iter().any(
-                        |trigger| trigger.has_active_tracker_matching_channel(*channel)
-                    );
-                    if ! should_still_withhold {
-                        // TODO: consider preserving proper order.
-                        events_out.push(*withheld_event);
-                        *state = ChannelState::Inactive;
-                    }
+        self.release_events(events_out);
+    }
+
+    /// Writes all events that are not withheld by any trigger to the output stream.
+    fn release_events(&mut self, events_out: &mut Vec<Event>) {
+        let triggers = &self.triggers;
+        self.channel_state.retain(|(channel, state)| {
+            if let ChannelState::Withheld { withheld_event } = state {
+                let is_still_withheld = triggers.iter().any(|trigger|
+                    trigger.has_active_tracker_matching_channel(*channel)
+                );
+                if ! is_still_withheld {
+                    events_out.push(*withheld_event);
+                    return false;
                 }
             }
-        }
+            true
+        });
     }
 }
 
 // TODO: Doccomment.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 enum ChannelState {
     Withheld { withheld_event: Event },
     Residual,
-    Inactive,
-}
-
-impl Default for ChannelState {
-    fn default() -> Self {
-        ChannelState::Inactive
-    }
-}
-
-fn route_or_withhold_event(
-        event: Event,
-        any_trigger_withholds: bool,
-        channel_state: &mut HashMap<Channel, ChannelState>,
-        events_out: &mut Vec<Event>)
-{
-    if event.value > 0 {
-        // If it is a KEY_DOWN or KEY_REPEAT event, withhold/drop it unless all trackers matching
-        // this event have already expired.
-        if ! any_trigger_withholds {
-            return events_out.push(event);
-        }
-
-        if event.value == 1 {
-            // If this event is a key_down event, withhold it.
-            let state: &mut ChannelState = channel_state
-                .entry(event.channel()).or_default();
-
-            match state {
-                ChannelState::Withheld { .. } => {},
-                ChannelState::Inactive => {
-                    *state = ChannelState::Withheld {
-                        withheld_event: event,
-                    };
-                }
-                ChannelState::Residual => {},
-            };
-        } else {
-            // Drop key repeat events.
-        }
-    } else {
-        // If it is a key_up event, all associated triggers are assumed to have been released.
-        // To make this assumption true, the associated --hook's must only use EV_KEY-type keys
-        // with default values.
-        let state = channel_state
-            .remove(&event.channel())
-            .unwrap_or(ChannelState::Inactive);
-
-        match state {
-            ChannelState::Withheld { withheld_event } => {
-                events_out.push(withheld_event);
-                events_out.push(event);
-            },
-            ChannelState::Inactive => {
-                events_out.push(event);
-            },
-            ChannelState::Residual => {},
-        }
-    }
 }

@@ -918,8 +918,8 @@ def unittest_withhold():
 
                 # Part 5
                 (e.EV_KEY, e.KEY_K, 1),
-                (e.EV_KEY, e.KEY_K, 0),
                 (e.EV_KEY, e.KEY_L, 1),
+                (e.EV_KEY, e.KEY_K, 0),
                 (e.EV_KEY, e.KEY_L, 0),
 
                 (e.EV_KEY, e.KEY_S, 1),
