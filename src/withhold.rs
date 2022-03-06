@@ -72,7 +72,9 @@ impl Withhold {
                         (event.channel(), ChannelState::Withheld { withheld_event: event })
                     ),
                     Some(state @ &mut ChannelState::Residual) => {
-                        *state = ChannelState::Withheld { withheld_event: event }
+                        *state =
+                        
+                        ChannelState::Withheld { withheld_event: event }
                     },
                     Some(ChannelState::Withheld { .. }) => {},
                 }
@@ -81,6 +83,7 @@ impl Withhold {
             } else if event.value == 0 {
                 // Remove a Residual block. If no Residual block is present, pass the event on.
                 match current_channel_state {
+                    // TODO: Consider whether a KEY_UP event should unconditionally release the withheld event.
                     None | Some(ChannelState::Withheld { .. }) => {
                         final_event = Some(event);
                     },
@@ -154,7 +157,17 @@ impl Withhold {
     }
 }
 
-// TODO: Doccomment.
+/// For each channel, at most one event can be withheld. This withheld event is always a
+/// KEY_DOWN event. Subsequent KEY_DOWN events that arrive while an event is being withheld
+/// shall be dropped. The event is withheld as long as some tracker returns true for
+/// `has_active_tracker_matching_channel(event.channel())`.
+/// 
+/// If a trigger activates and said trigger has a tracker matching the event's channel, the
+/// state of that channel shall become Residual instead. When a channel is in residual state,
+/// the next KEY_UP event matching that channel gets dropped. After dropping a KEY_UP event,
+/// the state of the corresponding channel returns to undefined. Furthermore, a KEY_DOWN event
+/// arriving to a channel in Residual state cancels the Residual state and sets it back to
+/// Withheld.
 #[derive(Debug, Clone, Copy)]
 enum ChannelState {
     Withheld { withheld_event: Event },
