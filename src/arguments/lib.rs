@@ -154,7 +154,18 @@ impl ComplexArgGroup {
             1 => Ok(Some(clauses[0].clone())),
             0 => Ok(None),
             _ => Err(ArgumentError::new(format!(
-                "Multiple copies of the {}= clause have been provided to {}.", name, self.name
+                "Cannot provide multiple copies of the {}= clause to {}.", name, self.name
+            ))),
+        }
+    }
+
+    /// Gets a clause of which exacly one must exist.
+    pub fn require_unique_clause(&self, name: &str) -> Result<String, ArgumentError> {
+        let clause = self.get_unique_clause(name)?;
+        match clause {
+            Some(clause) => Ok(clause),
+            None => Err(ArgumentError::new(format!(
+                "The {} argument requires a {}= clause.", self.name, name
             ))),
         }
     }

@@ -24,13 +24,9 @@ impl DelayArg {
         let keys = KeyParser::default_filter()
             .parse_all(&arg_group.get_keys_or_empty_key())?;
         
-        // TODO: refactor into require_unique_clause
-        let period = match arg_group.get_unique_clause("period")? {
-            Some(value) => parse_period_value(&value)?,
-            None => return Err(ArgumentError::new(
-                "The --delay argument requires a period= clause, e.g. use --delay period=0.5 to delay all events by half a second."
-            ))
-        };
+        let period = parse_period_value(
+            &arg_group.require_unique_clause("period")?
+        )?;
 
         Ok(DelayArg { keys, period })
     }
