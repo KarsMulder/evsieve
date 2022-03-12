@@ -3,7 +3,7 @@
 use crate::error::ArgumentError;
 use crate::arguments::lib::ComplexArgGroup;
 use crate::key::{Key, KeyParser};
-use crate::map::ToggleMode;
+use crate::stream::map::ToggleMode;
 
 /// Represents a --toggle argument.
 pub(super) struct ToggleArg {

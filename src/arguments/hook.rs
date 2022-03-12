@@ -3,7 +3,7 @@
 use crate::error::ArgumentError;
 use crate::utils;
 use crate::state::{State, ToggleIndex};
-use crate::hook::{Effect, Trigger, EventDispatcher};
+use crate::stream::hook::{Effect, Trigger, EventDispatcher};
 use crate::key::{Key, KeyParser};
 use crate::event::Namespace;
 use crate::arguments::lib::ComplexArgGroup;

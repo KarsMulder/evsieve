@@ -3,7 +3,7 @@
 use crate::event::{Event, Channel, EventFlag};
 use crate::key::Key;
 use crate::loopback::{LoopbackHandle, Token};
-use crate::hook::{Trigger, TriggerResponse};
+use crate::stream::hook::{Trigger, TriggerResponse};
 
 /// Represents a --withhold argument.
 pub struct Withhold {

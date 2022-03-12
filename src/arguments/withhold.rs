@@ -4,7 +4,7 @@ use crate::event::EventType;
 use crate::error::ArgumentError;
 use crate::arguments::lib::ComplexArgGroup;
 use crate::arguments::hook::HookArg;
-use crate::hook::Trigger;
+use crate::stream::hook::Trigger;
 use crate::key::{Key, KeyParser};
 
 /// Represents a --withhold argument.

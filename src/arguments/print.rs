@@ -3,7 +3,7 @@
 use crate::error::ArgumentError;
 use crate::arguments::lib::ComplexArgGroup;
 use crate::key::{Key, KeyParser};
-use crate::print::{EventPrinter, EventPrintMode};
+use crate::stream::print::{EventPrinter, EventPrintMode};
 
 /// Represents a --print argument.
 pub(super) struct PrintArg {

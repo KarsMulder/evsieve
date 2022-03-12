@@ -19,7 +19,6 @@
 
 pub mod event;
 pub mod key;
-pub mod map;
 pub mod domain;
 pub mod state;
 pub mod signal;
@@ -27,17 +26,12 @@ pub mod utils;
 pub mod error;
 pub mod capability;
 pub mod range;
-pub mod stream;
 pub mod ecodes;
-pub mod hook;
 pub mod predevice;
-pub mod print;
 pub mod subprocess;
 pub mod daemon;
-pub mod merge;
 pub mod loopback;
-pub mod delay;
-pub mod withhold;
+pub mod stream;
 
 pub mod io {
     pub mod input;

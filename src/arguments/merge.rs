@@ -3,7 +3,7 @@
 use crate::error::ArgumentError;
 use crate::arguments::lib::ComplexArgGroup;
 use crate::key::{Key, KeyParser};
-use crate::merge::Merge;
+use crate::stream::merge::Merge;
 
 /// Represents a --merge argument.
 pub(super) struct MergeArg {

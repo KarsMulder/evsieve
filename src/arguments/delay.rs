@@ -3,7 +3,7 @@
 use crate::error::ArgumentError;
 use crate::arguments::lib::ComplexArgGroup;
 use crate::key::{Key, KeyParser};
-use crate::delay::Delay;
+use crate::stream::delay::Delay;
 use std::time::Duration;
 
 /// Represents a --delay argument.

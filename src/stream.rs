@@ -1,14 +1,22 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+pub mod print;
+pub mod withhold;
+pub mod hook;
+pub mod map;
+pub mod delay;
+pub mod merge;
+
+use self::map::{Map, Toggle};
+use self::hook::Hook;
+use self::print::EventPrinter;
+use self::withhold::Withhold;
+use self::merge::Merge;
+
 use crate::io::input::InputDevice;
-use crate::map::{Map, Toggle};
-use crate::hook::Hook;
-use crate::merge::Merge;
 use crate::predevice::PreOutputDevice;
 use crate::state::State;
 use crate::event::{Event, Namespace};
-use crate::print::EventPrinter;
-use crate::withhold::Withhold;
 use crate::capability::{Capability, InputCapabilites};
 use crate::io::output::OutputSystem;
 use crate::error::RuntimeError;
@@ -41,7 +49,7 @@ pub enum StreamEntry {
     Print(EventPrinter),
     Merge(Merge),
     Withhold(Withhold),
-    Delay(crate::delay::Delay),
+    Delay(self::delay::Delay),
 }
 
 pub struct Setup {
