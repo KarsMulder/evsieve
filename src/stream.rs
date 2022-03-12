@@ -25,12 +25,15 @@ use crate::loopback::{Loopback, LoopbackHandle, Delay};
 /// * `apply_to_all_caps()`, which is like the previous function, but applies to capabilities instead.
 ///   Given all events (capabilities) that can possibly enter this entry, it must write all
 ///   events/capabilities that can leave this entry to an output buffer.
+/// * `wakeup()`: entries can use the `LoopbackHandle` to request that their `wakeup()` method is
+///   called at a laterpoint in time with a certain token. When their `wakeup()` is called, they
+///   should check if the token is one of the tokens they scheduled, and if so, do something.
+///   It is possible for `wakeup()` to be called with irrelevant tokens, in which case they
+///   should do nothing. The `wakeup()` method may output new events for the stream.
 ///
 /// Note that `apply_to_all()` is allowed to take an `&mut self` to change event handling logic at
 /// runtime, but it should never modify `self` in a way that the output of `apply_to_all_caps()` changes.
 /// The output of `apply_to_all_caps()` must be agnostic of the entry's current runtime state.
-/// 
-/// TODO: Update doccomment to account for loopback.
 pub enum StreamEntry {
     Map(Map),
     Hook(Hook),
