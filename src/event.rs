@@ -5,7 +5,6 @@ use crate::domain::Domain;
 use crate::ecodes;
 
 pub type EventValue = i32;
-// TODO: Refactor code to use event::Channel instead of (EventCode, Domain).
 pub type Channel = (EventCode, Domain);
 
 /// Upholds invariant: the wrapped u16 must correspond to a valid event type.
