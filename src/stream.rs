@@ -146,6 +146,8 @@ pub fn syn(setup: &mut Setup) {
 /// the stream with multiple events in it, though this shouldn't be done for events that were
 /// read from actual input devices. This advanced configurability is mainly intended for the
 /// `wakeup()` function to be able to pause and resume event processing at a later point in time.
+/// 
+/// `stream` may be the empty slice.
 fn run_events(events_in: Vec<Event>, events_out: &mut Vec<Event>, stream: &mut [StreamEntry], state: &mut State, loopback: &mut LoopbackHandle) {
     let mut events: Vec<Event> = events_in;
     let mut buffer: Vec<Event> = Vec::new();
@@ -214,7 +216,7 @@ fn run_wakeup(token: crate::loopback::Token, events_out: &mut Vec<Event>, stream
         }
 
         if ! events.is_empty() {
-            // TODO: check panic-safety
+            // If index+1 == stream.len(), then stream[index+1..] is the empty slice.
             run_events(events, events_out, &mut stream[index+1..], state, loopback);
             events = Vec::new();
         }
