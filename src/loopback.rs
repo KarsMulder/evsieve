@@ -25,7 +25,24 @@ pub struct Loopback {
     token_index: u64,
 }
 
-// TODO: add a doccomment for the purpose of this thing.
+/// A LoopbackHandle contains a reference to the Loopback device, plus a virtual moment that
+/// is considered to be "now". A LoopbackHandle can be used to schedule a callback after some
+/// time period in the future. The instant that the callback happens shall always be computed
+/// relative to the virtual "now" instant, rather than the real now instand.
+/// 
+/// The virtual now instant may be different from the real now instant. The virtual now may be
+/// older than the real now in case there is some kind of backlog, e.g. if a callback F was
+/// supposed to be handled at time X, it is now time X+5, and handling the F causes another
+/// callback G to be scheduled in 2 time units, then the callback G is scheduled at X+2 rather
+/// than X+7. This helps to make sure that the A key always reaches the output before the B key
+/// in cases like:
+/// 
+///     --map key:a key:a key:b
+///     --delay key:a period=0.0005
+///     --delay key:a period=0.0003
+///     --delay key:b period=0.001
+///     --output
+/// 
 pub struct LoopbackHandle<'a> {
     loopback: &'a mut Loopback,
     /// If Some, then we shall emulate the current time being a certain moment in time, even
