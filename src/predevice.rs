@@ -34,6 +34,8 @@ impl GrabMode {
 pub enum PersistMode {
     /// Remove the device from the processing stream at runtime, or throw an error at startup time.
     None,
+    /// Exit
+    Exit,
     /// Try to reattach the device at runtime, or throw an error at startup time.
     Reopen,
 }

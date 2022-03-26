@@ -54,6 +54,7 @@ impl InputDevice {
             None => PersistMode::None,
             Some(value) => match value.as_str() {
                 "reopen" => PersistMode::Reopen,
+                "exit" => PersistMode::Exit,
                 "none" => PersistMode::None,
                 _ => return Err(ArgumentError::new("Invalid persist mode specified.")),
             }
@@ -63,6 +64,7 @@ impl InputDevice {
 
         match persist_mode {
             PersistMode::None => {},
+            PersistMode::Exit => {},
             PersistMode::Reopen => {
                 if paths.iter().any(|path| is_direct_event_device(path)) {
                     println!("Warning: it is a bad idea to enable persistence on paths like /dev/input/event* because the kernel does not guarantee that the number of each event device remains constant. If such a device were to de disattached and reattached, it may show up under a different number. We recommend identifying event devices through their links in /dev/input/by-id/.");

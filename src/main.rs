@@ -294,7 +294,14 @@ fn handle_broken_file(program: &mut Program, index: FileIndex) -> Action {
 
             let should_persist = match device.persist_mode() {
                 PersistMode::None => false,
+                PersistMode::Exit => false,
                 PersistMode::Reopen => true,
+            };
+
+            let should_exit = match device.persist_mode() {
+                PersistMode::None => false,
+                PersistMode::Exit => true,
+                PersistMode::Reopen => false,
             };
 
             if should_persist {
@@ -306,6 +313,11 @@ fn handle_broken_file(program: &mut Program, index: FileIndex) -> Action {
                     eprintln!("Internal error: cannot reopen device: persistence subsystem not available.")
                 }
             }
+
+            if should_exit {
+                eprintln!("Exiting.");
+                return Action::Exit;
+	    }
         },
         Pollable::SignalFd(_fd) => {
             eprintln!("Fatal error: signal file descriptor broken.");
