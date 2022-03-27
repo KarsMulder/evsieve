@@ -20,7 +20,9 @@ pub enum ExpirationTime {
 }
 
 enum TrackerState {
-    /// This tracker's corresponding key is held down.
+    /// This tracker's corresponding key is held down. Also keeps track of how much time is
+    /// left until this tracker expires due to a period= clause. If no period= clause was
+    /// specified, then its expiration time shall be ExpirationTime::Never.
     Active(ExpirationTime),
     /// This tracker's corresponding key is not held down.
     Inactive,
@@ -152,20 +154,17 @@ impl Trigger {
         {
             any_tracker_matched = true;
 
-            // TODO: Refactor?
             if tracker.activates_by(event) {
-                tracker.state = match std::mem::replace(&mut tracker.state, TrackerState::Inactive) {
-                    active @ TrackerState::Active(..) => active,
+                match tracker.state {
+                    // If this tracker was inactive, activate it.
                     TrackerState::Inactive => {
                         // Note: if this hook is sequential, this activation may get invalidated
                         // later in this function.
-                        TrackerState::Active(
+                        tracker.state = TrackerState::Active(
                             acquire_expiration_token(self.period, loopback)
-                        )
+                        );
                     },
-                    TrackerState::Invalid => {
-                        TrackerState::Invalid
-                    },
+                    TrackerState::Active(..) | TrackerState::Invalid => {},
                 }
             } else {
                 tracker.state = TrackerState::Inactive;
@@ -185,6 +184,7 @@ impl Trigger {
                 // ... then find all trackers that are active but not consecutively so.
                 .filter(|tracker| tracker.is_active())
                 // ... and invalidate them.
+                // TODO: Consider canceling the activation token.
                 .for_each(|tracker| tracker.state = TrackerState::Invalid);
         }
 
