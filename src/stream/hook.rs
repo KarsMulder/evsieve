@@ -21,21 +21,23 @@ pub enum ExpirationTime {
 
 enum TrackerState {
     /// This tracker's corresponding key is held down.
-    /// This tracker remembers the last event that activated this tracker and until when the tracker
-    /// should stay active.
     Active(ExpirationTime),
     /// This tracker's corresponding key is not held down.
     Inactive,
-    /// This tracker was active, but then expired and now can't become active again until a
-    /// release event is encountered.
-    Expired,
+    /// Based on the events that were received by this Tracker, the state should be active,
+    /// but it is counted as inactive due to some circumstances, e.g. because the period
+    /// in which the hook must be triggered expired, or because this tracker was activated
+    /// before its predecessors in a sequential hook.
+    /// 
+    /// To activate this tracker, it first needs to return to Inactive and then activate.
+    Invalid,
 }
 
 impl TrackerState {
     fn is_active(&self) -> bool {
         match self {
             TrackerState::Active (_) => true,
-            TrackerState::Inactive | TrackerState::Expired => false,
+            TrackerState::Inactive | TrackerState::Invalid => false,
         }
     }
 }
@@ -46,7 +48,7 @@ struct Tracker {
     key: Key,
     range: Range,
 
-    /// The state is mutable at runtime. It reflects whether the key tracked by this tracked
+    /// The state is mutable at runtime. It reflects whether the key tracked by this tracker
     /// is currently pressed or not, as well as which event triggered it and when.
     state: TrackerState,
 }
@@ -81,7 +83,7 @@ impl Tracker {
     fn is_active(&self) -> bool {
         match self.state {
             TrackerState::Active(_) => true,
-            TrackerState::Expired | TrackerState::Inactive => false,
+            TrackerState::Invalid | TrackerState::Inactive => false,
         }
     }
 
@@ -144,6 +146,7 @@ impl Trigger {
 
     pub fn apply(&mut self, event: Event, loopback: &mut LoopbackHandle) -> TriggerResponse {
         let mut any_tracker_matched: bool = false;
+
         for tracker in self.trackers.iter_mut()
             .filter(|tracker| tracker.matches(&event))
         {
@@ -154,11 +157,15 @@ impl Trigger {
                 tracker.state = match std::mem::replace(&mut tracker.state, TrackerState::Inactive) {
                     active @ TrackerState::Active(..) => active,
                     TrackerState::Inactive => {
+                        // Note: if this hook is sequential, this activation may get invalidated
+                        // later in this function.
                         TrackerState::Active(
                             acquire_expiration_token(self.period, loopback)
                         )
                     },
-                    TrackerState::Expired => TrackerState::Expired,
+                    TrackerState::Invalid => {
+                        TrackerState::Invalid
+                    },
                 }
             } else {
                 tracker.state = TrackerState::Inactive;
@@ -168,6 +175,17 @@ impl Trigger {
         if ! any_tracker_matched {
             // No trackers care about this event.
             return TriggerResponse::None;
+        }
+
+        if self.sequential {
+            // Invalidate all trackers that activated out of order.
+            self.trackers.iter_mut()
+                // Skip all trackers that are consecutively active from the start.
+                .skip_while(|tracker| tracker.is_active())
+                // ... then find all trackers that are active but not consecutively so.
+                .filter(|tracker| tracker.is_active())
+                // ... and invalidate them.
+                .for_each(|tracker| tracker.state = TrackerState::Invalid);
         }
 
         // Check if we transitioned between active and inactive.
@@ -200,11 +218,12 @@ impl Trigger {
         for tracker in &mut self.trackers {
             match tracker.state {
                 TrackerState::Inactive => {},
-                TrackerState::Expired => {},
+                TrackerState::Invalid => {},
                 TrackerState::Active(ExpirationTime::Never) => {},
                 TrackerState::Active(ExpirationTime::Until(ref other_token)) => {
                     if token == other_token {
-                        tracker.state = TrackerState::Expired;
+                        // This tracker expired.
+                        tracker.state = TrackerState::Invalid;
                         result = true;
                     }
                 }
