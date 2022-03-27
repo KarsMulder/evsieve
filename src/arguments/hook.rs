@@ -31,6 +31,7 @@ pub(super) struct HookArg {
     pub exec_shell: Vec<String>,
     pub toggle_action: HookToggleAction,
     pub period: Option<Duration>,
+    pub sequential: bool,
     /// Specified by the send-key clause. Whenever this hook is triggered, a kEY_DOWN
     /// of the following keys is sent, and a KEY_UP is sent when this hook is released.
     pub send_keys: Vec<Key>,
@@ -43,7 +44,7 @@ pub(super) struct HookArg {
 impl HookArg {
 	pub fn parse(args: Vec<String>) -> Result<HookArg, ArgumentError> {
         let arg_group = ComplexArgGroup::parse(args,
-            &["toggle"],
+            &["toggle", "sequential"],
             &["exec-shell", "toggle", "period", "send-key"],
             false,
             true,
@@ -54,6 +55,7 @@ impl HookArg {
         let keys = PARSER.parse_all(&keys_str)?;
         let keys_and_str = keys.into_iter().zip(keys_str).collect();
 
+        let sequential = arg_group.has_flag("sequential");
         let period = match arg_group.get_unique_clause("period")? {
             None => None,
             Some(value) => Some(crate::arguments::delay::parse_period_value(&value)?),
@@ -76,7 +78,7 @@ impl HookArg {
             Ok(HookArg {
                 keys_and_str,
                 exec_shell: arg_group.get_clauses("exec-shell"),
-                toggle_action, period, send_keys,
+                toggle_action, period, sequential, send_keys,
                 mark_withholdable: false,
             })
         }
@@ -84,7 +86,7 @@ impl HookArg {
 
     pub fn compile_trigger(&self) -> Trigger {
         let keys: Vec<Key> = self.keys_and_str.iter().map(|(key, _)| key.clone()).collect();
-        Trigger::new(keys, self.period)
+        Trigger::new(keys, self.period, self.sequential)
     }
 
     pub fn compile_event_dispatcher(&self) -> EventDispatcher {

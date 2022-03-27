@@ -101,6 +101,10 @@ pub struct Trigger {
     /// If Some, then all trackers must be activated within a certain duration from the first
     /// tracker to activate in order to trigger the hook.
     period: Option<Duration>,
+    /// If true, then all trackers belonging to this Trigger must be triggered in sequential
+    /// order. If a tracker is activated while its previous tracker is still inactive, then
+    /// that tracker becomes invalid.
+    sequential: bool,
 
     trackers: Vec<Tracker>,
     state: TriggerState,
@@ -130,10 +134,10 @@ enum TriggerState {
 }
 
 impl Trigger {
-    pub fn new(keys: Vec<Key>, period: Option<Duration>) -> Trigger {
+    pub fn new(keys: Vec<Key>, period: Option<Duration>, sequential: bool) -> Trigger {
         let trackers = keys.into_iter().map(Tracker::new).collect();
         Trigger {
-            period, trackers,
+            period, trackers, sequential,
             state: TriggerState::Inactive,
         }
     }
@@ -226,6 +230,7 @@ impl Trigger {
     /// Like Clone::clone, but does not clone the runtime state of the Trigger.
     pub fn clone_empty(&self) -> Trigger {
         Trigger {
+            sequential: self.sequential,
             period: self.period,
             trackers: self.trackers.iter().map(Tracker::clone_empty).collect(),
             state: TriggerState::Inactive,
