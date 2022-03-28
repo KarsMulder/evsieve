@@ -1160,6 +1160,69 @@ def unittest_withhold_period():
         },
     )
 
+def unittest_withhold_sequential():
+    run_unittest(
+        ["--input", "/dev/input/by-id/unittest-withhold-sequential-in", "grab=force",
+        "--hook", "key:a", "key:b", "key:c", "send-key=key:d", "sequential",
+        "--withhold",
+        "--output", "create-link=/dev/input/by-id/unittest-withhold-sequential-out"],
+        {
+            "/dev/input/by-id/unittest-withhold-sequential-in": [
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_F, 1),
+                (e.EV_KEY, e.KEY_C, 1),
+
+                (e.EV_KEY, e.KEY_F, 0),
+                (e.EV_KEY, e.KEY_A, 0),
+                (e.EV_KEY, e.KEY_B, 0),
+                (e.EV_KEY, e.KEY_C, 0),
+
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_G, 1),
+                (e.EV_KEY, e.KEY_A, 0),
+                (e.EV_KEY, e.KEY_G, 0),
+
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_H, 1),
+                (e.EV_KEY, e.KEY_B, 0),
+                (e.EV_KEY, e.KEY_H, 0),
+
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_E, 1),
+                (e.EV_KEY, e.KEY_A, 0),
+                (e.EV_KEY, e.KEY_E, 0),
+                (e.EV_KEY, e.KEY_B, 0),
+            ],
+        },
+        {
+            "/dev/input/by-id/unittest-withhold-sequential-out": [
+                (e.EV_KEY, e.KEY_F, 1),
+                (e.EV_KEY, e.KEY_D, 1),
+                (e.EV_KEY, e.KEY_F, 0),
+                (e.EV_KEY, e.KEY_D, 0),
+
+                (e.EV_KEY, e.KEY_G, 1),
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_A, 0),
+                (e.EV_KEY, e.KEY_G, 0),
+
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_H, 1),
+                (e.EV_KEY, e.KEY_B, 0),
+                (e.EV_KEY, e.KEY_H, 0),
+
+                (e.EV_KEY, e.KEY_E, 1),
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_A, 0),
+                (e.EV_KEY, e.KEY_E, 0),
+                (e.EV_KEY, e.KEY_B, 0),
+            ],
+        },
+    )
+
 
 unittest_mirror()
 unittest_capslock()
@@ -1181,3 +1244,4 @@ unittest_withhold()
 unittest_withhold_2()
 unittest_withhold_3()
 unittest_withhold_period()
+unittest_withhold_sequential()
