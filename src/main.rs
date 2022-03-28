@@ -283,6 +283,7 @@ fn handle_broken_file(program: &mut Program, index: FileIndex) -> Action {
     match broken_device {
         Pollable::InputDevice(mut device) => {
             eprintln!("The device {} has been disconnected.", device.path().display());
+
             // Release all keys that this device had pressed, so we don't end up with a key stuck on
             // an output device.
             let pressed_keys: Vec<EventCode> = device.get_pressed_keys().collect();
@@ -292,20 +293,22 @@ fn handle_broken_file(program: &mut Program, index: FileIndex) -> Action {
             }
             stream::syn(&mut program.setup);
 
-            let should_persist = match device.persist_mode() {
-                PersistMode::None => false,
-                PersistMode::Reopen => true,
-            };
-
-            if should_persist {
-                if let Some(interface) = program.persist_subsystem.require(&mut program.epoll) {
-                    interface.add_blueprint(device.to_blueprint())
-                        .with_context("While trying to register a disconnected device for reopening:")
-                        .print_err()
-                } else {
-                    eprintln!("Internal error: cannot reopen device: persistence subsystem not available.")
+            match device.persist_mode() {
+                // Mode None: drop the device and carry on without it, if possible.
+                PersistMode::None => {},
+                // Mode Exit: quit evsieve now.
+                PersistMode::Exit => return Action::Exit,
+                // Mode Reopen: try to reopen the device if it becomes available again later.
+                PersistMode::Reopen => {
+                    if let Some(interface) = program.persist_subsystem.require(&mut program.epoll) {
+                        interface.add_blueprint(device.to_blueprint())
+                            .with_context("While trying to register a disconnected device for reopening:")
+                            .print_err()
+                    } else {
+                        eprintln!("Internal error: cannot reopen device: persistence subsystem not available.")
+                    }
                 }
-            }
+            };
         },
         Pollable::SignalFd(_fd) => {
             eprintln!("Fatal error: signal file descriptor broken.");

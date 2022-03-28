@@ -36,6 +36,8 @@ pub enum PersistMode {
     None,
     /// Try to reattach the device at runtime, or throw an error at startup time.
     Reopen,
+    /// If a device with mode exit disconnects, evsieve shall exit, even if other devices are still available.
+    Exit,
 }
 
 #[derive(Clone)]
