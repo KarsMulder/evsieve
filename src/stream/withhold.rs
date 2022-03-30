@@ -93,7 +93,22 @@ impl Withhold {
                     }
                 }
             } else {
-                // KEY_REP events and other invalid values get dropped.
+                // KEY_REP events and other invalid values do not get withheld, but may be
+                // passed on if the associated trackers are in invalid state.
+                // 
+                // TODO: The following code is what should happen, but the borrow checker doesn't
+                // like it, so I'll have to think a bit about how to best refactor this.
+                // 
+                // TODO: write a unittest for this.
+
+                // if ! self.triggers.iter().any(
+                //    |trigger| trigger.has_active_tracker_matching_channel(event.channel())
+                // ) {
+                //     final_event = Some(event);
+                // } else {
+                //     final_event = None;
+                // }
+
                 final_event = None;
             }
         } else {
