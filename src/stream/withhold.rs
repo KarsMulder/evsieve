@@ -40,12 +40,14 @@ impl Withhold {
 
         // Check with which indices this event is related in any way, as well as which triggers
         // just activated because of this event.
+        let mut matched_but_not_activated_triggers: Vec<&Trigger> = Vec::new();
         let mut activated_triggers: Vec<&Trigger> = Vec::new();
         for trigger in &mut self.triggers {
             match trigger.apply(event, loopback) {
-                TriggerResponse::None
-                | TriggerResponse::Matches
-                | TriggerResponse::Releases => (),
+                TriggerResponse::None => {},
+                TriggerResponse::Matches | TriggerResponse::Releases => {
+                    matched_but_not_activated_triggers.push(trigger);
+                },
                 TriggerResponse::Activates => {
                     activated_triggers.push(trigger);
                 },
@@ -94,22 +96,20 @@ impl Withhold {
                 }
             } else {
                 // KEY_REP events and other invalid values do not get withheld, but may be
-                // passed on if the associated trackers are in invalid state.
-                // 
-                // TODO: The following code is what should happen, but the borrow checker doesn't
-                // like it, so I'll have to think a bit about how to best refactor this.
+                // dropped unless the associated trackers are in invalid state.
                 // 
                 // TODO: write a unittest for this.
 
-                // if ! self.triggers.iter().any(
-                //    |trigger| trigger.has_active_tracker_matching_channel(event.channel())
-                // ) {
-                //     final_event = Some(event);
-                // } else {
-                //     final_event = None;
-                // }
+                let any_tracker_active =
+                    matched_but_not_activated_triggers.iter()
+                    .chain(activated_triggers.iter())
+                    .any(|trigger| trigger.has_active_tracker_matching_channel(event.channel()));
 
-                final_event = None;
+                if any_tracker_active {
+                    final_event = None;
+                } else {
+                    final_event = Some(event);
+                }
             }
         } else {
             // This event can not be withheld. Add it to the stream after releasing past events.
