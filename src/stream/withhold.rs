@@ -69,16 +69,13 @@ impl Withhold {
                 .map(|(_channel, state)| state);
             if any_tracker_active_on_channel {
                 if event.value == 1 {
-                    // Withhold the event. If there are no active trackers withholding this event,
-                    // it will be released later at `self.release_events()`.
+                    // Withhold the event unless an event was already being withheld.
                     match current_channel_state {
                         None => self.channel_state.push(
                             (event.channel(), ChannelState::Withheld { withheld_event: event })
                         ),
                         Some(state @ &mut ChannelState::Residual) => {
-                            *state =
-                            
-                            ChannelState::Withheld { withheld_event: event }
+                            *state = ChannelState::Withheld { withheld_event: event }
                         },
                         Some(ChannelState::Withheld { .. }) => {},
                     }
@@ -101,11 +98,10 @@ impl Withhold {
                         }
                     }
                 } else {
-                    // In this case, all corresponding trackers are probably in withheld state.
+                    // In this case, all corresponding trackers are probably in invalid state.
                     final_event = Some(event);
                 }
             }
-            
         } else {
             // This event can not be withheld. Add it to the stream after releasing past events.
             final_event = Some(event);
