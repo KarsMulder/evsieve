@@ -10,6 +10,9 @@ use crate::capability::{Capability, CapMatch};
 use std::time::Duration;
 use std::collections::HashSet;
 
+// TODO: Consider reversing the order in which --hook send-key releases keys: maybe the release
+// event should join the stream _before_ the event that triggered the release?
+
 pub type Effect = Box<dyn Fn(&mut State)>;
 
 /// Represents the point at time after which a pressed tracker is no longer valid.

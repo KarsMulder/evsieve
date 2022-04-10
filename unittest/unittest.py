@@ -381,6 +381,109 @@ def unittest_execshell():
         expected_output = "trigger1\ntrigger1\ntrigger2\ntrigger3\ntrigger4\ntrigger6\ntrigger6\n",
     )
 
+def unittest_sequential_hook():
+    run_unittest(
+        ["--input", "/dev/input/by-id/unittest-sequential-hook-in", "grab=force",
+        "--hook", "key:a", "sequential", "send-key=key:x",
+        "--hook", "key:b", "key:c", "sequential", "send-key=key:y",
+        "--hook", "key:d", "key:e", "key:f", "sequential", "send-key=key:z",
+        "--hook", "key:d", "key:e", "key:f", "send-key=key:w",
+        "--output", "create-link=/dev/input/by-id/unittest-sequential-hook-out", "repeat=passive"],
+        {
+            "/dev/input/by-id/unittest-sequential-hook-in": [
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_A, 0),
+
+                # I don't know whether the next two groups describe the most sensible behaviour,
+                # but they seem no less crazy than the alternative and they are how evsieve
+                # behaves now, so that behaviour must be preserved.
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_C, 1),
+                (e.EV_KEY, e.KEY_C, 0),
+                (e.EV_KEY, e.KEY_C, 1),
+                (e.EV_KEY, e.KEY_B, 0),
+                (e.EV_KEY, e.KEY_C, 0),
+
+                (e.EV_KEY, e.KEY_C, 1),
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_C, 0),
+                (e.EV_KEY, e.KEY_C, 1),
+                (e.EV_KEY, e.KEY_B, 0),
+                (e.EV_KEY, e.KEY_C, 0),
+
+                Delay(0.001),
+
+                (e.EV_KEY, e.KEY_D, 1),
+                (e.EV_KEY, e.KEY_F, 1),
+                (e.EV_KEY, e.KEY_E, 1),
+                (e.EV_KEY, e.KEY_F, 0),
+                (e.EV_KEY, e.KEY_E, 0),
+                (e.EV_KEY, e.KEY_D, 0),
+
+                (e.EV_KEY, e.KEY_D, 1),
+                (e.EV_KEY, e.KEY_E, 1),
+                (e.EV_KEY, e.KEY_F, 1),
+                (e.EV_KEY, e.KEY_E, 0),
+                (e.EV_KEY, e.KEY_E, 1),
+                (e.EV_KEY, e.KEY_E, 0),
+                (e.EV_KEY, e.KEY_F, 0),
+                (e.EV_KEY, e.KEY_D, 0),
+            ]
+        },
+        {
+            "/dev/input/by-id/unittest-sequential-hook-out": [
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_X, 1),
+                (e.EV_KEY, e.KEY_A, 0),
+                (e.EV_KEY, e.KEY_X, 0),
+
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_C, 1),
+                (e.EV_KEY, e.KEY_Y, 1),
+                (e.EV_KEY, e.KEY_C, 0),
+                (e.EV_KEY, e.KEY_Y, 0),
+                (e.EV_KEY, e.KEY_C, 1),
+                (e.EV_KEY, e.KEY_Y, 1),
+                (e.EV_KEY, e.KEY_B, 0),
+                (e.EV_KEY, e.KEY_Y, 0),
+                (e.EV_KEY, e.KEY_C, 0),
+
+                (e.EV_KEY, e.KEY_C, 1),
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_C, 0),
+                (e.EV_KEY, e.KEY_C, 1),
+                (e.EV_KEY, e.KEY_Y, 1),
+                (e.EV_KEY, e.KEY_B, 0),
+                (e.EV_KEY, e.KEY_Y, 0),
+                (e.EV_KEY, e.KEY_C, 0),
+
+                (e.EV_KEY, e.KEY_D, 1),
+                (e.EV_KEY, e.KEY_F, 1),
+                (e.EV_KEY, e.KEY_E, 1),
+                (e.EV_KEY, e.KEY_W, 1),
+                (e.EV_KEY, e.KEY_F, 0),
+                (e.EV_KEY, e.KEY_W, 0),
+                (e.EV_KEY, e.KEY_E, 0),
+                (e.EV_KEY, e.KEY_D, 0),
+
+                (e.EV_KEY, e.KEY_D, 1),
+                (e.EV_KEY, e.KEY_E, 1),
+                (e.EV_KEY, e.KEY_F, 1),
+                (e.EV_KEY, e.KEY_W, 1),
+                (e.EV_KEY, e.KEY_Z, 1),
+                (e.EV_KEY, e.KEY_E, 0),
+                (e.EV_KEY, e.KEY_W, 0),
+                (e.EV_KEY, e.KEY_Z, 0),
+                (e.EV_KEY, e.KEY_E, 1),
+                (e.EV_KEY, e.KEY_W, 1),
+                (e.EV_KEY, e.KEY_E, 0),
+                (e.EV_KEY, e.KEY_W, 0),
+                (e.EV_KEY, e.KEY_F, 0),
+                (e.EV_KEY, e.KEY_D, 0),
+            ]
+        },
+    )
+
 def unittest_toggle():
     run_unittest(
         ["--input", "/dev/input/by-id/unittest-toggle-in", "domain=in", "grab=force",
@@ -1231,6 +1334,7 @@ unittest_filterbyoutput()
 unittest_domain()
 unittest_kbmousemap()
 unittest_execshell()
+unittest_sequential_hook()
 unittest_toggle()
 unittest_yield()
 unittest_order()
