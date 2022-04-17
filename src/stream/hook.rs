@@ -10,8 +10,8 @@ use crate::capability::{Capability, CapMatch};
 use std::time::Duration;
 use std::collections::HashSet;
 
-// TODO: Consider reversing the order in which --hook send-key releases keys: maybe the release
-// event should join the stream _before_ the event that triggered the release?
+// TODO: Add a unittest for a hook with multiple send-keys.
+// TODO: Check whether the ordering behaviour of --withhold is consistent with --hook send-key.
 
 pub type Effect = Box<dyn Fn(&mut State)>;
 
@@ -297,9 +297,8 @@ impl Hook {
                 TriggerResponse::None => (),
             }
         }
-        events_out.push(event);
 
-        self.event_dispatcher.generate_additional_events(event, response, events_out);
+        self.event_dispatcher.map_event(event, response, events_out);
 
         match response {
             TriggerResponse::Activates => {
@@ -386,10 +385,11 @@ impl EventDispatcher {
         }
     }
 
-    /// Similar in purpose to apply(), but does not copy the base event.
-    fn generate_additional_events(&mut self, event: Event, trigger_response: TriggerResponse, events_out: &mut Vec<Event>) {
+    /// Similar in purpose to apply().
+    fn map_event(&mut self, event: Event, trigger_response: TriggerResponse, events_out: &mut Vec<Event>) {
         match trigger_response {
             TriggerResponse::Activates => {
+                events_out.push(event);
                 self.activating_event = Some(event);
                 for key in &self.send_keys {
                     let mut additional_event = key.merge(event);
@@ -406,14 +406,17 @@ impl EventDispatcher {
                         event
                     }
                 };
-                for key in &self.send_keys {
+                for key in self.send_keys.iter().rev() {
                     let mut additional_event = key.merge(activating_event);
                     additional_event.value = 0;
                     additional_event.flags.unset(EventFlag::Withholdable);
                     events_out.push(additional_event);
                 }
+                events_out.push(event);
             },
-            TriggerResponse::Matches | TriggerResponse::None => (),
+            TriggerResponse::Matches | TriggerResponse::None => {
+                events_out.push(event);
+            },
         }
     }
 
