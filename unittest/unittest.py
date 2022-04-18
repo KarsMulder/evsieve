@@ -33,7 +33,7 @@ def run_unittest(
             for event in events
             if not isinstance(event, Delay)
         ]
-        type_capabilities = set([type for (type, _, _) in non_delay_events])
+        type_capabilities = set([type for (type, _, _) in non_delay_events if type != e.EV_SYN])
         capabilities = {
             type: [
                 code
@@ -86,7 +86,7 @@ def run_unittest(
         for ((output_device, _), events) in zip(output_devices, output_events):
             try:
                 for event in output_device.read():
-                    if event.type != e.EV_SYN:
+                    if event.type != e.EV_SYN or not auto_syn:
                         events.append(event)
             except BlockingIOError:
                 pass
@@ -148,6 +148,66 @@ def unittest_mirror():
                 (e.EV_KEY, e.KEY_C, 0),
             ],
         },
+    )
+
+def unittest_syn():
+    run_unittest(
+        ["--input", "/dev/input/by-id/unittest-syn-in", "grab=force",
+        "--map", "key:x", "key:y", "key:z",
+        "--output", "create-link=/dev/input/by-id/unittest-syn-out", "repeat=passive"],
+        {
+            "/dev/input/by-id/unittest-syn-in": [
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_SYN, 0, 0),
+                (e.EV_KEY, e.KEY_A, 2),
+                (e.EV_SYN, 0, 0),
+                (e.EV_KEY, e.KEY_A, 0),
+                (e.EV_SYN, 0, 0),
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_C, 1),
+                (e.EV_SYN, 0, 0),
+                (e.EV_KEY, e.KEY_B, 0),
+                (e.EV_KEY, e.KEY_C, 0),
+                (e.EV_SYN, 0, 0),
+
+                (e.EV_KEY, e.KEY_D, 1),
+                (e.EV_KEY, e.KEY_X, 1),
+                (e.EV_SYN, 0, 0),
+                (e.EV_KEY, e.KEY_X, 0),
+                (e.EV_SYN, 0, 0),
+                (e.EV_KEY, e.KEY_D, 0),
+                (e.EV_SYN, 0, 0),
+            ],
+        },
+        {
+            "/dev/input/by-id/unittest-syn-out": [
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_SYN, 0, 0),
+                (e.EV_KEY, e.KEY_A, 2),
+                (e.EV_SYN, 0, 0),
+                (e.EV_KEY, e.KEY_A, 0),
+                (e.EV_SYN, 0, 0),
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_C, 1),
+                (e.EV_SYN, 0, 0),
+                (e.EV_KEY, e.KEY_B, 0),
+                (e.EV_KEY, e.KEY_C, 0),
+                (e.EV_SYN, 0, 0),
+
+                (e.EV_KEY, e.KEY_D, 1),
+                (e.EV_KEY, e.KEY_Y, 1),
+                (e.EV_SYN, 0, 0),
+                (e.EV_KEY, e.KEY_Z, 1),
+                (e.EV_SYN, 0, 0),
+                (e.EV_KEY, e.KEY_Y, 0),
+                (e.EV_SYN, 0, 0),
+                (e.EV_KEY, e.KEY_Z, 0),
+                (e.EV_SYN, 0, 0),
+                (e.EV_KEY, e.KEY_D, 0),
+                (e.EV_SYN, 0, 0),
+            ],
+        },
+        auto_syn=False,
     )
 
 def unittest_capslock():
@@ -1328,6 +1388,7 @@ def unittest_withhold_sequential():
 
 
 unittest_mirror()
+unittest_syn()
 unittest_capslock()
 unittest_doublectrl()
 unittest_filterbyoutput()
