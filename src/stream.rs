@@ -115,13 +115,34 @@ pub fn run(setup: &mut Setup, event: Event) {
     } else {
         // TODO: time handling.
         let mut loopback_handle = setup.loopback.get_handle_lazy();
+        let mut events_out = Vec::new();
+
         run_events(
             vec![event],
-            &mut setup.staged_events,
+            &mut events_out,
             &mut setup.stream,
             &mut setup.state,
             &mut loopback_handle,
         );
+
+        // If a single event gets mapped to a single event, then the resulting event gets
+        // synchronised whenever the input device does. This makes the result of
+        //     --input PATH grab --output
+        // generate an output device that resembles the input as closely as possible.
+        //
+        // However, when a single event gets mapped to multiple events, we want to add a
+        // SYN event after each event, because otherwise the OS might misorder commands like
+        //     --input PATH grab --map key:f12 key:leftctrl key:c --output
+        match events_out.len() {
+            0 => {},
+            1 => setup.staged_events.extend(events_out),
+            _ => {
+                for event in events_out {
+                    setup.staged_events.push(event);
+                    syn(setup);
+                }
+            }
+        }
     }
 }
 
