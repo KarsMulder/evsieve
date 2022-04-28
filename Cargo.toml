@@ -32,3 +32,5 @@ lto = true
 [features]
 # If enabled, evsieve will link against libsystemd. If not, it will fall back on systemd-notify.
 systemd = []
+# If enabled, evsieve will partially autogenerate EV_MSC events sent to output devices.
+auto-msc = []

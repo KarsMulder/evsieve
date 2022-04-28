@@ -140,9 +140,11 @@ pub const EV_ABS: u16 = libevdev::EV_ABS as u16;
 pub const EV_SYN: u16 = libevdev::EV_SYN as u16;
 pub const EV_REP: u16 = libevdev::EV_REP as u16;
 pub const EV_KEY: u16 = libevdev::EV_KEY as u16;
+pub const EV_MSC: u16 = libevdev::EV_MSC as u16;
 
 pub const REP_DELAY: u16 = libevdev::REP_DELAY as u16;
 pub const REP_PERIOD: u16 = libevdev::REP_PERIOD as u16;
+pub const MSC_SCAN: u16 = libevdev::MSC_SCAN as u16;
 
 #[test]
 fn unittest() {

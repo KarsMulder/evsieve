@@ -84,7 +84,7 @@ impl Loopback {
             None => return Delay::Now,
         };
 
-        // If None, then the delay is very, very far in the future. It probably means the user
+        // If Err, then the delay is very, very far in the future. It probably means the user
         // entered some bogus number for the delay. Let's not panic.
         let millisecond_wait: i32 = match duration.as_millis().try_into() {
             Ok(value) => value,

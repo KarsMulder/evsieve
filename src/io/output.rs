@@ -173,6 +173,20 @@ impl OutputDevice {
 
             libevdev::libevdev_set_name(dev, name);
 
+            // If EV_MSC events are automatically generated, we may need to manually activate
+            // their capabilities.
+            // TODO: prevent EV_MSC capabilities from getting activated by capabilities.
+            // ... in fact, refactor this to cooperate with the capability interface.
+            if cfg!(feature = "auto-msc") {
+                libevdev::libevdev_enable_event_type(dev, EventType::MSC.into());
+                libevdev::libevdev_enable_event_code(
+                    dev,
+                    EventType::MSC.into(),
+                    crate::event::EventCode::MSC_SCAN.code() as u32,
+                    ptr::null_mut()
+                );
+            }
+
             for &ev_type in &caps.ev_types() {
                 libevdev::libevdev_enable_event_type(dev, ev_type.into());
             }

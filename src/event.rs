@@ -17,6 +17,7 @@ impl EventType {
     pub const ABS: EventType = EventType(ecodes::EV_ABS);
     pub const REP: EventType = EventType(ecodes::EV_REP);
     pub const SYN: EventType = EventType(ecodes::EV_SYN);
+    pub const MSC: EventType = EventType(ecodes::EV_MSC);
 
     pub fn is_key(self) -> bool {
         self == EventType::KEY
@@ -54,6 +55,11 @@ pub struct EventCode {
 }
 
 impl EventCode {
+    pub const MSC_SCAN: EventCode = EventCode {
+        ev_type: EventType::MSC,
+        code: ecodes::MSC_SCAN,
+    };
+
     /// # Safety
     /// The code must be a valid code for this type.
     pub const unsafe fn new(ev_type: EventType, code: u16) -> EventCode {

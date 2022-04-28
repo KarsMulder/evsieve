@@ -113,6 +113,16 @@ pub fn run(setup: &mut Setup, event: Event) {
     if event.ev_type().is_syn() {
         syn(setup);
     } else {
+        // If the auto-msc feature is enabled, EV_MSC events will be automatically
+        // generated and are therefore blocked just like EV_SYN events are.
+        //
+        // TODO: consider making this only apply to msc:scan.
+        if cfg!(feature = "auto-msc") {
+            if event.ev_type() == crate::event::EventType::MSC {
+                return;
+            }
+        }
+
         // TODO: time handling.
         let mut loopback_handle = setup.loopback.get_handle_lazy();
         let mut events_out = Vec::new();
