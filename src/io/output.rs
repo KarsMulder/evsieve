@@ -263,7 +263,17 @@ impl OutputDevice {
         self.should_syn = ev_type as u32 != libevdev::EV_SYN;
     }
 
+    #[cfg(not(feature = "auto-msc"))]
     fn write_event(&mut self, event: Event) {
+        self.write(event.code.ev_type().into(), event.code.code() as u32, event.value as i32);
+    }
+
+    #[cfg(feature = "auto-msc")]
+    fn write_event(&mut self, event: Event) {
+        // TODO: conside moving the following snippet to another stage of the event pipeline.
+        if let Some(scancode) = crate::scancodes::from_event_code(event.code) {
+            self.write(EventType::MSC.into(), crate::event::EventCode::MSC_SCAN.code().into(), scancode)
+        }
         self.write(event.code.ev_type().into(), event.code.code() as u32, event.value as i32);
     }
 
