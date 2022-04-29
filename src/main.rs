@@ -33,7 +33,7 @@ pub mod daemon;
 pub mod loopback;
 pub mod stream;
 
-#[cfg(feature = "auto-msc")]
+#[cfg(feature = "auto-scan")]
 pub mod scancodes;
 
 pub mod io {

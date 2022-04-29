@@ -177,7 +177,7 @@ impl OutputDevice {
             // their capabilities.
             // TODO: prevent EV_MSC capabilities from getting activated by capabilities.
             // ... in fact, refactor this to cooperate with the capability interface.
-            if cfg!(feature = "auto-msc") {
+            if cfg!(feature = "auto-scan") {
                 libevdev::libevdev_enable_event_type(dev, EventType::MSC.into());
                 libevdev::libevdev_enable_event_code(
                     dev,
@@ -263,16 +263,18 @@ impl OutputDevice {
         self.should_syn = ev_type as u32 != libevdev::EV_SYN;
     }
 
-    #[cfg(not(feature = "auto-msc"))]
+    #[cfg(not(feature = "auto-scan"))]
     fn write_event(&mut self, event: Event) {
         self.write(event.code.ev_type().into(), event.code.code() as u32, event.value as i32);
     }
 
-    #[cfg(feature = "auto-msc")]
+    #[cfg(feature = "auto-scan")]
     fn write_event(&mut self, event: Event) {
         // TODO: conside moving the following snippet to another stage of the event pipeline.
-        if let Some(scancode) = crate::scancodes::from_event_code(event.code) {
-            self.write(EventType::MSC.into(), crate::event::EventCode::MSC_SCAN.code().into(), scancode)
+        if event.ev_type() == EventType::KEY && (event.value == 0 || event.value == 1) {
+            if let Some(scancode) = crate::scancodes::from_event_code(event.code) {
+                self.write(EventType::MSC.into(), crate::event::EventCode::MSC_SCAN.code().into(), scancode)
+            }
         }
         self.write(event.code.ev_type().into(), event.code.code() as u32, event.value as i32);
     }
