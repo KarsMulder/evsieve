@@ -33,6 +33,9 @@ pub mod daemon;
 pub mod loopback;
 pub mod stream;
 
+#[cfg(feature = "auto-msc")]
+pub mod scancodes;
+
 pub mod io {
     pub mod input;
     pub mod epoll;
