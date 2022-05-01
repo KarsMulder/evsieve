@@ -2,161 +2,43 @@
 
 // File format description.
 //
-// The is a binary file format that just happens to resemble a YAML file format. Not all valid
-// YAML files are required to be accepted by evsieve. It may be possible that evsieve outputs
-// a file that a YAML parser would interpret different from how evsieve interprets it (e.g.
-// because of confusing paths.)
+// The is a binary file format. The file must start with the following six bytes as magic
+// number to identify this file as an evsieve file:
 //
-// The file must start with the following two lines, followed up by a blank line:
+// bf a5 7e 5d 02 e6
 //
-// # Evsieve event device capabilities description file
-// # Format version: 1.0
+// Next follows an u16 which identifies the file version. The file version should be 1.
+// If a higher number is read here, then the file is created by a future version of
+// evsieve. This number, and all other numbers, must be encoded in low-endian format.
+// Therefore, the next two bytes are:
 //
-// The next line must be a "path: " line followed up by the absolute path to the input device.
-// This path must have been escaped as follows:
+// 01 00
 //
-// Newline -> \n
-// Backslash -> \\
+// The next variable amount of  bytes represent the path of the device whose capabilities
+// this file represents. The path MUST start with a / and MUST end with a null-byte. The
+// length of the path is decided by finding the null byte. The path has no particular encoding,
+// just like Linux paths don't have any encoding either.
 //
-// The path must be UTF-8. If it is not UTF-8 or contains a \ followed up by an invalid escape
-// sequence, the file is invalid.
+// After the path's null byte, between 0 and 1 additional padding null bytes follow, until
+// the current byte index is a multiple of 2.
 //
-// Next must be a "capabilities:", followed up by a newline, with each line thereafter containing
-// a capability of the device. These capabilities are described as type:code for most capabilities.
-// In the special case of EV_ABS type capabilities, they must be additional axis information specified
-// in the following way:
+// Then, an u16 integer $n$ follows, representing how many different types of events this device
+// accepts. Thereafter, $n$ blocks follow representing the capabilities for each specific type,
+// which has one of the following formats. All blocks must start with an u16 representing the
+// event type; based on the event type, the block format is decided.
 //
-// - abs:CODE (min=INT, max=INT, fuzz=INT, flat=INT, resolution=INT)
+// A. Encoding generic capabilities.
 //
-// This line must start with two spaces.
-// EV_REP capabilities must be encoded as follows:
+// This block starts with an u16 representing the event type, followed up by an u16 $x$
+// representing the amount of event codes with this type that are supported. This is followed
+// up by $x$ u16's, each representing the code that this device supports. After those $2x$
+// bytes, the next block starts.
 //
-// - rep (delay=UINT16, period=UINT16)
-// 
-// All the above fields must be provided in the exact order as specified above. The file must end
-// with a newline (\n) character. An example valid file is shown below:
+// B. Encoding EV_ABS capabilities.
 //
+// TODO.
 //
-// ```
-// # Evsieve event device capabilities description file
-// # Format version: 1.0
+// C. Encoding EV_REP capabilities.
 //
-// path: /dev/input/by-id/my\nescaped\\path
-//
-// capabilities:
-// - key:a
-// - key:b
-// - key:c
-// - abs:x (min=-5, max=5, fuzz=2, flat=1, resolution=1)
-// - rep (delay=250, period=33)
-// ```
+// TODO.
 
-use std::fmt::Write;
-
-struct ParseError {
-    message: String
-}
-
-impl ParseError {
-    pub fn new(message: String) -> ParseError {
-        ParseError { message }
-    }
-
-    pub fn unexpected_eof() -> ParseError {
-        ParseError::new("Unexpected EOF.".to_owned())
-    }
-}
-
-/// This and its twin `unescape_path()` are for escaping the path to input files so they never contain
-/// newlines and a newline can be reliably interpreted as the end of the path.
-fn escape_path(path: String) -> String {
-    path.replace("\\", "\\\\")
-        .replace("\n", "\\n")
-}
-
-fn unescape_path(path: &str) -> Result<String, ParseError> {
-    let mut iter = path.chars();
-    let mut result = String::new();
-    while let Some(character) = iter.next() {
-        match character {
-            '\\' => match iter.next() {
-                Some('\\') => result.push('\\'),
-                Some('n') => result.push('\n'),
-                Some(other) => return Err(ParseError::new(format!(
-                    "Invalid escape sequence: \\{}", other
-                ))),
-                None => return Err(ParseError::new("Backslash encountered at end of line.".to_owned())),
-            },
-            other => result.push(other),
-        }
-    }
-    Ok(result)
-}
-
-fn format_device_path(path: String) -> String {
-    let mut result = "path: ".to_owned();
-    result.push_str(&escape_path(path));
-    result
-}
-
-fn parse_device_path(path_line: &str) -> Result<String, ParseError> {
-    let path = match path_line.strip_prefix("path: ") {
-        Some(path_escaped) => unescape_path(&path_escaped)?,
-        None => return Err(ParseError::new(format!(
-            "Expected \"Path: something\", encountered: \"{}\"", path_line
-        ))),
-    };
-
-    if path.starts_with('/') {
-        Ok(path)
-    } else {
-        Err(ParseError::new(format!(
-            "The path \"{}\" must be in absolute form.", path
-        )))
-    }
-}
-
-const MAGICAL_NUMBER_HEADER: &str = "# Evsieve event device capabilities description file";
-const FORMAT_VERSION_HEADER: &str = "# Format version: 1.0";
-const CAPABILITIES_HEADER: &str = "capabilities:";
-const EMPTY_LINE: &str = "";
-
-fn write() -> Result<String, std::fmt::Error> {
-    let mut output: String = String::new();
-    writeln!(output, "{}", MAGICAL_NUMBER_HEADER)?;
-    writeln!(output, "{}", FORMAT_VERSION_HEADER)?;
-    writeln!(output, "{}", EMPTY_LINE)?;
-    writeln!(output, "{}", format_device_path(unimplemented!()))?;
-    writeln!(output, "{}", EMPTY_LINE)?;
-    writeln!(output, "{}", CAPABILITIES_HEADER)?;
-    Ok(output)
-}
-
-/// A helper function for parsing. If the input is not identical to the required value, returns
-/// a ParseError.
-fn expect_equal(input: &str, expected_value: &str) -> Result<(), ParseError> {
-    if input == expected_value {
-        Ok(())
-    } else {
-        Err(ParseError::new(format!("Expected: {}, received: {}", expected_value, input)))
-    }
-}
-
-/// Like `str::strip_prefix`, except it returns a ParseError if the string does not start with
-/// the prefix instead of returning None.
-fn expect_strip_prefix<'a>(input: &'a str, expected_prefix: &str) -> Result<&'a str, ParseError> {
-    input.strip_prefix(expected_prefix).ok_or_else(|| ParseError::new(format!(
-        "Expecte: {}, received: {}", expected_prefix, input
-    )))
-}
-
-fn read(input: &str) -> Result<(), ParseError> {
-    let mut lines = input.lines();
-    expect_equal(lines.next().ok_or_else(ParseError::unexpected_eof)?, MAGICAL_NUMBER_HEADER)?;
-    expect_equal(lines.next().ok_or_else(ParseError::unexpected_eof)?, FORMAT_VERSION_HEADER)?;
-    expect_equal(lines.next().ok_or_else(ParseError::unexpected_eof)?, EMPTY_LINE)?;
-    let path = parse_device_path(lines.next().ok_or_else(ParseError::unexpected_eof)?)?;
-    expect_equal(lines.next().ok_or_else(ParseError::unexpected_eof)?, EMPTY_LINE)?;
-    expect_equal(lines.next().ok_or_else(ParseError::unexpected_eof)?, CAPABILITIES_HEADER)?;
-    unimplemented!();
-}
