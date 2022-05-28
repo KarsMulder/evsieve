@@ -862,25 +862,40 @@ def unittest_merge():
         },
     )
 
-def unittest_delta():
+def unittest_relative():
     run_unittest(
-        ["--input", "/dev/input/by-id/unittest-delta-in", "grab=force",
+        ["--input", "/dev/input/by-id/unittest-relative-in", "grab=force",
         "--map", "abs:x", "rel:x:0.5d",
-        "--output", "create-link=/dev/input/by-id/unittest-delta-out"],
+        "--map", "abs:y", "abs:y:-1.4x",
+        "--output", "create-link=/dev/input/by-id/unittest-relative-out"],
         {
-            "/dev/input/by-id/unittest-delta-in": [
+            "/dev/input/by-id/unittest-relative-in": [
                 # Test evsieve's resistance to rounding errors: the first movement should be
                 # rounded down, the second rounded up.
                 (e.EV_ABS, e.ABS_X, 7),
                 (e.EV_ABS, e.ABS_X, 10),
                 (e.EV_ABS, e.ABS_X, 0),
+
+                # Test absolute factors. Unlike delta-maps, these should always be rounded
+                # by truncation.
+                (e.EV_ABS, e.ABS_Y, 5),
+                (e.EV_ABS, e.ABS_Y, 7),
+                (e.EV_ABS, e.ABS_Y, 8),
+                (e.EV_ABS, e.ABS_Y, -5),
+                (e.EV_ABS, e.ABS_Y, 0),
             ],
         },
         {
-            "/dev/input/by-id/unittest-delta-out": [
+            "/dev/input/by-id/unittest-relative-out": [
                 (e.EV_REL, e.REL_X, 3),
                 (e.EV_REL, e.REL_X, 2),
                 (e.EV_REL, e.REL_X, -5),
+
+                (e.EV_ABS, e.ABS_Y, -7),
+                (e.EV_ABS, e.ABS_Y, -9),
+                (e.EV_ABS, e.ABS_Y, -11),
+                (e.EV_ABS, e.ABS_Y, 7),
+                (e.EV_ABS, e.ABS_Y, 0),
             ],
         },
     )
@@ -1403,7 +1418,7 @@ unittest_namespace()
 unittest_consistency()
 unittest_type()
 unittest_merge()
-unittest_delta()
+unittest_relative()
 unittest_delay()
 unittest_withhold()
 unittest_withhold_2()
