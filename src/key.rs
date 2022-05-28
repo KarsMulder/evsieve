@@ -107,6 +107,7 @@ impl Key {
                 | KeyProperty::Value(_)
                 | KeyProperty::PreviousValue(_)
                 | KeyProperty::DeltaFactor(_)
+                | KeyProperty::AbsoluteFactor(_)
                 => (),
             }
         }
@@ -142,6 +143,7 @@ impl Key {
                     | (KeyProperty::Value(_), _)
                     | (KeyProperty::PreviousValue(_), _)
                     | (KeyProperty::DeltaFactor(_), _)
+                    | (KeyProperty::AbsoluteFactor(_), _)
                         => true,
                 };
                 if ! these_properties_may_intersect {
@@ -164,9 +166,11 @@ enum KeyProperty {
     /// Only valid for filter keys.
     VirtualType(VirtualEventType),
     /// Designates that the value of the output event should be a given factor of
+    /// its input value. Only valid for mask keys.
+    AbsoluteFactor(f64),
+    /// Designates that the value of the output event should be a given factor of
     /// (event_in.value - event_in.previous_value). Only valid for mask keys.
     DeltaFactor(f64),
-    // TODO: consider adding a ValueFactor as well.
 }
 
 impl KeyProperty {
@@ -179,9 +183,9 @@ impl KeyProperty {
             KeyProperty::Namespace(value) => event.namespace == value,
             KeyProperty::Value(range) => range.contains(event.value),
             KeyProperty::PreviousValue(range) => range.contains(event.previous_value),
-            KeyProperty::DeltaFactor(_) => {
+            KeyProperty::AbsoluteFactor(_) | KeyProperty::DeltaFactor(_) => {
                 if cfg!(debug_assertions) {
-                    panic!("Cannot filter events based on delta values. Panicked during event mapping.");
+                    panic!("Cannot filter events based on relative values. Panicked during event mapping.");
                 }
                 false
             },
@@ -198,6 +202,7 @@ impl KeyProperty {
             KeyProperty::Namespace(_)
             | KeyProperty::Value(_)
             | KeyProperty::PreviousValue(_)
+            | KeyProperty::AbsoluteFactor(_)
             | KeyProperty::DeltaFactor(_)
                 => true,
         }
@@ -211,6 +216,11 @@ impl KeyProperty {
             KeyProperty::Namespace(value) => event.namespace = value,
             KeyProperty::Value(range) => event.value = range.bound(event.value),
             KeyProperty::PreviousValue(range) => event.previous_value = range.bound(event.previous_value),
+            KeyProperty::AbsoluteFactor(factor) => {
+                event.value = (
+                    (event.value as f64 * factor).trunc()
+                ) as i32;
+            },
             KeyProperty::DeltaFactor(factor) => {
                 // Putting the `floor()` calls at these specific places makes this algorithm more
                 // resistant to rounding errors than doing it the straightforward way.
@@ -252,8 +262,8 @@ impl KeyProperty {
                 }
             },
             KeyProperty::PreviousValue(_range) => CapMatch::Maybe,
-            KeyProperty::DeltaFactor(_) => {
-                panic!("Internal invariant violated: cannot filter events based on delta values.");
+            KeyProperty::AbsoluteFactor(_) | KeyProperty::DeltaFactor(_) => {
+                panic!("Internal invariant violated: cannot filter events based on relative values.");
             },
         }
     }
@@ -265,10 +275,18 @@ impl KeyProperty {
             KeyProperty::Namespace(value) => cap.namespace = value,
             KeyProperty::Value(range) => cap.value_range = range.bound_range(&cap.value_range),
             KeyProperty::PreviousValue(_range) => {},
+            KeyProperty::AbsoluteFactor(factor) => {
+                let bound_1 = cap.value_range.max.mul_f64_round(factor, f64::trunc);
+                let bound_2 = cap.value_range.min.mul_f64_round(factor, f64::trunc);
+                let max = std::cmp::max(bound_1, bound_2);
+                let min = std::cmp::min(bound_1, bound_2);
+                cap.value_range = Range { max, min };
+            },
             KeyProperty::DeltaFactor(factor) => {
                 // This floor rounding matches the algorithm used for event propagation.
-                let bound_1 = cap.value_range.max.mul_f64_floor(factor);
-                let bound_2 = cap.value_range.min.mul_f64_floor(factor);
+                // TODO: really? Verify this.
+                let bound_1 = cap.value_range.max.mul_f64_round(factor, f64::floor);
+                let bound_2 = cap.value_range.min.mul_f64_round(factor, f64::floor);
                 let max = std::cmp::max(bound_1, bound_2);
                 let min = std::cmp::min(bound_1, bound_2);
                 cap.value_range = Range { max, min };
