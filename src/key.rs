@@ -581,23 +581,32 @@ fn parse_int_or_wildcard(value_str: &str) -> Result<Option<i32>, ArgumentError> 
     }
 }
 
-/// Parses a value like "0.1d".
+/// Parses a value like "0.1d" or "-x".
 ///
 /// Returns Ok(None) if value_str does not look like a relative value. Returns Err if it does look
 /// like a relative value, but its format is unacceptable for some reason.
 fn interpret_relative_value(value_str: &str) -> Result<Option<KeyProperty>, ArgumentError> {
-    match utils::strip_suffix(value_str, "d") {
-        None => Ok(None),
-        Some(factor_str) => {
-            let factor = match utils::parse_number(factor_str) {
-                Some(factor) => factor,
-                None => return Err(ArgumentError::new(format!(
-                    "Cannot interpret {} as a float.", factor_str
-                ))),
-            };
-            Ok(Some(KeyProperty::DeltaFactor(factor)))
+    let suffix_to_type: [(&str, &dyn Fn(f64) -> KeyProperty); 2] = [
+        ("x", &KeyProperty::AbsoluteFactor),
+        ("d", &KeyProperty::DeltaFactor),
+    ];
+
+    for (suffix, property) in suffix_to_type {
+        match utils::strip_suffix(value_str, suffix) {
+            None => continue,
+            Some(factor_str) => {
+                let factor = match utils::parse_number(factor_str) {
+                    Some(factor) => factor,
+                    None => return Err(ArgumentError::new(format!(
+                        "Cannot interpret {} as a float.", factor_str
+                    ))),
+                };
+                return Ok(Some(property(factor)))
+            }
         }
     }
+
+    Ok(None)
 }
 
 #[test]
