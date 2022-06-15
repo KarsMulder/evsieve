@@ -41,7 +41,7 @@ impl OutputSystem {
             }
     
             let capabilities = capability_map.remove(&pre_device.domain).expect("Internal invariant violated: capabilites_by_device() did not create a capability entry for each output device.");
-            if capabilities.is_empty() {
+            if capabilities.has_no_content() {
                 eprintln!("Warning: an output device has been specified to which no events can possibly be routed.");
             }
 

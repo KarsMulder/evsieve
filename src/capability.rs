@@ -141,6 +141,13 @@ impl Capabilities {
         self.codes.is_empty()
     }
 
+    /// Returns true if this Capabilities is not capable of any non-trivial event codes, where
+    /// events such as EV_SYN or EV_REP are deemed trivial.
+    pub fn has_no_content(&self) -> bool {
+        let trivial_types = [EventType::SYN, EventType::REP];
+        return ! self.codes.iter().any(|code| ! trivial_types.contains(&code.ev_type()));
+    }
+
     pub fn to_vec_from_domain_and_namespace(&self, domain: Domain, namespace: Namespace) -> Vec<Capability> {
         self.codes.iter().filter_map(|&code| {
             let abs_info = self.abs_info.get(&code);
