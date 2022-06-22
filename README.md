@@ -297,7 +297,7 @@ This script will create a virtual mouse that moves with every key_down or key_re
 
 A new feature in this script is value mapping. In previous scripts, when we saw an argument like `--map key:a key:b` it meant "turn any event of type EV_KEY, code KEY_A, any value, into an event of type EV_KEY, code KEY_B, with the same value". In this script, we're not only mapping the event type and code, but also the value.
 
-The key `rel:x:-20` means "an event with type EV_REL, code REL_X, value -20". The key `key:left:1~` means "an event with type EV_KEY, code KEY_LEFT, value between 1 and 2", where the `~` denotes a range. Thus the map `--map key:left:1~2 rel:x:-20` maps any event of type `EV_KEY`, code `KEY_LEFT`, value 1 or 2 to an event of type EV_REL, code REL_X, value -20. This effectively makes any key down (value 1) or key repeat (value 2) event on the left arrow key change the mouse's X axis with -20.
+The key `rel:x:-20` means "an event with type EV_REL, code REL_X, value -20". The key `key:left:1~2` means "an event with type EV_KEY, code KEY_LEFT, value between 1 and 2", where the `~` denotes a range. Thus the map `--map key:left:1~2 rel:x:-20` maps any event of type `EV_KEY`, code `KEY_LEFT`, value 1 or 2 to an event of type EV_REL, code REL_X, value -20. This effectively makes any key down (value 1) or key repeat (value 2) event on the left arrow key change the mouse's X axis with -20.
 
 In the later map `--map key:enter:0~1 btn:left` you may notice that no value is specified for the output event. This means that it's value is taken to be the same as the input event, which conveniently maps a key down event (value 1) to a click event, and a key up event (value 0) to a release event.
 
