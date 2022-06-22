@@ -61,7 +61,7 @@ pub fn parse_period_value(value: &str) -> Result<Duration, ArgumentError> {
             if digits_after_period > 9 {
                 return Err(ArgumentError::new("Cannot specify time periods with higher than nanosecond precision."));
             }
-            as_uint * (10 as u64).pow((9 - digits_after_period) as u32)
+            as_uint * 10_u64.pow((9 - digits_after_period) as u32)
         },
         None => 0,
     };

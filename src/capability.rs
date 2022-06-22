@@ -145,7 +145,7 @@ impl Capabilities {
     /// events such as EV_SYN or EV_REP are deemed trivial.
     pub fn has_no_content(&self) -> bool {
         let trivial_types = [EventType::SYN, EventType::REP];
-        return ! self.codes.iter().any(|code| ! trivial_types.contains(&code.ev_type()));
+        return self.codes.iter().all(|code| trivial_types.contains(&code.ev_type()));
     }
 
     pub fn to_vec_from_domain_and_namespace(&self, domain: Domain, namespace: Namespace) -> Vec<Capability> {
@@ -265,7 +265,7 @@ impl Capabilities {
             if let Some(other_info) = other.abs_info.get(code) {
                 // Avoid getting incompatibility due to a different meta.value, but do compare all
                 // other properties of the absolute axes.
-                let mut other_info: AbsInfo = other_info.clone();
+                let mut other_info: AbsInfo = *other_info;
                 other_info.meta.value = info.meta.value;
 
                 if *info != other_info {

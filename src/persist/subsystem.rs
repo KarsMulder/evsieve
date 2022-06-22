@@ -30,6 +30,7 @@ pub enum Command {
 }
 
 /// Reports that this subsystem sends back to the main thread.
+#[allow(clippy::large_enum_variant)]
 pub enum Report {
     /// A device has been opened.
     DeviceOpened(InputDevice),

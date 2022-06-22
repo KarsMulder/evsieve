@@ -57,6 +57,8 @@ impl Drop for OwnedFd {
     }
 }
 
+/// # Safety
+///
 /// An unsafe marker trait: if a structure implements this trait, it promises that its file descriptor
 /// will cannot be changed by functions that do not own the structure, i.e. no function that takes a
 /// (mutable) reference is allowed to modify the structure in a way that makes as_raw_fd() return a

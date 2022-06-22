@@ -76,7 +76,7 @@ impl WithholdArg {
         }
 
         self.associated_triggers.extend(
-            hooks.into_iter()
+            hooks.iter_mut()
                  .map(|hook_arg| hook_arg.compile_trigger())
         );
 

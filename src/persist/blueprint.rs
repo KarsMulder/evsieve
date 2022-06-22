@@ -32,7 +32,7 @@ impl Blueprint {
             );
         }
 
-        // TODO: this may print warnings on capabilities differing only in value.`
+        // TODO: this may print warnings on capabilities differing only in value.
         if *input_device.capabilities() != self.capabilities {
             println!(
                 "Warning: the capabilities of the reconnected device \"{}\" are different than expected.",
