@@ -1108,6 +1108,11 @@ def unittest_withhold():
 
 
 def unittest_withhold_2():
+    # This unittest is currently disabled because the feature that it is meant to test
+    # has been disabled. I'll leave it in the code for now because in the future it may
+    # be desirable to re-enable that feature again.
+    return
+
     run_unittest(
         ["--input", "/dev/input/by-id/unittest-withhold-2-in", "domain=foo", "grab=force",
         "--hook", "key:a", "key:b", "send-key=key:x",

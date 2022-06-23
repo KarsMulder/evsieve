@@ -35,11 +35,21 @@ impl WithholdArg {
             return Err(ArgumentError::new("A --withhold argument must be preceded by at least one --hook argument."));
         }
 
+        // Determine all keys that can be send from --hook send-key.
+        let sendable_keys: Vec<&Key> = hooks.iter().flat_map(|hook| &hook.send_keys).collect();
+
         // Verify that the constraints on the preceding hooks are upheld.
-        for hook_arg in hooks.iter_mut() {
+        for hook_arg in hooks.iter() {
             for (key, key_str) in &hook_arg.keys_and_str {
+                // Make sure no hook can match on a key that can be sent from the same set.
+                if sendable_keys.iter().any(|send_key| send_key.intersects_with(key)) {
+                    return Err(ArgumentError::new(format!(
+                        "It is not possible to use --withhold on a set of hooks where any of the hooks has an input key that matches any event that can be dispatched from any of the send-key= clauses. The key \"{}\" violates this constraint.", key_str
+                    )));
+                }
+
                 // If no events that match this trigger will ever be withheld, we do not need
-                // to impose restrictions on this trigger.
+                // to impose further restrictions on this trigger.
                 if ! self.keys.iter().any(|self_key| self_key.intersects_with(key)) {
                     continue;
                 }
