@@ -42,6 +42,7 @@ pub mod io {
     pub mod output;
     pub mod internal_pipe;
     pub mod fd;
+    pub mod fifo;
 }
 
 pub mod persist {

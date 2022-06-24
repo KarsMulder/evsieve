@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 use crate::error::SystemError;
+use std::io::Read;
 use std::os::unix::io::{FromRawFd, AsRawFd, RawFd};
 
 /// A wrapper around a file descriptor that calls `libc::close` on the descriptor when it is dropped.
@@ -34,6 +35,12 @@ impl OwnedFd {
             Err(std::io::Error::last_os_error().into())
         }
     }
+
+    /// # Safety
+    /// This file descriptor should be applicable to the read() system call.
+    pub unsafe fn readable(self) -> ReadableFd {
+        ReadableFd(self)
+    }
 }
 
 impl FromRawFd for OwnedFd {
@@ -54,6 +61,29 @@ impl AsRawFd for OwnedFd {
 impl Drop for OwnedFd {
     fn drop(&mut self) {
         unsafe { libc::close(self.as_raw_fd()) };
+    }
+}
+
+/// Like OwnedFd, but implements the `Read` trait.
+pub struct ReadableFd(OwnedFd);
+
+impl AsRawFd for ReadableFd {
+    fn as_raw_fd(&self) -> RawFd {
+        self.0.as_raw_fd()
+    }
+}
+
+impl Read for ReadableFd {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let res = unsafe { libc::read(
+            self.as_raw_fd(), buf.as_mut_ptr() as *mut libc::c_void, buf.len())
+        };
+        if res < 0 {
+            Err(std::io::Error::last_os_error())
+        } else {
+            Ok(res as usize)
+        }
+
     }
 }
 
@@ -94,3 +124,4 @@ impl Drop for OwnedFd {
 pub unsafe trait HasFixedFd : AsRawFd {}
 
 unsafe impl HasFixedFd for OwnedFd {}
+unsafe impl HasFixedFd for ReadableFd {}
