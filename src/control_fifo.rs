@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 use std::os::unix::prelude::AsRawFd;
 
 use crate::error::{SystemError, ArgumentError, Context};
@@ -55,8 +57,11 @@ fn parse_command(line: &str) -> Result<Command, ArgumentError> {
 
     match command {
         "toggle" => {
-            let has_toggle_flag = ! args.is_empty();
-            let toggle_clauses = args.into_iter().map(str::to_owned).collect();
+            let has_toggle_flag = args.is_empty();
+            let toggle_clauses: Vec<String> = args.into_iter().map(str::to_owned).collect();
+            println!("{:?}", 
+                HookToggleAction::parse(has_toggle_flag, toggle_clauses.clone())?
+            );
             Ok(Command::Toggle(
                 HookToggleAction::parse(has_toggle_flag, toggle_clauses)?
             ))

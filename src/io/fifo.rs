@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 use std::fmt::Display;
 use std::io::{BufReader, BufRead};
 use std::os::unix::prelude::{AsRawFd};

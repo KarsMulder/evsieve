@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 use crate::domain;
-use crate::error::{ArgumentError, RuntimeError, Context};
+use crate::error::{ArgumentError, RuntimeError, Context, SystemError};
 use crate::key::Key;
 use crate::event::Namespace;
 use crate::stream::hook::Hook;
@@ -10,6 +10,7 @@ use crate::stream::withhold::Withhold;
 use crate::stream::{StreamEntry, Setup};
 use crate::predevice::{PreInputDevice, PreOutputDevice};
 use crate::state::{State, ToggleIndex};
+use crate::control_fifo::ControlFifo;
 use crate::arguments::hook::HookArg;
 use crate::arguments::input::InputDevice;
 use crate::arguments::output::OutputDevice;
@@ -18,17 +19,20 @@ use crate::arguments::map::{MapArg, BlockArg};
 use crate::arguments::print::PrintArg;
 use crate::arguments::delay::DelayArg;
 use crate::arguments::withhold::WithholdArg;
+use crate::arguments::control_fifo::ControlFifoArg;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 use super::merge::MergeArg;
 
 const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
+// TODO: if control-fifo does not make it to release 1.4, remove it from this USAGE_MSG.
 const USAGE_MSG: &str = 
 "Usage: evsieve [--input PATH... [domain=DOMAIN] [grab[=auto|force]] [persist=none|reopen|exit]]...
                [--map SOURCE [DEST...] [yield]]...
                [--copy SOURCE [DEST...] [yield]]...
                [--block [SOURCE...]]...
+               [--control-fifo PATH...]...
                [--toggle SOURCE DEST... [id=ID] [mode=consistent|passive]]...
                [--hook KEY... [exec-shell=COMMAND]... [toggle[=[ID][:INDEX]]]... [sequential] [period=SECONDS]]...
                [--merge [EVENTS...]]...
@@ -47,6 +51,7 @@ enum Argument {
     MergeArg(MergeArg),
     DelayArg(DelayArg),
     WithholdArg(WithholdArg),
+    ControlFifoArg(ControlFifoArg),
 }
 
 impl Argument {
@@ -64,6 +69,7 @@ impl Argument {
             "--merge" => Ok(Argument::MergeArg(MergeArg::parse(args)?)),
             "--delay" => Ok(Argument::DelayArg(DelayArg::parse(args)?)),
             "--withhold" => Ok(Argument::WithholdArg(WithholdArg::parse(args)?)),
+            "--control-fifo" => Ok(Argument::ControlFifoArg(ControlFifoArg::parse(args)?)),
             _ => Err(ArgumentError::new(format!("Encountered unknown argument: {}", first_arg)).into()),
         }
     }
@@ -123,6 +129,7 @@ fn parse(args: Vec<String>) -> Result<Vec<Argument>, RuntimeError> {
 pub struct Implementation {
     pub setup: Setup,
     pub input_devices: Vec<crate::io::input::InputDevice>,
+    pub control_fifos: Vec<ControlFifo>,
 }
 
 /// This function does most of the work of turning the input arguments into the components of a
@@ -133,6 +140,7 @@ pub fn implement(args_str: Vec<String>)
     let mut args: Vec<Argument> = parse(args_str)?;
     let mut input_devices: Vec<PreInputDevice> = Vec::new();
     let mut output_devices: Vec<PreOutputDevice> = Vec::new();
+    let mut control_fifo_paths: Vec<String> = Vec::new();
     let mut stream: Vec<StreamEntry> = Vec::new();
 
     let mut state: State = State::new();
@@ -285,6 +293,9 @@ pub fn implement(args_str: Vec<String>)
             Argument::DelayArg(delay_arg) => {
                 stream.push(StreamEntry::Delay(delay_arg.compile()));
             },
+            Argument::ControlFifoArg(control_fifo) => {
+                control_fifo_paths.extend(control_fifo.paths);
+            },
         }
     }
 
@@ -292,12 +303,19 @@ pub fn implement(args_str: Vec<String>)
     if ! are_unique(output_devices.iter().filter_map(|device| device.create_link.as_ref())) {
         return Err(ArgumentError::new("Multiple output devices cannot create a link at the same location.".to_owned()).into());
     }
+    if ! are_unique(control_fifo_paths.iter()) {
+        return Err(ArgumentError::new("A control fifo was specified twice at the same location.".to_owned()).into());
+    }
+
+    let control_fifos: Vec<ControlFifo> = control_fifo_paths.into_iter()
+        .map(|path| ControlFifo::create(&path))
+        .collect::<Result<Vec<ControlFifo>, SystemError>>()?;
 
     // Compute the capabilities of the output devices.
     let (input_devices, input_capabilities) = crate::io::input::open_and_query_capabilities(input_devices)?;
     let setup = Setup::create(stream, output_devices, state, toggle_indices, input_capabilities)?;
 
-    Ok(Implementation { setup, input_devices })
+    Ok(Implementation { setup, input_devices, control_fifos })
 }
 
 /// Returns true if all items in the iterator are unique, otherwise returns false.

@@ -65,6 +65,7 @@ pub mod arguments {
     pub mod merge;
     pub mod delay;
     pub mod withhold;
+    pub mod control_fifo;
     pub mod test;
 }
 
@@ -168,9 +169,12 @@ fn run() -> Result<(), RuntimeError> {
     let _signal_block = unsafe { signal::SignalBlock::new(&sigmask)? };
 
     // Parse the arguments and set up the input/output devices.
-    let Implementation { setup, input_devices } = arguments::parser::implement(args)?;
+    let Implementation { setup, input_devices, control_fifos } = arguments::parser::implement(args)?;
     for device in input_devices {
         epoll.add_file(Pollable::InputDevice(device))?;
+    }
+    for fifo in control_fifos {
+        epoll.add_file(Pollable::ControlFifo(fifo))?;
     }
 
     // If the persistence subsystem is running, this shall keep track of its index in the epoll.
