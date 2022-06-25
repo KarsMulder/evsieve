@@ -128,7 +128,7 @@ fn poll(epoll: &mut Epoll<Pollable>) -> Result<(Vec<Command>, Vec<Report>), Runt
         Ok(messages) => for message in messages {
             match message {
                 Message::Broken(_index) => return Err(SystemError::new("Persistence daemon broken.").into()),
-                Message::Ready(index) => match &mut epoll[index] {
+                Message::Ready(index) | Message::Hup(index) => match &mut epoll[index] {
                     Pollable::Daemon(daemon) => {
                         daemon.poll()?;
                         try_open_and_report(daemon, &mut reports)?

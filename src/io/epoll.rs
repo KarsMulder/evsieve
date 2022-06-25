@@ -26,7 +26,10 @@ pub struct Epoll<T: HasFixedFd> {
 /// Represents a result that an Epoll may return.
 pub enum Message {
     Ready(FileIndex),
+    /// Represents a EPOLLERR result.
     Broken(FileIndex),
+    /// Represents a EPOLLHUP result that is not simultaneously EPOLLERR.
+    Hup(FileIndex),
 }
 
 impl<T: HasFixedFd> Epoll<T> {
@@ -177,8 +180,10 @@ impl<T: HasFixedFd> Epoll<T> {
             if event.events & libc::EPOLLIN as u32 != 0 {
                 messages.push(Message::Ready(file_index));
             }
-            if event.events & libc::EPOLLERR as u32 != 0 || event.events & libc::EPOLLHUP as u32 != 0 {
+            if event.events & libc::EPOLLERR as u32 != 0 {
                 messages.push(Message::Broken(file_index));
+            } else if event.events & libc::EPOLLHUP as u32 != 0 {
+                messages.push(Message::Hup(file_index));
             }
         }
 

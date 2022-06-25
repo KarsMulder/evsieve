@@ -95,7 +95,7 @@ impl HookArg {
 }
 
 /// Represents how a single toggle clause on a hook should modify some toggle.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 enum HookToggleShift {
     /// Move the active index to the next one, wrapping around.
     Next,
@@ -105,7 +105,7 @@ enum HookToggleShift {
 
 /// Represents the aggregate effect of all toggle= clauses on a single --hook.
 /// This is used to track arguments, this is not the implementation of such an effect.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct HookToggleAction {
     /// The action based on a toggle flag or a toggle= without id.
     global_action: Option<HookToggleShift>,

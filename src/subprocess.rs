@@ -163,7 +163,7 @@ fn start_cleanup_thread() {
                         assert!(signal_no == libc::SIGCHLD);
                         MANAGER.lock().expect("Internal lock poisoned.").cleanup();
                     },
-                    Message::Broken(_index) => {
+                    Message::Broken(_index) | Message::Hup(_index) => {
                         panic!("Signal fd in subprocess cleanup thread broken.");
                     }
                 }

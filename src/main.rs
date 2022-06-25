@@ -235,7 +235,15 @@ fn enter_main_loop(program: &mut Program) -> Result<(), RuntimeError> {
                 },
                 Message::Broken(index) => {
                     handle_broken_file(program, index)
-                }
+                },
+                Message::Hup(index) => {
+                    // Ignore EPOLLHUP for control FIFO's. For all other devices, treat
+                    // them as broken.
+                    match program.epoll.get(index) {
+                        Some(Pollable::ControlFifo(_)) => Action::Continue,
+                        _ => handle_broken_file(program, index),
+                    }
+                },
             };
 
             match action {

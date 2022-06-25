@@ -58,10 +58,7 @@ fn parse_command(line: &str) -> Result<Command, ArgumentError> {
     match command {
         "toggle" => {
             let has_toggle_flag = args.is_empty();
-            let toggle_clauses: Vec<String> = args.into_iter().map(str::to_owned).collect();
-            println!("{:?}", 
-                HookToggleAction::parse(has_toggle_flag, toggle_clauses.clone())?
-            );
+            let toggle_clauses = args.into_iter().map(str::to_owned).collect();
             Ok(Command::Toggle(
                 HookToggleAction::parse(has_toggle_flag, toggle_clauses)?
             ))
