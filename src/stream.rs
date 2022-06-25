@@ -7,6 +7,8 @@ pub mod map;
 pub mod delay;
 pub mod merge;
 
+use std::collections::HashMap;
+
 use self::map::{Map, Toggle};
 use self::hook::Hook;
 use self::print::EventPrinter;
@@ -15,7 +17,7 @@ use self::merge::Merge;
 
 use crate::io::input::InputDevice;
 use crate::predevice::PreOutputDevice;
-use crate::state::State;
+use crate::state::{State, ToggleIndex};
 use crate::event::{Event, Namespace};
 use crate::capability::{Capability, InputCapabilites};
 use crate::io::output::OutputSystem;
@@ -56,6 +58,7 @@ pub struct Setup {
     stream: Vec<StreamEntry>,
     output: OutputSystem,
     state: State,
+    toggle_indices: HashMap<String, ToggleIndex>,
     loopback: Loopback,
     /// The capabilities all input devices are capable of, and the tentative capabilites of devices that
     /// may be (re)opened in the future. If a new device gets opened, make sure to call `update_caps`
@@ -71,13 +74,14 @@ impl Setup {
         stream: Vec<StreamEntry>,
         pre_output: Vec<PreOutputDevice>,
         state: State,
+        toggle_indices: HashMap<String, ToggleIndex>,
         input_caps: InputCapabilites,
     ) -> Result<Setup, RuntimeError> {
         let caps_vec: Vec<Capability> = crate::capability::input_caps_to_vec(&input_caps);
         let caps_out = run_caps(&stream, caps_vec);
         let output = OutputSystem::create(pre_output, caps_out)?;
         Ok(Setup {
-            stream, output, state, input_caps,
+            stream, output, state, toggle_indices, input_caps,
             loopback: Loopback::new(), staged_events: Vec::new(),
         })
     }
@@ -104,6 +108,18 @@ impl Setup {
 
     pub fn time_until_next_wakeup(&self) -> Delay {
         self.loopback.time_until_next_wakeup()
+    }
+
+    pub fn toggle_indices(&self) -> &HashMap<String, ToggleIndex> {
+        &self.toggle_indices
+    }
+
+    pub fn state(&self) -> &State {
+        &self.state
+    }
+
+    pub fn state_mut(&mut self) -> &mut State {
+        &mut self.state
     }
 }
 

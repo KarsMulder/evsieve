@@ -4,6 +4,7 @@ use crate::error::{SystemError, ArgumentError, Context};
 use crate::io::fd::HasFixedFd;
 use crate::io::fifo::Fifo;
 use crate::arguments::hook::HookToggleAction;
+use crate::stream::Setup;
 
 pub struct ControlFifo {
     fifo: Fifo,
@@ -17,6 +18,9 @@ impl ControlFifo {
         })
     }
 
+    /// IMPORTANT: this function should never return ArgumentError, because then the fifo would
+    /// get closed in case the user provides an incorrect command. Only return SystemError to
+    /// signal that something is wrong with the underlying file.
     pub fn poll(&mut self) -> Result<Vec<Command>, SystemError> {
         let lines = self.fifo.read_lines()?;
         let commands = lines.into_iter()
@@ -30,6 +34,10 @@ impl ControlFifo {
             }
             ).collect();
         Ok(commands)
+    }
+
+    pub fn path(&self) -> &std::path::Path {
+        self.fifo.path()
     }
 }
 
@@ -53,7 +61,23 @@ fn parse_command(line: &str) -> Result<Command, ArgumentError> {
                 HookToggleAction::parse(has_toggle_flag, toggle_clauses)?
             ))
         },
-        _ => Err(ArgumentError::new(format!("Unknow command received: {}", command))),
+        _ => Err(ArgumentError::new(format!("Unknown command name: {}", command))),
+    }
+}
+
+impl Command {
+    pub fn execute(self, setup: &mut Setup) -> Result<(), ArgumentError> {
+        match self {
+            Command::Toggle(action) => {
+                // TODO: More helpful error.
+                let effects = action.implement(setup.state(), setup.toggle_indices())?;
+                for effect in effects {
+                    effect(setup.state_mut());
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 

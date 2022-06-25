@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::io::{BufReader, BufRead};
 use std::os::unix::prelude::{AsRawFd};
 use std::ffi::CString;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::error::{SystemError, Context};
 use crate::io::fd::{OwnedFd, ReadableFd};
@@ -63,6 +63,10 @@ impl Fifo {
         let reader = BufReader::new(fd);
 
         Ok(Fifo { path: owned_path, reader, incomplete_line: None })
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path.0
     }
 
     /// Returns all lines that are ready for this Fifo.

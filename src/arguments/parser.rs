@@ -295,7 +295,7 @@ pub fn implement(args_str: Vec<String>)
 
     // Compute the capabilities of the output devices.
     let (input_devices, input_capabilities) = crate::io::input::open_and_query_capabilities(input_devices)?;
-    let setup = Setup::create(stream, output_devices, state, input_capabilities)?;
+    let setup = Setup::create(stream, output_devices, state, toggle_indices, input_capabilities)?;
 
     Ok(Implementation { setup, input_devices })
 }

@@ -86,6 +86,7 @@ use io::input::InputDevice;
 use persist::interface::{HostInterfaceState};
 use stream::Setup;
 use signal::{SigMask, SignalFd};
+use control_fifo::ControlFifo;
 
 use crate::event::EventCode;
 use crate::persist::subsystem::Report;
@@ -120,6 +121,7 @@ fn run_and_interpret_exit_code() -> i32 {
 pub enum Pollable {
     InputDevice(InputDevice),
     SignalFd(SignalFd),
+    ControlFifo(ControlFifo),
     PersistSubsystem(persist::interface::HostInterface),
 }
 unsafe impl HasFixedFd for Pollable {}
@@ -129,6 +131,7 @@ impl AsRawFd for Pollable {
         match self {
             Pollable::InputDevice(device) => device.as_raw_fd(),
             Pollable::SignalFd(fd) => fd.as_raw_fd(),
+            Pollable::ControlFifo(fifo) => fifo.as_raw_fd(),
             Pollable::PersistSubsystem(interface) => interface.as_raw_fd(),
         }
     }
@@ -270,6 +273,18 @@ fn handle_ready_file(program: &mut Program, index: FileIndex) -> Result<Action, 
                 Ok(Action::Continue)
             }
         },
+        Pollable::ControlFifo(fifo) => {
+            let commands = fifo.poll().with_context_of(
+                || format!("While polling commands from {}:", fifo.path().to_string_lossy()),
+            )?;
+            for command in commands {
+                command.execute(&mut program.setup)
+                    .with_context("While executing a command:")
+                    .print_err();
+            }
+
+            Ok(Action::Continue)
+        },
         Pollable::PersistSubsystem(ref mut interface) => {
             let report = interface.recv().with_context("While polling the persistence subsystem from the main thread:")?;
             Ok(handle_persist_subsystem_report(program, index, report))
@@ -314,6 +329,9 @@ fn handle_broken_file(program: &mut Program, index: FileIndex) -> Action {
                     }
                 }
             };
+        },
+        Pollable::ControlFifo(fifo) => {
+            eprintln!("Unknown error: the fifo at {} is no longer available.", fifo.path().to_string_lossy());
         },
         Pollable::SignalFd(_fd) => {
             eprintln!("Fatal error: signal file descriptor broken.");
@@ -379,6 +397,7 @@ fn has_no_activity(epoll: &Epoll<Pollable>) -> bool {
         match file {
             Pollable::InputDevice(_) => return false,
             Pollable::PersistSubsystem(_) => return false,
+            Pollable::ControlFifo(_) => (),
             Pollable::SignalFd(_) => (),
         }
     }
