@@ -32,6 +32,7 @@ pub mod subprocess;
 pub mod daemon;
 pub mod loopback;
 pub mod stream;
+pub mod control_fifo;
 
 #[cfg(feature = "auto-scan")]
 pub mod scancodes;

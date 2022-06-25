@@ -1,8 +1,7 @@
 use std::fmt::Display;
-use std::fs::File;
 use std::io::{BufReader, BufRead};
-use std::os::unix::prelude::{AsRawFd, FromRawFd};
-use std::ffi::{CString, CStr};
+use std::os::unix::prelude::{AsRawFd};
+use std::ffi::CString;
 use std::path::PathBuf;
 
 use crate::error::{SystemError, Context};
@@ -36,6 +35,8 @@ impl Drop for OwnedPath {
 pub struct Fifo {
     path: OwnedPath,
     reader: BufReader<ReadableFd>,
+    /// If a line not ending at \n was read from BufReader, store it here.
+    incomplete_line: Option<String>,
 }
 
 impl Fifo {
@@ -61,9 +62,13 @@ impl Fifo {
         };
         let reader = BufReader::new(fd);
 
-        Ok(Fifo { path: owned_path, reader })
+        Ok(Fifo { path: owned_path, reader, incomplete_line: None })
     }
 
+    /// Returns all lines that are ready for this Fifo.
+    /// The lines shall not end at a \n character.
+    /// This function returns all lines that are available and shall not return any more lines
+    /// until the epoll says that it ise ready again.
     pub fn read_lines(&mut self) -> Result<Vec<String>, SystemError> {
         let mut lines: Vec<String> = Vec::new();
         loop {
@@ -75,11 +80,17 @@ impl Fifo {
                 break;
             }
 
+            if let Some(incomplete_line) = self.incomplete_line.take() {
+                line = format!("{}{}", incomplete_line, line);
+            }
+
             if line.ends_with('\n') {
+                line.pop();
                 lines.push(line);
             } else {
                 // TODO: this blatantly assumes that the Fifo is used as command fifo.
-                eprintln!("Error: received a command \"{}\" that was not terminated by a newline character. All commands must be terminated by newline characters.", line);
+                eprintln!("Error: received a command \"{}\" that was not terminated by a newline character. All commands must be terminated by newline characters.", line);                
+                self.incomplete_line = Some(line);
             }
         }
 
