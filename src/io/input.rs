@@ -44,7 +44,7 @@ pub fn open_and_query_capabilities(pre_input_devices: Vec<PreInputDevice>)
     Ok((input_devices, capabilities))
 }
 
-// Represents a name as reported by libevdev_get_name().
+/// Represents a name as reported by libevdev_get_name().
 pub type InputDeviceName = CString;
 
 pub struct InputDevice {

@@ -86,7 +86,7 @@ impl Setup {
         })
     }
 
-    /// Call this function if the capabilities of a certain input device may have changes, e.g. because
+    /// Call this function if the capabilities of a certain input device may have changed, e.g. because
     /// it has been reopened after the program started. If the new capabilities are incompatible with
     /// its previous capabilities, then output devices may be recreated.
     pub fn update_caps(&mut self, new_device: &InputDevice) {

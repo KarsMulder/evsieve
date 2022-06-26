@@ -3,7 +3,7 @@
 use crate::error::ArgumentError;
 use crate::arguments::lib::ComplexArgGroup;
 
-/// Represents a --merge argument.
+/// Represents a --control-fifo argument.
 pub(super) struct ControlFifoArg {
     pub paths: Vec<String>,
 }
