@@ -308,7 +308,7 @@ pub fn implement(args_str: Vec<String>)
     }
 
     let control_fifos: Vec<ControlFifo> = control_fifo_paths.into_iter()
-        .map(|path| ControlFifo::create(&path))
+        .map(ControlFifo::create)
         .collect::<Result<Vec<ControlFifo>, SystemError>>()?;
 
     // Compute the capabilities of the output devices.

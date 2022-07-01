@@ -14,6 +14,10 @@ use super::fd::HasFixedFd;
 // TODO: Move this structure elsewhere.
 struct OwnedPath(PathBuf);
 
+pub trait LineRead : AsRawFd {
+    fn read_lines(&mut self) -> Result<Vec<String>, std::io::Error>;
+}
+
 impl OwnedPath {
     pub fn new(path: PathBuf) -> OwnedPath {
         OwnedPath(path)
@@ -148,6 +152,12 @@ impl Fifo {
         }
 
         Ok(lines)
+    }
+}
+
+impl LineRead for Fifo {
+    fn read_lines(&mut self) -> Result<Vec<String>, std::io::Error> {
+        self.reader.read_lines()
     }
 }
 

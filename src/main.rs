@@ -287,7 +287,7 @@ fn handle_ready_file(program: &mut Program, index: FileIndex) -> Result<Action, 
         },
         Pollable::ControlFifo(fifo) => {
             let commands = fifo.poll().with_context_of(
-                || format!("While polling commands from {}:", fifo.path().to_string_lossy()),
+                || format!("While polling commands from {}:", fifo.path()),
             )?;
             for command in commands {
                 command.execute(&mut program.setup)
@@ -343,7 +343,7 @@ fn handle_broken_file(program: &mut Program, index: FileIndex) -> Action {
             };
         },
         Pollable::ControlFifo(fifo) => {
-            eprintln!("Unknown error: the fifo at {} is no longer available.", fifo.path().to_string_lossy());
+            eprintln!("Error: the FIFO at {} is no longer available.", fifo.path());
         },
         Pollable::SignalFd(_fd) => {
             eprintln!("Fatal error: signal file descriptor broken.");

@@ -7,24 +7,25 @@ use crate::io::fd::HasFixedFd;
 use crate::io::fifo::Fifo;
 use crate::arguments::hook::HookToggleAction;
 use crate::stream::Setup;
+use crate::io::fifo::LineRead;
 
 pub struct ControlFifo {
-    fifo: Fifo,
+    source: Box<dyn LineRead>,
+    path: String,
 }
 
 impl ControlFifo {
     // TODO: Reuse existing Fifo's on the filesystem.
-    pub fn create(path: &str) -> Result<ControlFifo, SystemError> {
-        Ok(ControlFifo {
-            fifo: Fifo::create(path)?
-        })
+    pub fn create(path: String) -> Result<ControlFifo, SystemError> {
+        let source = Box::new(Fifo::create(&path)?);
+        Ok(ControlFifo { path, source })
     }
 
     /// IMPORTANT: this function should never return ArgumentError, because then the fifo would
     /// get closed in case the user provides an incorrect command. Only return SystemError to
     /// signal that something is wrong with the underlying file.
     pub fn poll(&mut self) -> Result<Vec<Command>, SystemError> {
-        let lines = self.fifo.read_lines()?;
+        let lines = self.source.read_lines()?;
         let commands = lines.into_iter()
             .filter(|line| !line.is_empty())
             .filter_map(|line| match parse_command(&line) {
@@ -38,8 +39,8 @@ impl ControlFifo {
         Ok(commands)
     }
 
-    pub fn path(&self) -> &std::path::Path {
-        self.fifo.path()
+    pub fn path(&self) -> &str {
+        &self.path
     }
 }
 
@@ -86,7 +87,7 @@ impl Command {
 impl AsRawFd for ControlFifo {
     // TODO: Rename path
     fn as_raw_fd(&self) -> std::os::unix::prelude::RawFd {
-        self.fifo.as_raw_fd()
+        self.source.as_raw_fd()
     }
 }
 unsafe impl HasFixedFd for ControlFifo {}
