@@ -142,11 +142,12 @@ impl Fifo {
     /// The lines shall not end at a \n character.
     /// This function returns all lines that are available and shall not return any more lines
     /// until the epoll says that it ise ready again.
-    pub fn read_lines(&mut self) -> Result<Vec<String>, SystemError> {
+    pub fn read_lines(&mut self) -> Result<Vec<String>, std::io::Error> {
         let lines = self.reader.read_lines()?;
 
         if ! self.reader.get_buffered_data().is_empty() {
             // TODO: this blatantly assumes that the Fifo is used as command fifo.
+            // TODO: Also, this somehow does not work. Figure out why.
             let partial_command = String::from_utf8_lossy(self.reader.get_buffered_data());
             eprintln!("Error: received a command \"{}\" that was not terminated by a newline character. All commands must be terminated by newline characters.", partial_command);
         }
@@ -157,7 +158,7 @@ impl Fifo {
 
 impl LineRead for Fifo {
     fn read_lines(&mut self) -> Result<Vec<String>, std::io::Error> {
-        self.reader.read_lines()
+        self.read_lines()
     }
 }
 
