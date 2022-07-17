@@ -2,7 +2,7 @@
 
 use std::fmt::Display;
 use std::io::{Read};
-use std::os::unix::prelude::{AsRawFd};
+use std::os::unix::io::{RawFd, AsRawFd};
 use std::ffi::CString;
 use std::path::{Path, PathBuf};
 
@@ -159,7 +159,7 @@ impl LineRead for Fifo {
 }
 
 impl AsRawFd for Fifo {
-    fn as_raw_fd(&self) -> std::os::unix::prelude::RawFd {
+    fn as_raw_fd(&self) -> RawFd {
         self.reader.get_ref().as_raw_fd()
     }
 }

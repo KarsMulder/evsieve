@@ -11,7 +11,7 @@ use std::ffi::CString;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::mem::MaybeUninit;
-use std::os::unix::prelude::RawFd;
+use std::os::unix::io::RawFd;
 use std::path::{PathBuf};
 
 use crate::error::{SystemError, Context};

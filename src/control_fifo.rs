@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use std::os::unix::prelude::AsRawFd;
+use std::os::unix::io::{RawFd, AsRawFd};
 
 use crate::error::{SystemError, ArgumentError, Context};
 use crate::io::fd::HasFixedFd;
@@ -85,8 +85,7 @@ impl Command {
 }
 
 impl AsRawFd for ControlFifo {
-    // TODO: Rename path
-    fn as_raw_fd(&self) -> std::os::unix::prelude::RawFd {
+    fn as_raw_fd(&self) -> RawFd {
         self.source.as_raw_fd()
     }
 }
