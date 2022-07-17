@@ -137,12 +137,14 @@ impl Fifo {
     pub fn path(&self) -> &Path {
         &self.path.0
     }
+}
 
+impl LineRead for Fifo {
     /// Returns all lines that are ready for this Fifo.
     /// The lines shall not end at a \n character.
     /// This function returns all lines that are available and shall not return any more lines
     /// until the epoll says that it ise ready again.
-    pub fn read_lines(&mut self) -> Result<Vec<String>, std::io::Error> {
+    fn read_lines(&mut self) -> Result<Vec<String>, std::io::Error> {
         let lines = self.reader.read_lines()?;
 
         if ! self.reader.get_buffered_data().is_empty() {
@@ -153,12 +155,6 @@ impl Fifo {
         }
 
         Ok(lines)
-    }
-}
-
-impl LineRead for Fifo {
-    fn read_lines(&mut self) -> Result<Vec<String>, std::io::Error> {
-        self.read_lines()
     }
 }
 
