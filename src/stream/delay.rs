@@ -5,6 +5,10 @@ use crate::event::Event;
 use crate::key::Key;
 use std::time::Duration;
 
+// TODO: it appears there is a function libevdev_set_clock_id() which can be used to make
+// event devices report their event times on a monotonic clock. This may be useful to
+// solve the time-synchronisation issue. Investigate.
+
 /// All events that reach the delay shall be removed and put back into the stream after 
 /// a certain amount of time passes.
 pub struct Delay {
