@@ -170,13 +170,14 @@ pub fn event_type(name: &str) -> Result<EventType, ArgumentError> {
 
 // TODO: How does this interact with event-type maps like "--map key" or "--map btn"?
 
-/// Parses an event code by name like "key","a" or by name-number pair like "key","35".
+/// Parses an event code by name like "key","a" or by name-number pair like "key","%35".
 pub fn event_code(type_name: &str, code_name: &str) -> Result<EventCode, ArgumentError> {
     // Check whether the type and code can be interpreted as names.
     if let Some(&code) = EVENT_CODES.get(&(type_name.to_string(), code_name.to_string())) {
         return Ok(code)
     }
 
+    // Check for a (name, number) pair.
     let code_name_numstr = match code_name.strip_prefix('%') {
         Some(string) => string,
         None => return Err(ArgumentError::new(format!(
@@ -184,7 +185,6 @@ pub fn event_code(type_name: &str, code_name: &str) -> Result<EventCode, Argumen
         ))),
     };
 
-    // Check for a (name, number) pair.
     let ev_type = event_type(type_name)?;
     let ev_type_max = event_type_get_max(ev_type);
     let code_u16: u16 = match code_name_numstr.parse() {
