@@ -141,7 +141,7 @@ pub fn event_name(code: EventCode) -> Cow<'static, str> {
         Some(name) => Cow::from(name),
         None => {
             let type_name = virtual_type_name(code.virtual_ev_type());
-            Cow::from(format!("{}:{}", type_name, code.code()))
+            Cow::from(format!("{}:%{}", type_name, code.code()))
         },
     }
 }
@@ -177,13 +177,20 @@ pub fn event_code(type_name: &str, code_name: &str) -> Result<EventCode, Argumen
         return Ok(code)
     }
 
+    let code_name_numstr = match code_name.strip_prefix('%') {
+        Some(string) => string,
+        None => return Err(ArgumentError::new(format!(
+            "Unknown event code \"{}:{}\".", type_name, code_name
+        ))),
+    };
+
     // Check for a (name, number) pair.
     let ev_type = event_type(type_name)?;
     let ev_type_max = event_type_get_max(ev_type);
-    let code_u16: u16 = match code_name.parse() {
+    let code_u16: u16 = match code_name_numstr.parse() {
         Ok(code) => code,
         Err(_) => return Err(ArgumentError::new(format!(
-            "Unknown event code \"{}:{}\".", type_name, code_name
+            "Cannot interpret \"{}\" as a nonnegative integer.", code_name_numstr
         ))),
     };
 
@@ -202,7 +209,7 @@ pub fn event_code(type_name: &str, code_name: &str) -> Result<EventCode, Argumen
             || (type_name == VirtualEventType::BUTTON && virtual_type != VirtualEventType::Button)
         {
             crate::utils::warn_once(format!(
-                "Warning: {}:{} shall be interpreted as {}.", type_name, code_name, event_name(code)
+                "Info: {}:{} shall be interpreted as {}.", type_name, code_name, event_name(code)
             ))
         }
         
