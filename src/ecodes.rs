@@ -4,6 +4,7 @@ use crate::event::{EventType, EventCode};
 use crate::bindings::libevdev;
 use crate::utils::{split_once, parse_cstr};
 use std::collections::HashMap;
+use std::convert::TryInto;
 
 lazy_static! {
     pub static ref EVENT_TYPES: HashMap<String, EventType> = {
@@ -37,7 +38,7 @@ lazy_static! {
     pub static ref EVENT_CODES: HashMap<(String, String), EventCode> = {
         let mut result = HashMap::new();
         for (ev_type_name, &ev_type) in EVENT_TYPES.iter() {
-            let code_max = unsafe { libevdev::libevdev_event_type_get_max(ev_type.into()) };
+            let code_max = event_type_get_max(ev_type);
             for code in 0 ..= code_max {
                 if let Some(raw_code_name) = unsafe { parse_cstr(libevdev::libevdev_event_code_get_name(ev_type.into(), code as u32)) } {
                     let (code_type_name, code_name_opt) = split_once(&raw_code_name, "_");
@@ -110,6 +111,11 @@ lazy_static! {
     };
 }
 
+pub fn event_type_get_max(ev_type: EventType) -> u16 {
+    let result = unsafe { libevdev::libevdev_event_type_get_max(ev_type.into()) };
+    result.try_into().unwrap_or(u16::MAX)
+}
+
 pub fn event_name(code: EventCode) -> String {
     match EVENT_NAMES.get(&code) {
         Some(name) => name.to_owned(),
@@ -141,6 +147,7 @@ pub const EV_SYN: u16 = libevdev::EV_SYN as u16;
 pub const EV_REP: u16 = libevdev::EV_REP as u16;
 pub const EV_KEY: u16 = libevdev::EV_KEY as u16;
 pub const EV_MSC: u16 = libevdev::EV_MSC as u16;
+pub const EV_MAX: u16 = libevdev::EV_MAX as u16;
 
 pub const REP_DELAY: u16 = libevdev::REP_DELAY as u16;
 pub const REP_PERIOD: u16 = libevdev::REP_PERIOD as u16;
