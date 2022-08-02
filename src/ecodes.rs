@@ -135,20 +135,10 @@ pub fn is_abs_mt(code: EventCode) -> bool {
     code.ev_type().is_abs() && event_name(code).starts_with("abs:mt_")
 }
 
-/// Parses an event type by name like "key" or by numeric value like "1".
+/// Parses an event type by name like "key".
 pub fn event_type(name: &str) -> Result<EventType, ArgumentError> {
     if let Some(&ev_type) = EVENT_TYPES.get(name) {
         Ok(ev_type)
-    } else if let Ok(uint) = name.parse() {
-        if uint <= EV_MAX {
-            // TODO: This is obviously not safe. Consider making the requirements of what is
-            // considered safe for EventType::new() looser.
-            unsafe { Ok(EventType::new(uint)) }
-        } else {
-            Err(ArgumentError::new(format!(
-                "Event type {} exceeds the maximum value defined by EV_MAX ({}).", uint, EV_MAX
-            )))
-        }
     } else {
         Err(ArgumentError::new(format!(
             "Unknown event type \"{}\".", name
@@ -158,15 +148,14 @@ pub fn event_type(name: &str) -> Result<EventType, ArgumentError> {
 
 // TODO: How does this interact with event-type maps like "--map key" or "--map btn"?
 
-/// Parses an event code by name like "key","a", by name-number pair like "key","35",
-/// or by numeric pair like "1","35".
+/// Parses an event code by name like "key","a" or by name-number pair like "key","35".
 pub fn event_code(type_name: &str, code_name: &str) -> Result<EventCode, ArgumentError> {
     // Check whether the type and code can be interpreted as names.
     if let Some(&code) = EVENT_CODES.get(&(type_name.to_string(), code_name.to_string())) {
         return Ok(code)
     }
 
-    // Check for a (name, number) or (number, number) pair.
+    // Check for a (name, number) pair.
     let ev_type = event_type(type_name)?;
     let ev_type_max = event_type_get_max(ev_type);
     let code_u16: u16 = match code_name.parse() {
