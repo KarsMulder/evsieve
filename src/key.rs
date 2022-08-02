@@ -442,13 +442,11 @@ fn interpret_key(key_str: &str, parser: &KeyParser) -> Result<Key, ArgumentError
 
     // Interpret the event type.
     let event_type_name = parts.next().unwrap();
-    let event_type = ecodes::event_type(event_type_name).ok_or_else(||
+    let event_type = ecodes::event_type(event_type_name).map_err(|err|
         // TODO: Consider allowing this instead of throwing an error.
         match event_type_name {
             "" => ArgumentError::new("Cannot specify event code or value without specifying event type."),
-            _ => ArgumentError::new(format!(
-                "Unknown event type \"{}\".", event_type_name
-            )),
+            _ => err,
         }
     )?;
     if event_type.is_syn() {
@@ -479,11 +477,7 @@ fn interpret_key(key_str: &str, parser: &KeyParser) -> Result<Key, ArgumentError
             key.add_property(KeyProperty::VirtualType(virtual_type));
         },
         Some(event_code_name) => {
-            let event_code = ecodes::event_code(event_type_name, event_code_name).ok_or_else(||
-                ArgumentError::new(format!(
-                    "Unknown event code \"{}\".", event_code_name
-                ))
-            )?;
+            let event_code = ecodes::event_code(event_type_name, event_code_name)?;
             key.add_property(KeyProperty::Code(event_code));
 
             // ISSUE: ABS_MT support
