@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 use crate::error::ArgumentError;
-use crate::event::{EventType, EventCode};
+use crate::event::{EventType, EventCode, VirtualEventType};
 use crate::bindings::libevdev;
 use crate::utils::{split_once, parse_cstr};
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::convert::TryInto;
 
@@ -117,10 +118,31 @@ pub fn event_type_get_max(ev_type: EventType) -> u16 {
     result.try_into().unwrap_or(u16::MAX)
 }
 
-pub fn event_name(code: EventCode) -> String {
+pub fn type_name(ev_type: EventType) -> Cow<'static, str> {
+    for (name, &type_) in EVENT_TYPES.iter() {
+        if ev_type == type_ {
+            return Cow::from(name);
+        }
+    }
+
+    return Cow::from(format!("{}", u16::from(ev_type)));
+}
+
+pub fn virtual_type_name(virtual_type: VirtualEventType) -> Cow<'static, str> {
+    match virtual_type {
+        VirtualEventType::Key => Cow::from(VirtualEventType::KEY),
+        VirtualEventType::Button => Cow::from(VirtualEventType::BUTTON),
+        VirtualEventType::Other(ev_type) => type_name(ev_type),
+    }
+}
+
+pub fn event_name(code: EventCode) -> Cow<'static, str> {
     match EVENT_NAMES.get(&code) {
-        Some(name) => name.to_owned(),
-        None => format!("{}:{}", u16::from(code.ev_type()), code.code()),
+        Some(name) => Cow::from(name),
+        None => {
+            let type_name = virtual_type_name(code.virtual_ev_type());
+            Cow::from(format!("{}:{}", type_name, code.code()))
+        },
     }
 }
 
@@ -173,6 +195,15 @@ pub fn event_code(type_name: &str, code_name: &str) -> Result<EventCode, Argumen
             crate::utils::warn_once(format!(
                 "Warning: no event code {}:{} is known to exist. Working with such events may yield unexpected results.", type_name, code_name
             ));
+        }
+
+        let virtual_type = code.virtual_ev_type();
+        if (type_name == VirtualEventType::KEY && virtual_type != VirtualEventType::Key)
+            || (type_name == VirtualEventType::BUTTON && virtual_type != VirtualEventType::Button)
+        {
+            crate::utils::warn_once(format!(
+                "Warning: {}:{} shall be interpreted as {}.", type_name, code_name, event_name(code)
+            ))
         }
         
         Ok(code)
