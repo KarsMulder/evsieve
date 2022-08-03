@@ -621,6 +621,7 @@ fn interpret_relative_value(value_str: &str) -> Result<Option<KeyProperty>, Argu
 fn unittest_intersection() {
     let parser = KeyParser::default_filter();
     let expected_to_intersect = [
+        ("key", "key"),
         ("key:a", "key:a"),
         ("key", "key:a"),
         ("key:a", "key"),
@@ -628,6 +629,8 @@ fn unittest_intersection() {
         ("key:a:1..2@foo", "@foo"),
         ("", ""),
         ("", "key:a:1..2@foo"),
+        ("%1", "%1"),
+        ("%1", "key"),
         ("%1", "key:left"),
         ("%1", "btn:left"),
         ("%1", ""),
@@ -636,6 +639,9 @@ fn unittest_intersection() {
         ("key:a", "key:b"),
         ("key:a", "btn"),
         ("btn", "key:a"),
+        ("key", "btn"),
+        ("abs", "rel"),
+        ("%1", "%2"),
         ("key:a@foo", "key:a@bar"),
         ("key:a@foo", "@bar"),
         ("key:a:1", "key:a:2"),
