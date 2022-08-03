@@ -101,6 +101,7 @@ impl Key {
         for property in &self.properties {
             match property {
                 KeyProperty::Code(code) => return Some(code.ev_type()),
+                KeyProperty::Type(ev_type) => return Some(*ev_type),
                 KeyProperty::VirtualType(v_type) => return Some(v_type.ev_type()),
                 KeyProperty::Domain(_)
                 | KeyProperty::Namespace(_)
@@ -116,6 +117,12 @@ impl Key {
 
     /// Returns true if some event may match both key_1 and key_2.
     pub fn intersects_with(&self, other: &Key) -> bool {
+        if let (Some(ev_type_1), Some(ev_type_2)) = (self.requires_event_type(), other.requires_event_type()) {
+            if ev_type_1 != ev_type_2 {
+                return false;
+            }
+        }
+
         for prop_1 in &self.properties {
             for prop_2 in &other.properties {
                 let these_properties_may_intersect = match (prop_1, prop_2) {
@@ -125,13 +132,7 @@ impl Key {
                         => left == right,
                     (KeyProperty::Namespace(left), KeyProperty::Namespace(right))
                         => left == right,
-                    (KeyProperty::VirtualType(left), KeyProperty::VirtualType(right))
-                        => left == right,
-                    
-                    (KeyProperty::VirtualType(v_type), KeyProperty::Code(code))
-                    | (KeyProperty::Code(code), KeyProperty::VirtualType(v_type))
-                        => *v_type == code.virtual_ev_type(),
-                    
+
                     (KeyProperty::Value(left), KeyProperty::Value(right))
                     | (KeyProperty::PreviousValue(left), KeyProperty::PreviousValue(right))
                         => left.intersects_with(right),
@@ -139,6 +140,7 @@ impl Key {
                     (KeyProperty::Code(_), _)
                     | (KeyProperty::Domain(_), _)
                     | (KeyProperty::Namespace(_), _)
+                    | (KeyProperty::Type(_), _)
                     | (KeyProperty::VirtualType(_), _)
                     | (KeyProperty::Value(_), _)
                     | (KeyProperty::PreviousValue(_), _)
@@ -164,6 +166,8 @@ enum KeyProperty {
     Value(Range),
     PreviousValue(Range),
     /// Only valid for filter keys.
+    Type(EventType),
+    /// Only valid for filter keys.
     VirtualType(VirtualEventType),
     /// Designates that the value of the output event should be a given factor of
     /// its input value. Only valid for mask keys.
@@ -179,6 +183,7 @@ impl KeyProperty {
         match *self {
             KeyProperty::Code(value) => event.code == value,
             KeyProperty::Domain(value) => event.domain == value,
+            KeyProperty::Type(value) => event.code.ev_type() == value,
             KeyProperty::VirtualType(value) => event.code.virtual_ev_type() == value,
             KeyProperty::Namespace(value) => event.namespace == value,
             KeyProperty::Value(range) => range.contains(event.value),
@@ -198,6 +203,7 @@ impl KeyProperty {
         match *self {
             KeyProperty::Code(value) => code == value,
             KeyProperty::Domain(value) => domain == value,
+            KeyProperty::Type(value) => value == code.ev_type(),
             KeyProperty::VirtualType(value) => value.ev_type() == code.ev_type(),
             KeyProperty::Namespace(_)
             | KeyProperty::Value(_)
@@ -229,7 +235,7 @@ impl KeyProperty {
                     - (event.previous_value as f64 * factor).floor()
                 ) as i32;
             }
-            KeyProperty::VirtualType(_) => {
+            KeyProperty::Type(_) | KeyProperty::VirtualType(_) => {
                 if cfg!(debug_assertions) {
                     panic!("Cannot change the event type of an event. Panicked during event mapping.");
                 } else {
@@ -250,6 +256,7 @@ impl KeyProperty {
         match *self {
             KeyProperty::Code(value) => (cap.code == value).into(),
             KeyProperty::Domain(value) => (cap.domain == value).into(),
+            KeyProperty::Type(value) => (cap.code.ev_type() == value).into(),
             KeyProperty::VirtualType(value) => (cap.code.virtual_ev_type() == value).into(),
             KeyProperty::Namespace(value) => (cap.namespace == value).into(),
             KeyProperty::Value(range) => {
@@ -291,7 +298,7 @@ impl KeyProperty {
                 let min = std::cmp::min(bound_1, bound_2);
                 cap.value_range = Range { max, min };
             },
-            KeyProperty::VirtualType(_) => {
+            KeyProperty::Type(_) | KeyProperty::VirtualType(_) => {
                 if cfg!(debug_assertions) {
                     panic!("Cannot change the event type of an event. Panicked during capability propagation.");
                 } else {
