@@ -117,6 +117,7 @@ impl Key {
 
     /// Returns true if some event may match both key_1 and key_2.
     pub fn intersects_with(&self, other: &Key) -> bool {
+        // Tests interaction between (Type, VirtualType) and (Type, Code).
         if let (Some(ev_type_1), Some(ev_type_2)) = (self.requires_event_type(), other.requires_event_type()) {
             if ev_type_1 != ev_type_2 {
                 return false;
@@ -132,6 +133,12 @@ impl Key {
                         => left == right,
                     (KeyProperty::Namespace(left), KeyProperty::Namespace(right))
                         => left == right,
+
+                    (KeyProperty::VirtualType(left), KeyProperty::VirtualType(right))
+                        => left == right,
+                    (KeyProperty::VirtualType(v_type), KeyProperty::Code(code))
+                    | (KeyProperty::Code(code), KeyProperty::VirtualType(v_type))
+                        => *v_type == code.virtual_ev_type(),
 
                     (KeyProperty::Value(left), KeyProperty::Value(right))
                     | (KeyProperty::PreviousValue(left), KeyProperty::PreviousValue(right))
@@ -476,12 +483,12 @@ fn interpret_key(key_str: &str, parser: &KeyParser) -> Result<Key, ArgumentError
                 return Err(ArgumentError::new(format!("No event code provided for the key \"{}\".", key_str)));
             }
 
-            let virtual_type = match event_type_name {
-                VirtualEventType::KEY => VirtualEventType::Key,
-                VirtualEventType::BUTTON => VirtualEventType::Button,
-                _ => VirtualEventType::Other(event_type),
+            let property = match event_type_name {
+                VirtualEventType::KEY => KeyProperty::VirtualType(VirtualEventType::Key),
+                VirtualEventType::BUTTON => KeyProperty::VirtualType(VirtualEventType::Button),
+                _ => KeyProperty::Type(event_type),
             };
-            key.add_property(KeyProperty::VirtualType(virtual_type));
+            key.add_property(property);
         },
         Some(event_code_name) => {
             let event_code = ecodes::event_code(event_type_name, event_code_name)?;
@@ -621,6 +628,9 @@ fn unittest_intersection() {
         ("key:a:1..2@foo", "@foo"),
         ("", ""),
         ("", "key:a:1..2@foo"),
+        ("%1", "key:left"),
+        ("%1", "btn:left"),
+        ("%1", ""),
     ];
     let expected_not_to_intersect = [
         ("key:a", "key:b"),
@@ -630,12 +640,15 @@ fn unittest_intersection() {
         ("key:a@foo", "@bar"),
         ("key:a:1", "key:a:2"),
         ("key:a:1..2", "key:a:0..2"),
+        ("%1", "abs:x"),
     ];
 
     for (key_1, key_2) in expected_to_intersect {
         assert!(parser.parse(key_1).unwrap().intersects_with(&parser.parse(key_2).unwrap()));
+        assert!(parser.parse(key_2).unwrap().intersects_with(&parser.parse(key_1).unwrap()));
     }
     for (key_1, key_2) in expected_not_to_intersect {
         assert!(! parser.parse(key_1).unwrap().intersects_with(&parser.parse(key_2).unwrap()));
+        assert!(! parser.parse(key_2).unwrap().intersects_with(&parser.parse(key_1).unwrap()));
     }
 }

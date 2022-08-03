@@ -160,15 +160,35 @@ pub fn is_abs_mt(code: EventCode) -> bool {
 /// Parses an event type by name like "key".
 pub fn event_type(name: &str) -> Result<EventType, ArgumentError> {
     if let Some(&ev_type) = EVENT_TYPES.get(name) {
+        return Ok(ev_type);
+    }
+
+    let name_numstr = match name.strip_prefix('%') {
+        Some(string) => string,
+        None => return Err(ArgumentError::new(format!(
+            "Unknown event type \"{}\".", name
+        ))),
+    };
+
+    let type_u16: u16 = match name_numstr.parse() {
+        Ok(code) => code,
+        Err(_) => return Err(ArgumentError::new(format!(
+            "Cannot interpret \"{}\" as a nonnegative integer.", name_numstr
+        ))),
+    };
+
+    // TODO: should this (and similar for codes) be a strict inequality?
+    if type_u16 <= EV_MAX {
+        // TODO: Verify existence of this event type.
+        let ev_type = unsafe { EventType::new(type_u16) };
         Ok(ev_type)
     } else {
         Err(ArgumentError::new(format!(
-            "Unknown event type \"{}\".", name
+            "Event code {} exceeds the maximum value of {} defined by EV_MAX.",
+            type_u16, EV_MAX
         )))
     }
 }
-
-// TODO: How does this interact with event-type maps like "--map key" or "--map btn"?
 
 /// Parses an event code by name like "key","a" or by name-number pair like "key","%35".
 pub fn event_code(type_name: &str, code_name: &str) -> Result<EventCode, ArgumentError> {
