@@ -414,6 +414,8 @@ pub fn resembles_key(key_str: &str) -> bool {
     if key_str.starts_with('/') {
         false
     } else {
+        let before_equals_part = utils::split_once(key_str, "=").0;
+
         // Check if it is an actual key.
         KeyParser {
             default_value: "",
@@ -427,8 +429,9 @@ pub fn resembles_key(key_str: &str) -> bool {
         }.parse(key_str).is_ok()
         // Otherwise, check if it contains some of the key-like characters.
         // No flag or clause name should contain a : or @ to make sure they're not mistaken for keys.
-        || utils::split_once(key_str, "=").0.contains(':')
-        || utils::split_once(key_str, "=").0.contains('@')
+        || before_equals_part.contains(':')
+        || before_equals_part.contains('@')
+        || before_equals_part.contains('%')
     }
 }
 

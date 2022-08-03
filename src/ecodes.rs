@@ -40,7 +40,11 @@ lazy_static! {
     pub static ref EVENT_CODES: HashMap<(String, String), EventCode> = {
         let mut result = HashMap::new();
         for (ev_type_name, &ev_type) in EVENT_TYPES.iter() {
-            let code_max = event_type_get_max(ev_type);
+            let code_max = match event_type_get_max(ev_type) {
+                Some(max) => max,
+                None => continue,
+            };
+
             for code in 0 ..= code_max {
                 if let Some(raw_code_name) = unsafe { parse_cstr(libevdev::libevdev_event_code_get_name(ev_type.into(), code as u32)) } {
                     let (code_type_name, code_name_opt) = split_once(&raw_code_name, "_");
@@ -113,9 +117,9 @@ lazy_static! {
     };
 }
 
-pub fn event_type_get_max(ev_type: EventType) -> u16 {
+pub fn event_type_get_max(ev_type: EventType) -> Option<u16> {
     let result = unsafe { libevdev::libevdev_event_type_get_max(ev_type.into()) };
-    result.try_into().unwrap_or(u16::MAX)
+    result.try_into().ok()
 }
 
 pub fn type_name(ev_type: EventType) -> Cow<'static, str> {
@@ -179,12 +183,19 @@ pub fn event_type(name: &str) -> Result<EventType, ArgumentError> {
 
     // TODO: should this (and similar for codes) be a strict inequality?
     if type_u16 <= EV_MAX {
-        // TODO: Verify existence of this event type.
-        let ev_type = unsafe { EventType::new(type_u16) };
-        Ok(ev_type)
+        for &ev_type in EVENT_TYPES.values() {
+            if type_u16 == ev_type.into() {
+                return Ok(ev_type);
+            }
+        }
+
+        Err(ArgumentError::new(format!(
+            "No event type with numeric value {} exists.",
+            type_u16
+        )))
     } else {
         Err(ArgumentError::new(format!(
-            "Event code {} exceeds the maximum value of {} defined by EV_MAX.",
+            "Event type {} exceeds the maximum value of {} defined by EV_MAX.",
             type_u16, EV_MAX
         )))
     }
@@ -206,7 +217,12 @@ pub fn event_code(type_name: &str, code_name: &str) -> Result<EventCode, Argumen
     };
 
     let ev_type = event_type(type_name)?;
-    let ev_type_max = event_type_get_max(ev_type);
+    let ev_type_max = match event_type_get_max(ev_type) {
+        Some(max) => max,
+        None => return Err(ArgumentError::new(format!(
+            "No valid event codes exist for event type {}.", type_name,
+        ))),
+    };
     let code_u16: u16 = match code_name_numstr.parse() {
         Ok(code) => code,
         Err(_) => return Err(ArgumentError::new(format!(
