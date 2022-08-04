@@ -803,6 +803,38 @@ def unittest_type():
         },
     )
 
+def unittest_bynumber():
+    run_unittest(
+        ["--input", "/dev/input/by-id/unittest-bynumber-in", "grab=force",
+        "--map", f"key:%{e.KEY_A}", f"key:%{e.KEY_B}",
+        "--map", f"btn:%{e.BTN_LEFT}", f"key:%{e.KEY_C}",
+        "--map", f"%{e.EV_KEY}:%{e.BTN_RIGHT}", f"abs:%{e.ABS_X}",
+        "--output", f"%{e.EV_KEY}", "create-link=/dev/input/by-id/unittest-bynumber-out-1",
+        "--output", f"%{e.EV_ABS}", "create-link=/dev/input/by-id/unittest-bynumber-out-2"],
+        {
+            "/dev/input/by-id/unittest-bynumber-in": [
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_A, 0),
+                (e.EV_KEY, e.BTN_LEFT, 1),
+                (e.EV_KEY, e.BTN_LEFT, 0),
+                (e.EV_KEY, e.BTN_RIGHT, 1),
+                (e.EV_KEY, e.BTN_RIGHT, 0),
+            ],
+        },
+        {
+            "/dev/input/by-id/unittest-bynumber-out-1": [
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_B, 0),
+                (e.EV_KEY, e.KEY_C, 1),
+                (e.EV_KEY, e.KEY_C, 0),
+            ],
+            "/dev/input/by-id/unittest-bynumber-out-2": [
+                (e.EV_ABS, e.ABS_X, 1),
+                (e.EV_ABS, e.ABS_X, 0),
+            ],
+        },
+    )
+
 def unittest_merge():
     run_unittest(
         ["--input", "/dev/input/by-id/unittest-merge-in-1", "domain=in1", "grab=force",
@@ -1422,6 +1454,7 @@ unittest_order()
 unittest_namespace()
 unittest_consistency()
 unittest_type()
+unittest_bynumber()
 unittest_merge()
 unittest_relative()
 unittest_delay()
