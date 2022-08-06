@@ -77,7 +77,7 @@ lazy_static! {
         result
     };
 
-    /// For each _valid_ event code (EV_KEY, code) holds: the name of this code starts with
+    /// For each _named_ event code (EV_KEY, code) holds: the name of this code starts with
     /// btn: if and only if it is contained in one of the following ranges.
     ///
     /// This is precomputed for performance reasons: it provides about 30% speedup in scripts
@@ -161,7 +161,7 @@ pub fn is_abs_mt(code: EventCode) -> bool {
     code.ev_type().is_abs() && event_name(code).starts_with("abs:mt_")
 }
 
-/// Parses an event type by name like "key".
+/// Parses an event type by name like "key" or number like "%1".
 pub fn event_type(name: &str) -> Result<EventType, ArgumentError> {
     if let Some(&ev_type) = EVENT_TYPES.get(name) {
         return Ok(ev_type);
