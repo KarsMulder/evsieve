@@ -7,8 +7,6 @@ use crate::ecodes;
 pub type EventValue = i32;
 pub type Channel = (EventCode, Domain);
 
-/// Upholds invariant: the wrapped u16 must correspond to a valid event type.
-/// Creating an EventType with a value not known to the kernel is undefined behaviour.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub struct EventType(u16);
 
@@ -34,9 +32,8 @@ impl EventType {
 }
 
 impl EventType {
-    /// # Safety
-    /// The value must be a valid event type.
-    pub const unsafe fn new(value: u16) -> EventType {
+    pub const fn new(value: u16) -> EventType {
+        debug_assert!(value <= ecodes::EV_MAX);
         EventType(value)
     }
 }
@@ -60,9 +57,7 @@ impl EventCode {
         code: ecodes::MSC_SCAN,
     };
 
-    /// # Safety
-    /// The code must be a valid code for this type.
-    pub const unsafe fn new(ev_type: EventType, code: u16) -> EventCode {
+    pub const fn new(ev_type: EventType, code: u16) -> EventCode {
         EventCode { ev_type, code }
     }
 

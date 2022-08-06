@@ -7,10 +7,10 @@ use crate::range::Range;
 use crate::ecodes;
 use crate::bindings::libevdev;
 
-const EV_REP_CODES: &[EventCode] = unsafe {&[
+const EV_REP_CODES: &[EventCode] = &[
     EventCode::new(EventType::REP, ecodes::REP_DELAY),
     EventCode::new(EventType::REP, ecodes::REP_PERIOD),
-]};
+];
 
 /// Represents a map that maps an input domain to a list of capabilities which that domain is expected
 /// to be able to produce now or in the future.

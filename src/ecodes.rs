@@ -24,7 +24,7 @@ lazy_static! {
                     None => continue,
                 };
                 
-                unsafe { result.insert(name, EventType::new(ev_type as u16)) };
+                result.insert(name, EventType::new(ev_type as u16));
             }
         }
 
@@ -58,7 +58,7 @@ lazy_static! {
                         Some(name_uppercase) => name_uppercase.to_lowercase(),
                         None => continue,
                     };
-                    let event_code = unsafe { EventCode::new(ev_type, code as u16) };
+                    let event_code = EventCode::new(ev_type, code as u16);
 
                     result.insert((ev_type_name.to_string(), code_name), event_code);
                 }
@@ -231,9 +231,7 @@ pub fn event_code(type_name: &str, code_name: &str) -> Result<EventCode, Argumen
     };
 
     if code_u16 <= ev_type_max {
-        // TODO: This is obviously not safe. Consider making the requirements of what is
-        // considered safe for EventType::new() looser.
-        let code = unsafe { EventCode::new(ev_type, code_u16) };
+        let code = EventCode::new(ev_type, code_u16);
         if ! EVENT_NAMES.contains_key(&code) {
             crate::utils::warn_once(format!(
                 "Warning: no event code {}:{} is known to exist. Working with such events may yield unexpected results.", type_name, code_name
@@ -273,9 +271,7 @@ pub const MSC_SCAN: u16 = libevdev::MSC_SCAN as u16;
 fn unittest() {
     // Since the is_abs_mt function depends on the user-facing representation we use for events,
     // this test makes sure it doesn't accidentally break if we change out naming scheme.
-    unsafe {
-        assert!(is_abs_mt(EventCode::new(EventType::ABS, 0x35)));
-        assert!(!is_abs_mt(EventCode::new(EventType::ABS, 0x01)));
-        assert!(!is_abs_mt(EventCode::new(EventType::KEY, 0x35)));
-    }
+    assert!(is_abs_mt(EventCode::new(EventType::ABS, 0x35)));
+    assert!(!is_abs_mt(EventCode::new(EventType::ABS, 0x01)));
+    assert!(!is_abs_mt(EventCode::new(EventType::KEY, 0x35)));
 }
