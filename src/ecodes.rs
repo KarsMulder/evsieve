@@ -267,6 +267,22 @@ pub const REP_DELAY: u16 = libevdev::REP_DELAY as u16;
 pub const REP_PERIOD: u16 = libevdev::REP_PERIOD as u16;
 pub const MSC_SCAN: u16 = libevdev::MSC_SCAN as u16;
 
+/// Returns an iterator over all event types that fall within EV_MAX,
+/// whether those types are named or not.
+/// TODO: Should EV_MAX itself be checked as well?
+pub fn event_types() -> impl Iterator<Item=EventType> {
+    (0 ..= EV_MAX).map(EventType::new)
+}
+
+/// Returns an iterator over all event codes that fall within their
+/// types maximum, whether those types are named or not.
+pub fn event_codes_for(ev_type: EventType) -> impl Iterator<Item=EventCode> {
+    // I tested: it is possible to write events like key:max to event devices.
+    event_type_get_max(ev_type).into_iter().flat_map(move |max|
+        (0 ..= max).map(move |code| EventCode::new(ev_type, code))
+    )
+}
+
 #[test]
 fn unittest() {
     // Since the is_abs_mt function depends on the user-facing representation we use for events,

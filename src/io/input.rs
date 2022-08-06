@@ -288,16 +288,16 @@ unsafe impl Send for InputDevice {}
 /// # Safety
 /// Exhibits undefined behaviour if evdev is not a valid pointer.
 unsafe fn get_capabilities(evdev: *mut libevdev::libevdev) -> Capabilities {
-    let event_types = ecodes::EVENT_TYPES.values().cloned();
-    let event_codes = ecodes::EVENT_CODES.values().cloned();
+    let event_types = ecodes::event_types();
     
-    let supported_event_types: HashSet<EventType> = event_types.filter(|&ev_type| {
+    let supported_event_types = event_types.filter(|&ev_type| {
         libevdev::libevdev_has_event_type(evdev, ev_type.into()) == 1
-    }).collect();
+    });
 
-    let supported_event_codes: HashSet<EventCode> = event_codes
-        .filter(|&code| supported_event_types.contains(&code.ev_type()))
-        .filter(|&code| {
+    let supported_event_codes: HashSet<EventCode> =
+        supported_event_types
+        .flat_map(ecodes::event_codes_for)
+        .filter(|code| {
             libevdev::libevdev_has_event_code(evdev, code.ev_type().into(), code.code() as u32) == 1
         }).collect();
     
