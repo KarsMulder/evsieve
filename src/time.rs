@@ -6,12 +6,12 @@
 //! time module.
 
 use std::mem::MaybeUninit;
-use std::convert::{TryFrom};
-use std::cmp::Ordering;
+use std::convert::TryFrom;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Instant {
-    timespec: libc::timespec,
+    // Nanoseconds since some arbitrary start point.
+    nsec: i128,
 }
 
 impl Instant {
@@ -30,61 +30,36 @@ impl Instant {
     }
 
     pub fn checked_duration_since(self, other: Instant) -> Option<Duration> {
-        let mut sec = self.timespec.tv_sec.checked_sub(other.timespec.tv_sec)?;
-        let mut nsec = self.timespec.tv_nsec.checked_sub(other.timespec.tv_nsec)?;
-        if nsec < 0 {
-            sec -= 1;
-            nsec += NANOSECONDS_PER_SECOND_I64;
-        }
+        // The checked part referst to making sure that self is after other.
+        // Panic in case of integer overflow.
+        let duration = self.nsec.checked_sub(other.nsec).expect("Integer overflow while handling time.");
 
         Some(Duration {
-            // Casting to u64 makes sure that this duration is nonnegative.
-            sec: u64::try_from(sec).ok()?,
-            nsec: u64::try_from(nsec).ok()?,
+            // Casting to u128 makes this function return None if other happens after self.
+            nsec: u128::try_from(duration).ok()?
         })
     }
 }
 
 impl From<libc::timespec> for Instant {
     fn from(timespec: libc::timespec) -> Self {
-        Self { timespec }
+        Self {
+            nsec: NANOSECONDS_PER_SECOND * i128::from(timespec.tv_sec)
+                  + i128::from(timespec.tv_nsec)
+        }
     }
 }
 
-impl std::cmp::PartialEq for Instant {
-    fn eq(&self, other: &Self) -> bool {
-        self.timespec.tv_sec == other.timespec.tv_sec
-            && self.timespec.tv_nsec == other.timespec.tv_sec
-    }
-}
-impl std::cmp::Eq for Instant {}
-
-impl std::cmp::PartialOrd for Instant {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-impl std::cmp::Ord for Instant {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.timespec.tv_sec.cmp(&other.timespec.tv_sec)
-            .then(self.timespec.tv_nsec.cmp(&other.timespec.tv_nsec))
-    }
-}
-
-const NANOSECONDS_PER_SECOND_I64: i64 = 1_000_000_000;
-const NANOSECONDS_PER_SECOND_U64: u64 = 1_000_000_000;
+const NANOSECONDS_PER_SECOND: i128 = 1_000_000_000;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Duration {
-    sec: u64,
-    nsec: u64,
+    nsec: u128,
 }
 
 impl Duration {
     pub fn from_secs(sec: u64) -> Duration {
-        Duration {
-            sec, nsec: 0
-        }
+        Duration::from_nanos(sec * 1_000_000_000)
     }
 
     pub fn from_millis(msec: u64) -> Duration {
@@ -96,31 +71,18 @@ impl Duration {
     }
 
     pub fn from_nanos(nsec: u64) -> Duration {
-        Duration {
-            sec: nsec / NANOSECONDS_PER_SECOND_U64,
-            nsec: nsec % NANOSECONDS_PER_SECOND_U64,
-        }
+        Duration { nsec: nsec.into() }
     }
 
-    pub fn as_millis(self) -> u64 {
-        self.nsec / 1_000_000 + self.sec * 1_000
+    pub fn as_millis(self) -> u128 {
+        self.nsec / 1_000_000
     }
 }
 
 impl std::ops::Add<Duration> for Instant {
     type Output = Instant;
     fn add(self, rhs: Duration) -> Self::Output {
-        let mut sum_nsec = self.timespec.tv_nsec + i64::try_from(rhs.nsec)
-            .expect("Integer overflow during time handling.");
-        let mut sum_sec = self.timespec.tv_sec + i64::try_from(rhs.sec)
-            .expect("Integer overflow during time handling.");
-
-        sum_sec += sum_nsec / NANOSECONDS_PER_SECOND_I64; // Floor division
-        sum_nsec %= NANOSECONDS_PER_SECOND_I64;
-        
-        libc::timespec {
-            tv_sec: sum_sec,
-            tv_nsec: sum_nsec
-        }.into()
+        let nsec = self.nsec + i128::try_from(rhs.nsec).unwrap();
+        Instant { nsec }
     }
 }
