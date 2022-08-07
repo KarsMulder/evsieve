@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use std::time::{Instant, Duration};
-use std::num::NonZeroI32;
+use crate::time::{Instant, Duration};
 use std::convert::TryInto;
+use std::num::NonZeroI32;
 
 /// Whenever a wakeup is scheduled, you get a `Token` back. At the desired time, a wakeup()
 /// call with the provided token shall be made.

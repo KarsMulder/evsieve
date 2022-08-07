@@ -8,7 +8,7 @@ use crate::key::{Key, KeyParser};
 use crate::event::Namespace;
 use crate::arguments::lib::ComplexArgGroup;
 use std::collections::HashMap;
-use std::time::Duration;
+use crate::time::Duration;
 
 /// The KeyParser that is used to parse Hook keys.
 pub(super) const PARSER: KeyParser = KeyParser {

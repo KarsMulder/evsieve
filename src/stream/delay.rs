@@ -3,7 +3,7 @@
 use crate::loopback::{LoopbackHandle, Token};
 use crate::event::Event;
 use crate::key::Key;
-use std::time::Duration;
+use crate::time::Duration;
 
 // TODO: it appears there is a function libevdev_set_clock_id() which can be used to make
 // event devices report their event times on a monotonic clock. This may be useful to

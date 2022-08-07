@@ -7,7 +7,7 @@ use crate::subprocess;
 use crate::loopback;
 use crate::loopback::LoopbackHandle;
 use crate::capability::{Capability, CapMatch};
-use std::time::Duration;
+use crate::time::Duration;
 use std::collections::HashSet;
 
 // TODO: Add a unittest for a hook with multiple send-keys.

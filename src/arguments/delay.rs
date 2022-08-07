@@ -4,7 +4,7 @@ use crate::error::ArgumentError;
 use crate::arguments::lib::ComplexArgGroup;
 use crate::key::{Key, KeyParser};
 use crate::stream::delay::Delay;
-use std::time::Duration;
+use crate::time::Duration;
 
 /// Represents a --delay argument.
 pub(super) struct DelayArg {

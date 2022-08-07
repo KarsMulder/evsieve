@@ -6,9 +6,10 @@
 //! time module.
 
 use std::mem::MaybeUninit;
-use std::convert::TryFrom;
+use std::convert::{TryFrom};
 use std::cmp::Ordering;
 
+#[derive(Clone, Copy)]
 pub struct Instant {
     timespec: libc::timespec,
 }
@@ -26,6 +27,21 @@ impl Instant {
 
             timespec.assume_init().into()
         }
+    }
+
+    pub fn checked_duration_since(self, other: Instant) -> Option<Duration> {
+        let mut sec = self.timespec.tv_sec.checked_sub(other.timespec.tv_sec)?;
+        let mut nsec = self.timespec.tv_nsec.checked_sub(other.timespec.tv_nsec)?;
+        if nsec < 0 {
+            sec -= 1;
+            nsec += NANOSECONDS_PER_SECOND_I64;
+        }
+
+        Some(Duration {
+            // Casting to u64 makes sure that this duration is nonnegative.
+            sec: u64::try_from(sec).ok()?,
+            nsec: u64::try_from(nsec).ok()?,
+        })
     }
 }
 
@@ -58,25 +74,46 @@ impl std::cmp::Ord for Instant {
 const NANOSECONDS_PER_SECOND_I64: i64 = 1_000_000_000;
 const NANOSECONDS_PER_SECOND_U64: u64 = 1_000_000_000;
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Duration {
+    sec: u64,
     nsec: u64,
 }
 
 impl Duration {
+    pub fn from_secs(sec: u64) -> Duration {
+        Duration {
+            sec, nsec: 0
+        }
+    }
+
+    pub fn from_millis(msec: u64) -> Duration {
+        Duration::from_nanos(msec * 1_000_000)
+    }
+
+    pub fn from_micros(microsec: u64) -> Duration {
+        Duration::from_nanos(microsec * 1_000)
+    }
+
     pub fn from_nanos(nsec: u64) -> Duration {
-        Duration { nsec }
+        Duration {
+            sec: nsec / NANOSECONDS_PER_SECOND_U64,
+            nsec: nsec % NANOSECONDS_PER_SECOND_U64,
+        }
+    }
+
+    pub fn as_millis(self) -> u64 {
+        self.nsec / 1_000_000 + self.sec * 1_000
     }
 }
 
 impl std::ops::Add<Duration> for Instant {
     type Output = Instant;
     fn add(self, rhs: Duration) -> Self::Output {
-        let dur_nsec = rhs.nsec % NANOSECONDS_PER_SECOND_U64;
-        let dur_sec = rhs.nsec / NANOSECONDS_PER_SECOND_U64;
-
-        // Unwrap okay due to the division/modulo operators above.
-        let mut sum_nsec = self.timespec.tv_nsec + i64::try_from(dur_nsec).unwrap();
-        let mut sum_sec = self.timespec.tv_sec + i64::try_from(dur_sec).unwrap();
+        let mut sum_nsec = self.timespec.tv_nsec + i64::try_from(rhs.nsec)
+            .expect("Integer overflow during time handling.");
+        let mut sum_sec = self.timespec.tv_sec + i64::try_from(rhs.sec)
+            .expect("Integer overflow during time handling.");
 
         sum_sec += sum_nsec / NANOSECONDS_PER_SECOND_I64; // Floor division
         sum_nsec %= NANOSECONDS_PER_SECOND_I64;
