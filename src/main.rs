@@ -33,6 +33,7 @@ pub mod daemon;
 pub mod loopback;
 pub mod stream;
 pub mod control_fifo;
+pub mod time;
 
 #[cfg(feature = "auto-scan")]
 pub mod scancodes;
