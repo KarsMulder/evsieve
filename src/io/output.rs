@@ -159,9 +159,23 @@ pub struct OutputDevice {
     allows_repeat: bool,
     /// The capabilities of this output device.
     capabilities: Capabilities,
+    /// The minimum and maximum for an ABS event code, if the event needs to be inverted.
+    inverted_abs_limits: std::collections::HashMap<u32, (i32, i32)>,
 }
 
 impl OutputDevice {
+    /// uinput only accepts an ABS event where max > min but devices can violate this.
+    pub fn ordered_abs_info(abs_info: crate::capability::AbsInfo) -> crate::capability::AbsInfo {
+        let min_value = std::cmp::min(abs_info.min_value, abs_info.max_value);
+        let max_value = std::cmp::max(abs_info.min_value, abs_info.max_value);
+
+        return crate::capability::AbsInfo {
+            min_value,
+            max_value,
+            meta: abs_info.meta,
+        };
+    }
+
     pub fn with_name_and_capabilities(name_str: String, caps: Capabilities) -> Result<OutputDevice, RuntimeError> {
         unsafe {
             let dev = libevdev::libevdev_new();
@@ -170,6 +184,8 @@ impl OutputDevice {
             let bytes = cstr.as_bytes_with_nul();
             let ptr = bytes.as_ptr();
             let name = ptr as *const libc::c_char;
+
+            let mut inverted_abs_limits = std::collections::HashMap::new();
 
             libevdev::libevdev_set_name(dev, name);
 
@@ -193,9 +209,15 @@ impl OutputDevice {
             for code in &caps.codes {
                 let res = match code.ev_type() {
                     EventType::ABS => {
-                        let abs_info = caps.abs_info.get(code)
+                        let raw_abs_info = caps.abs_info.get(code)
                             .ok_or_else(|| InternalError::new("Cannot create uinput device: device has absolute axis without associated capabilities."))?;
-                        let libevdev_abs_info: libevdev::input_absinfo = (*abs_info).into();
+                        let abs_info = Self::ordered_abs_info(*raw_abs_info);
+
+                        if raw_abs_info.min_value != abs_info.min_value || raw_abs_info.max_value != abs_info.max_value {
+                            inverted_abs_limits.insert(code.code() as u32, (abs_info.min_value, abs_info.max_value));
+                        }
+
+                        let libevdev_abs_info: libevdev::input_absinfo = abs_info.into();
                         let libevdev_abs_info_ptr = &libevdev_abs_info as *const libevdev::input_absinfo;
                         libevdev::libevdev_enable_event_code(
                             dev, code.ev_type().into(), code.code() as u32, libevdev_abs_info_ptr as *const libc::c_void)
@@ -248,13 +270,19 @@ impl OutputDevice {
                 symlink: None,
                 allows_repeat: true,
                 capabilities: caps,
+                inverted_abs_limits,
             })
         }
     }
 
-    fn write(&mut self, ev_type: u32, code: u32, value: i32) {
+    fn write(&mut self, ev_type: u32, code: u32, mut value: i32) {
         if ! self.allows_repeat && ev_type == ecodes::EV_KEY.into() && value == 2 {
             return;
+        }
+        if ev_type == ecodes::EV_ABS.into() {
+            if let Some((minimum, maximum)) = self.inverted_abs_limits.get(&code) {
+                value = maximum - (value - minimum);
+            }
         }
         let res = unsafe { libevdev::libevdev_uinput_write_event(self.device, ev_type, code, value) };
         if res < 0 {
