@@ -25,6 +25,7 @@ pub mod signal;
 pub mod utils;
 pub mod error;
 pub mod capability;
+pub mod affine;
 pub mod range;
 pub mod ecodes;
 pub mod predevice;
