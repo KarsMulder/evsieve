@@ -106,8 +106,8 @@ impl From<AbsInfo> for libevdev::input_absinfo {
             flat: abs_info.meta.flat,
             fuzz: abs_info.meta.fuzz,
             resolution: abs_info.meta.resolution,
-            minimum: abs_info.min_value,
-            maximum: abs_info.max_value,
+            minimum: std::cmp::min(abs_info.min_value, abs_info.max_value),
+            maximum: std::cmp::max(abs_info.min_value, abs_info.max_value),
             value: abs_info.meta.value,
         }
     }
