@@ -86,6 +86,16 @@ impl From<i32> for ExtendedInteger {
     }
 }
 
+impl From<ExtendedInteger> for f64 {
+    fn from(value: ExtendedInteger) -> Self {
+        match value {
+            ExtendedInteger::Discrete(val) => val.into(),
+            ExtendedInteger::PositiveInfinity => Self::INFINITY,
+            ExtendedInteger::NegativeInfinity => Self::NEG_INFINITY,
+        }
+    }
+}
+
 impl PartialOrd for ExtendedInteger {
     fn partial_cmp(&self, other: &ExtendedInteger) -> Option<Ordering> {
         Some(self.cmp(other))
@@ -150,17 +160,25 @@ pub struct Range {
 }
 
 impl Range {
-    pub const fn new(min: Option<i32>, max: Option<i32>) -> Range {
+    pub fn new(min: impl Into<Option<i32>>, max: impl Into<Option<i32>>) -> Range {
         Range {
-            min: match min {
+            min: match min.into() {
                 Some(value) => ExtendedInteger::Discrete(value),
                 None => ExtendedInteger::NegativeInfinity,
             },
-            max: match max {
+            max: match max.into() {
                 Some(value) => ExtendedInteger::Discrete(value),
                 None => ExtendedInteger::PositiveInfinity,
             },
         }
+    }
+
+    /// Returns a range that lies between the two provided integers. The two integers
+    /// do not need to be provided in ascending order.
+    pub fn spanned_between(a: ExtendedInteger, b: ExtendedInteger) -> Range {
+        let max = std::cmp::max(a, b);
+        let min = std::cmp::min(a, b);
+        Range { min, max }
     }
 
     /// Checks whether this Range contains a value.

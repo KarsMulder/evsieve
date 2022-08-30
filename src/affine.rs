@@ -6,36 +6,89 @@
 use crate::error::ArgumentError;
 use crate::event::Event;
 use crate::capability::Capability;
-use crate::range::Range;
+use crate::range::{Range, ExtendedInteger};
 
 pub struct AffineFactor {
-    components: Vec<Component>,
+    absolute: f64,
+    relative: f64,
+    addition: f64,
 }
 
 impl AffineFactor {
     pub fn merge(&self, mut event: Event) -> Event {
-        let mut new_value: f64 = 0.0;
-        for component in &self.components {
-            match component.variable {
-                // TODO: Think some more about the following rounding method.
-                Variable::One => new_value += component.factor,
-                Variable::Value => new_value += component.factor * f64::from(event.value),
-                Variable::Delta => {
-                    new_value += (f64::from(event.value) * component.factor).floor()
-                                 - (f64::from(event.previous_value) * component.factor).floor();
-                },
-            }
-        }
-        event.value = new_value.trunc() as i32;
+        let absolute_factor = self.absolute * f64::from(event.value);
+        // The following rounding is specially designed to avoid accumulating rounding
+        // errors in cases like `--map abs:x rel:x:d`.
+        let relative_factor =
+            (f64::from(event.value) * self.relative).floor()
+            - (f64::from(event.previous_value) * self.relative).floor();
+        
+        event.value = (
+            (absolute_factor + self.addition).trunc() + relative_factor
+        ) as i32;
 
         event
     }
 
     pub fn merge_cap(&self, mut cap: Capability) -> Capability {
-        // TODO: CRITICAL: Properly infering the range is still unimplemented.
-        cap.value_range = Range::new(None, None);
+        let min: f64 = cap.value_range.min.into();
+        let max: f64 = cap.value_range.max.into();
+
+        let trunc_boundaries = (
+            (min * self.absolute + self.addition).trunc(),
+            (max * self.absolute + self.addition).trunc(),
+        );
+
+        let span = max - min;
+        let relative_span = if self.relative == 0.0 {
+            0.0
+        } else {
+            (self.relative * span).floor()
+        };
+
+        // In case the relative factor is nonzero and the range is unbounded
+        // on one end, then the following list will contain NaNs. In that case,
+        // the range is everything.
+        let possible_boundaries: [f64; 4] = [
+            trunc_boundaries.0 - relative_span, trunc_boundaries.0 + relative_span,
+            trunc_boundaries.1 - relative_span, trunc_boundaries.1 + relative_span,
+        ];
+
+        let new_range = if IntoIterator::into_iter(possible_boundaries).any(f64::is_nan) {
+            Range::new(None, None)
+        } else {
+            let lower_end = IntoIterator::into_iter(possible_boundaries).reduce(f64::min);
+            let upper_end = IntoIterator::into_iter(possible_boundaries).reduce(f64::max);
+    
+            Range::spanned_between(
+                to_extended_or(lower_end, ExtendedInteger::NegativeInfinity),
+                to_extended_or(upper_end, ExtendedInteger::PositiveInfinity),
+            )
+        };
+        
+        cap.value_range = new_range;
         cap
     }
+}
+
+/// Helper function for AffineFactor::merge_cap().
+fn to_extended_or(source: Option<f64>, default: ExtendedInteger) -> ExtendedInteger {
+    let source = match source {
+        Some(value) => value,
+        None => return default,
+    };
+
+    if source.is_nan() {
+        return default;
+    }
+    if source == f64::INFINITY {
+        return ExtendedInteger::PositiveInfinity;
+    }
+    if source == f64::NEG_INFINITY {
+        return ExtendedInteger::NegativeInfinity;
+    }
+
+    ExtendedInteger::Discrete(source as i32)
 }
 
 struct Component {
@@ -134,9 +187,22 @@ fn lex_to_components(source: &str) -> Result<Vec<Component>, ArgumentError> {
 pub fn parse_affine_factor(source: &str) -> Result<AffineFactor, ArgumentError> {
     // TODO: BEFORE-STABILIZE: Forbid multiple copies of the same variable?
     // 0.1d + 0.25d may mean something different from 0.35d.
-    Ok(AffineFactor {
-        components: lex_to_components(source)?
-    })
+    let components = lex_to_components(source)?;
+    let mut result = AffineFactor {
+        absolute: 0.0,
+        relative: 0.0,
+        addition: 0.0,
+    };
+
+    for component in components {
+        match component.variable {
+            Variable::Value => result.absolute += component.factor,
+            Variable::Delta => result.relative += component.factor,
+            Variable::One   => result.addition += component.factor,
+        }
+    }
+
+    Ok(result)
 }
 
 #[test]
@@ -147,6 +213,12 @@ fn unittest() {
         code: crate::event::EventCode::new(crate::event::EventType::new(1), 1),
         namespace: crate::event::Namespace::User,
         flags: crate::event::EventFlags::empty(),
+    };
+    let get_test_cap = |value_range| crate::capability::Capability {
+        domain, value_range,
+        code: crate::event::EventCode::new(crate::event::EventType::new(1), 1),
+        namespace: crate::event::Namespace::User,
+        abs_meta: None,
     };
 
     assert_eq!(
@@ -168,6 +240,27 @@ fn unittest() {
     assert_eq!(
         parse_affine_factor("-d+x").unwrap().merge(get_test_event(7, 13)),
         get_test_event(13, 13),
+    );
+
+    assert_eq!(
+        parse_affine_factor("-d+x+1").unwrap().merge_cap(get_test_cap(Range::new(-2, 5))),
+        get_test_cap(Range::new(-8, 13)),
+    );
+    assert_eq!(
+        parse_affine_factor("-d+x+1").unwrap().merge_cap(get_test_cap(Range::new(None, 5))),
+        get_test_cap(Range::new(None, None)),
+    );
+    assert_eq!(
+        parse_affine_factor("-x").unwrap().merge_cap(get_test_cap(Range::new(-2, 5))),
+        get_test_cap(Range::new(-5, 2)),
+    );
+    assert_eq!(
+        parse_affine_factor("-x").unwrap().merge_cap(get_test_cap(Range::new(None, 7))),
+        get_test_cap(Range::new(-7, None)),
+    );
+    assert_eq!(
+        parse_affine_factor("8").unwrap().merge_cap(get_test_cap(Range::new(-2, 5))),
+        get_test_cap(Range::new(8, 8)),
     );
 
     assert!(parse_affine_factor("z").is_err());

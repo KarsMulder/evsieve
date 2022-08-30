@@ -92,7 +92,7 @@ pub struct AbsInfo {
     pub meta: AbsMeta,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct AbsMeta {
     pub fuzz: i32,
     pub flat: i32,
@@ -281,7 +281,7 @@ impl Capabilities {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct Capability {
     pub code: EventCode,
     pub domain: Domain,
