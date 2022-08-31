@@ -35,20 +35,15 @@ impl AffineFactor {
         let max: f64 = cap.value_range.max.into();
 
         let trunc_boundaries = (
-            (min * self.absolute + self.addition).trunc(),
-            (max * self.absolute + self.addition).trunc(),
+            (mul_zero(min, self.absolute) + self.addition).trunc(),
+            (mul_zero(max, self.absolute) + self.addition).trunc(),
         );
 
-        let span = max - min;
-        let relative_span = if self.relative == 0.0 {
-            0.0
-        } else {
-            (self.relative * span).floor()
-        };
+        let relative_span = mul_zero(self.relative, max-min);
 
         // In case the relative factor is nonzero and the range is unbounded
         // on one end, then the following list will contain NaNs. In that case,
-        // the range is everything.
+        // the range of events is everything.
         let possible_boundaries: [f64; 4] = [
             trunc_boundaries.0 - relative_span, trunc_boundaries.0 + relative_span,
             trunc_boundaries.1 - relative_span, trunc_boundaries.1 + relative_span,
@@ -68,6 +63,16 @@ impl AffineFactor {
         
         cap.value_range = new_range;
         cap
+    }
+}
+
+/// A multiplication functions where 0*anything=0.
+/// This helps avoiding 0*Infinity resulting in NaN.
+fn mul_zero(x: f64, y: f64) -> f64 {
+    if x == 0.0 || y == 0.0 {
+        0.0
+    } else {
+        x * y
     }
 }
 
@@ -251,6 +256,10 @@ fn unittest() {
         get_test_cap(Range::new(None, None)),
     );
     assert_eq!(
+        parse_affine_factor("-d+x+1").unwrap().merge_cap(get_test_cap(Range::new(-2, None))),
+        get_test_cap(Range::new(None, None)),
+    );
+    assert_eq!(
         parse_affine_factor("-x").unwrap().merge_cap(get_test_cap(Range::new(-2, 5))),
         get_test_cap(Range::new(-5, 2)),
     );
@@ -262,6 +271,11 @@ fn unittest() {
         parse_affine_factor("8").unwrap().merge_cap(get_test_cap(Range::new(-2, 5))),
         get_test_cap(Range::new(8, 8)),
     );
+    assert_eq!(
+        parse_affine_factor("8").unwrap().merge_cap(get_test_cap(Range::new(None, None))),
+        get_test_cap(Range::new(8, 8)),
+    );
+    
 
     assert!(parse_affine_factor("z").is_err());
     assert!(parse_affine_factor("--x").is_err());
