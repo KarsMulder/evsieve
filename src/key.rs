@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+use crate::affine::AffineFactor;
 use crate::domain;
 use crate::domain::Domain;
 use crate::event::{Event, EventType, EventCode, Channel, Namespace, VirtualEventType};
@@ -107,8 +108,7 @@ impl Key {
                 | KeyProperty::Namespace(_)
                 | KeyProperty::Value(_)
                 | KeyProperty::PreviousValue(_)
-                | KeyProperty::DeltaFactor(_)
-                | KeyProperty::AbsoluteFactor(_)
+                | KeyProperty::AffineFactor(_)
                 => (),
             }
         }
@@ -151,8 +151,7 @@ impl Key {
                     | (KeyProperty::VirtualType(_), _)
                     | (KeyProperty::Value(_), _)
                     | (KeyProperty::PreviousValue(_), _)
-                    | (KeyProperty::DeltaFactor(_), _)
-                    | (KeyProperty::AbsoluteFactor(_), _)
+                    | (KeyProperty::AffineFactor(_), _)
                         => true,
                 };
                 if ! these_properties_may_intersect {
@@ -176,12 +175,9 @@ enum KeyProperty {
     Type(EventType),
     /// Only valid for filter keys.
     VirtualType(VirtualEventType),
-    /// Designates that the value of the output event should be a given factor of
-    /// its input value. Only valid for mask keys.
-    AbsoluteFactor(f64),
-    /// Designates that the value of the output event should be a given factor of
-    /// (event_in.value - event_in.previous_value). Only valid for mask keys.
-    DeltaFactor(f64),
+    /// Applies an affine transformation on the input event.
+    /// Only valid for mask keys.
+    AffineFactor(AffineFactor),
 }
 
 impl KeyProperty {
@@ -195,7 +191,7 @@ impl KeyProperty {
             KeyProperty::Namespace(value) => event.namespace == value,
             KeyProperty::Value(range) => range.contains(event.value),
             KeyProperty::PreviousValue(range) => range.contains(event.previous_value),
-            KeyProperty::AbsoluteFactor(_) | KeyProperty::DeltaFactor(_) => {
+            KeyProperty::AffineFactor(_) => {
                 if cfg!(debug_assertions) {
                     panic!("Cannot filter events based on relative values. Panicked during event mapping.");
                 }
@@ -215,8 +211,7 @@ impl KeyProperty {
             KeyProperty::Namespace(_)
             | KeyProperty::Value(_)
             | KeyProperty::PreviousValue(_)
-            | KeyProperty::AbsoluteFactor(_)
-            | KeyProperty::DeltaFactor(_)
+            | KeyProperty::AffineFactor(_)
                 => true,
         }
     }
@@ -229,19 +224,9 @@ impl KeyProperty {
             KeyProperty::Namespace(value) => event.namespace = value,
             KeyProperty::Value(range) => event.value = range.bound(event.value),
             KeyProperty::PreviousValue(range) => event.previous_value = range.bound(event.previous_value),
-            KeyProperty::AbsoluteFactor(factor) => {
-                event.value = (
-                    (event.value as f64 * factor).trunc()
-                ) as i32;
+            KeyProperty::AffineFactor(factor) => {
+                event = factor.merge(event);
             },
-            KeyProperty::DeltaFactor(factor) => {
-                // Putting the `floor()` calls at these specific places makes this algorithm more
-                // resistant to rounding errors than doing it the straightforward way.
-                event.value = (
-                    (event.value as f64 * factor).floor()
-                    - (event.previous_value as f64 * factor).floor()
-                ) as i32;
-            }
             KeyProperty::Type(_) | KeyProperty::VirtualType(_) => {
                 if cfg!(debug_assertions) {
                     panic!("Cannot change the event type of an event. Panicked during event mapping.");
@@ -276,7 +261,7 @@ impl KeyProperty {
                 }
             },
             KeyProperty::PreviousValue(_range) => CapMatch::Maybe,
-            KeyProperty::AbsoluteFactor(_) | KeyProperty::DeltaFactor(_) => {
+            KeyProperty::AffineFactor(_) => {
                 panic!("Internal invariant violated: cannot filter events based on relative values.");
             },
         }
@@ -289,22 +274,7 @@ impl KeyProperty {
             KeyProperty::Namespace(value) => cap.namespace = value,
             KeyProperty::Value(range) => cap.value_range = range.bound_range(&cap.value_range),
             KeyProperty::PreviousValue(_range) => {},
-            KeyProperty::AbsoluteFactor(factor) => {
-                let bound_1 = cap.value_range.max.mul_f64_round(factor, f64::trunc);
-                let bound_2 = cap.value_range.min.mul_f64_round(factor, f64::trunc);
-                let max = std::cmp::max(bound_1, bound_2);
-                let min = std::cmp::min(bound_1, bound_2);
-                cap.value_range = Range { max, min };
-            },
-            KeyProperty::DeltaFactor(factor) => {
-                // This floor rounding matches the algorithm used for event propagation.
-                // TODO: really? Verify this.
-                let bound_1 = cap.value_range.max.mul_f64_round(factor, f64::floor);
-                let bound_2 = cap.value_range.min.mul_f64_round(factor, f64::floor);
-                let max = std::cmp::max(bound_1, bound_2);
-                let min = std::cmp::min(bound_1, bound_2);
-                cap.value_range = Range { max, min };
-            },
+            KeyProperty::AffineFactor(factor) => cap = factor.merge_cap(cap),
             KeyProperty::Type(_) | KeyProperty::VirtualType(_) => {
                 if cfg!(debug_assertions) {
                     panic!("Cannot change the event type of an event. Panicked during capability propagation.");
@@ -522,7 +492,7 @@ fn interpret_key(key_str: &str, parser: &KeyParser) -> Result<Key, ArgumentError
     };
 
     // Check if it is a relative value.
-    if let Some(property) = interpret_relative_value(event_value_str)? {
+    if let Some(property) = interpret_relative_value(event_value_str) {
         if parser.allow_relative_values {
             key.add_property(property);
             return Ok(key);
@@ -593,31 +563,18 @@ fn parse_int_or_wildcard(value_str: &str) -> Result<Option<i32>, ArgumentError> 
 }
 
 /// Parses a value like "0.1d" or "-x".
-///
-/// Returns Ok(None) if value_str does not look like a relative value. Returns Err if it does look
-/// like a relative value, but its format is unacceptable for some reason.
-fn interpret_relative_value(value_str: &str) -> Result<Option<KeyProperty>, ArgumentError> {
-    let suffix_to_type: [(&str, &dyn Fn(f64) -> KeyProperty); 2] = [
-        ("x", &KeyProperty::AbsoluteFactor),
-        ("d", &KeyProperty::DeltaFactor),
-    ];
-
-    for (suffix, property) in suffix_to_type {
-        match utils::strip_suffix(value_str, suffix) {
-            None => continue,
-            Some(factor_str) => {
-                let factor = match utils::parse_number(factor_str) {
-                    Some(factor) => factor,
-                    None => return Err(ArgumentError::new(format!(
-                        "Cannot interpret {} as a float.", factor_str
-                    ))),
-                };
-                return Ok(Some(property(factor)))
-            }
-        }
+/// 
+/// Returns Some if the value_str can be interpreted as an affine factor.
+/// Returns None if it cannot.
+/// 
+/// A constant map shall never be interpreted as an affine map.
+fn interpret_relative_value(value_str: &str) -> Option<KeyProperty> {
+    let factor = crate::affine::parse_affine_factor(value_str).ok()?;
+    if ! factor.is_constant() {
+        Some(KeyProperty::AffineFactor(factor))
+    } else {
+        None
     }
-
-    Ok(None)
 }
 
 #[test]

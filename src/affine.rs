@@ -8,6 +8,7 @@ use crate::event::Event;
 use crate::capability::Capability;
 use crate::range::{Range, ExtendedInteger};
 
+#[derive(Clone, Copy, Debug)]
 pub struct AffineFactor {
     absolute: f64,
     relative: f64,
@@ -63,6 +64,11 @@ impl AffineFactor {
         
         cap.value_range = new_range;
         cap
+    }
+
+    /// Returns true if it maps all event values to the same output value.
+    pub fn is_constant(&self) -> bool {
+        self.absolute == 0.0 && self.relative == 0.0
     }
 }
 
