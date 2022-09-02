@@ -899,6 +899,7 @@ def unittest_relative():
         ["--input", "/dev/input/by-id/unittest-relative-in", "grab=force",
         "--map", "abs:x", "rel:x:0.5d",
         "--map", "abs:y", "abs:y:-1.4x",
+        "--map", "abs:rx", "abs:rx:1.5x+0.4d+1",
         "--output", "create-link=/dev/input/by-id/unittest-relative-out"],
         {
             "/dev/input/by-id/unittest-relative-in": [
@@ -915,6 +916,11 @@ def unittest_relative():
                 (e.EV_ABS, e.ABS_Y, 8),
                 (e.EV_ABS, e.ABS_Y, -5),
                 (e.EV_ABS, e.ABS_Y, 0),
+
+                (e.EV_ABS, e.ABS_RX, 2),
+                (e.EV_ABS, e.ABS_RX, 5),
+                (e.EV_ABS, e.ABS_RX, 0),
+                (e.EV_ABS, e.ABS_RX, 7),
             ],
         },
         {
@@ -928,6 +934,11 @@ def unittest_relative():
                 (e.EV_ABS, e.ABS_Y, -11),
                 (e.EV_ABS, e.ABS_Y, 7),
                 (e.EV_ABS, e.ABS_Y, 0),
+
+                (e.EV_ABS, e.ABS_RX, 4),
+                (e.EV_ABS, e.ABS_RX, 10),
+                (e.EV_ABS, e.ABS_RX, -1),
+                (e.EV_ABS, e.ABS_RX, 13),
             ],
         },
     )
