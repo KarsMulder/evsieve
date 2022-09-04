@@ -31,10 +31,13 @@ fn test_argument_validity() {
     require_ok( ["--map", "rel:x", "rel:x:1.4x"]);
     require_ok( ["--map", "rel:x", "rel:x:2d"]);
     require_ok( ["--map", "rel:x", "rel:x:-d"]);
-    require_err(["--map", "rel:x", "rel:x:x-d"]);
+    require_ok( ["--map", "rel:x", "rel:x:x-d"]);
+    require_ok( ["--map", "rel:x", "rel:x:x+1"]);
+    require_ok( ["--map", "rel:x", "rel:x:1+x"]);
     require_err(["--map", "rel:x", "rel:x:xd"]);
     require_err(["--map", "rel:x:x", "rel:x:1"]);
     require_err(["--map", "rel:x:d", "rel:x:1"]);
+    require_ok( ["--map", "rel:x:1", "rel:x:1"]);
 
     // TODO: Consider whether we want to allow or forbid the following keys.
     //require_err(["--map", "key:"]);
