@@ -112,6 +112,18 @@ impl InputDevice {
             CStr::from_ptr(libevdev::libevdev_get_name(evdev))
         }.to_owned();
 
+        // Set the clock to CLOCK_MONOTONIC, which is the same clock used for all other time-
+        // related operations used in evsieve. Using the monotonic clock instead of the
+        // realtime clock makes sure that some event will not end up getting delayed by many
+        // days in case the user decides to set their clock back.
+        //
+        // The libevdev documentation says that "This is a modification only affecting this
+        // representation of this device."; setting this clock id should not affect other programs.
+        let res = unsafe { libevdev::libevdev_set_clock_id(evdev, libc::CLOCK_MONOTONIC) };
+        if res < 0 {
+            eprintln!("Warning: failed to set the clock to CLOCK_MONOTONIC on the device opened from {}.\nThis is a non-fatal error, but any time-related operations such as the --delay argument will behave incorrectly.", path.to_string_lossy());
+        }
+
         Ok(InputDevice {
             file, path, evdev, domain, capabilities, state, name,
             grab_mode: pre_device.grab_mode, grabbed: false,
