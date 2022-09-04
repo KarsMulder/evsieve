@@ -7,6 +7,7 @@
 
 use std::mem::MaybeUninit;
 use std::convert::TryFrom;
+use crate::bindings::libevdev;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Instant {
@@ -50,7 +51,17 @@ impl From<libc::timespec> for Instant {
     }
 }
 
+impl From<libevdev::timeval> for Instant {
+    fn from(timeval: libevdev::timeval) -> Self {
+        Self {
+            nsec: NANOSECONDS_PER_SECOND * i128::from(timeval.tv_sec)
+                  + NANOSECONDS_PER_MICROSECOND * i128::from(timeval.tv_usec)
+        }
+    }
+}
+
 const NANOSECONDS_PER_SECOND: i128 = 1_000_000_000;
+const NANOSECONDS_PER_MICROSECOND: i128 = 1_000;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Duration {
