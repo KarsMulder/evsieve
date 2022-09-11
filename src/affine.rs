@@ -223,7 +223,6 @@ fn unittest() {
         value, previous_value, domain,
         code: crate::event::EventCode::new(crate::event::EventType::new(1), 1),
         namespace: crate::event::Namespace::User,
-        flags: crate::event::EventFlags::empty(),
     };
     let get_test_cap = |value_range| crate::capability::Capability {
         domain, value_range,

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use crate::event::{Event, Channel, EventFlag};
+use crate::event::{Event, Channel};
 use crate::key::Key;
 use crate::loopback::{LoopbackHandle, Token};
 use crate::stream::hook::{Trigger, TriggerResponse};
@@ -30,30 +30,32 @@ impl Withhold {
         }
     }
 
-    fn apply(&mut self, mut event: Event, events_out: &mut Vec<Event>, loopback: &mut LoopbackHandle) {
-        // Skip all events that did not match any preceding hook.
-        if event.flags.get(EventFlag::Withholdable) {
-            event.flags.unset(EventFlag::Withholdable);
-        } else {
-            return events_out.push(event);
-        }
-
+    fn apply(&mut self, event: Event, events_out: &mut Vec<Event>, loopback: &mut LoopbackHandle) {
         // Check which triggers just activated because of this event.
         let mut activated_triggers: Vec<&Trigger> = Vec::new();
         let mut any_tracker_active_on_channel: bool = false;
+        let mut any_tracker_matches: bool = false;
         for trigger in &mut self.triggers {
             match trigger.apply(event, loopback) {
-                TriggerResponse::None
+                TriggerResponse::None => {},
                 | TriggerResponse::Matches
-                | TriggerResponse::Releases => {},
+                | TriggerResponse::Releases => {
+                    any_tracker_matches = true;
+                },
                 TriggerResponse::Activates => {
                     activated_triggers.push(trigger);
+                    any_tracker_matches = true;
                 },
             }
             // TODO: maybe this information should be returnded by trigger.apply()?
             if trigger.has_active_tracker_matching_channel(event.channel()) {
                 any_tracker_active_on_channel = true;
             }
+        }
+
+        // Skip all events that did not match any preceding hook.
+        if ! any_tracker_matches {
+            return events_out.push(event);
         }
 
         // If this is set to Some, then the provided event shall be added to events_out at the

@@ -35,10 +35,6 @@ pub(super) struct HookArg {
     /// Specified by the send-key clause. Whenever this hook is triggered, a kEY_DOWN
     /// of the following keys is sent, and a KEY_UP is sent when this hook is released.
     pub send_keys: Vec<Key>,
-
-    /// Set to true if this Hook is connected to a --withhold argument, false by default.
-    /// This property is set by crate::arguments::withhold.
-    pub mark_withholdable: bool,
 }
 
 impl HookArg {
@@ -79,7 +75,6 @@ impl HookArg {
                 keys_and_str,
                 exec_shell: arg_group.get_clauses("exec-shell"),
                 toggle_action, period, sequential, send_keys,
-                mark_withholdable: false,
             })
         }
     }

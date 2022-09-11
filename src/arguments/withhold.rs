@@ -80,11 +80,6 @@ impl WithholdArg {
             }
         }
 
-        // Inform all associated hooks to mark events as withholdable.
-        for hook in hooks.iter_mut() {
-            hook.mark_withholdable = true;
-        }
-
         self.associated_triggers.extend(
             hooks.iter_mut()
                  .map(|hook_arg| hook_arg.compile_trigger())

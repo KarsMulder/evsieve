@@ -119,43 +119,6 @@ impl VirtualEventType {
     }
 }
 
-/// Flags are little tags that are temporarily attached to events to help with the internal
-/// implementation of some arguments. Currently, they are only used for orchestrating the
-/// interaction between --hook send-key=... and --withhold.`
-/// 
-/// IMPORTANT: capabilities are so far not subject to flags because of YAGNI. If you intend
-/// to expand the usage domain of flags, consider whether you need to implement them for
-/// capabilities as well.
-#[repr(u8)]
-pub enum EventFlag {
-    /// This flag tags events which have matched one key of a --hook argument before the
-    /// next --withhold argument. It helps keeping track of which events should be withheld
-    /// and which shouldn't.
-    Withholdable = 0b0001,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct EventFlags(u8);
-
-impl EventFlags {
-    pub fn empty() -> EventFlags {
-        EventFlags(0)
-    }
-
-    pub fn set(&mut self, flag: EventFlag) {
-        self.0 |= flag as u8;
-    }
-
-    pub fn unset(&mut self, flag: EventFlag) {
-        self.0 &= !(flag as u8);
-    }
-
-    pub fn get(&mut self, flag: EventFlag) -> bool {
-        (self.0 & flag as u8) != 0
-    }
-}
-
-
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub struct Event {
     pub code: EventCode,
@@ -166,7 +129,6 @@ pub struct Event {
 
     pub domain: Domain,
     pub namespace: Namespace,
-    pub flags: EventFlags,
 }
 
 impl Event {
@@ -176,8 +138,7 @@ impl Event {
                domain: Domain,
                namespace: Namespace
     ) -> Event {
-        let flags = EventFlags::empty();
-        Event { code, value, previous_value, domain, namespace, flags }
+        Event { code, value, previous_value, domain, namespace }
     }
 
     pub fn with_domain(mut self, new_domain: Domain) -> Event {

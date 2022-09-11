@@ -1,7 +1,7 @@
 use crate::error::Context;
 use crate::range::Range;
 use crate::key::Key;
-use crate::event::{Event, Channel, EventFlag};
+use crate::event::{Event, Channel};
 use crate::state::State;
 use crate::subprocess;
 use crate::loopback;
@@ -265,9 +265,6 @@ pub struct Hook {
     effects: Vec<Effect>,
     /// Effects that shall be released after one of the keys has been released after activating.
     release_effects: Vec<Effect>,
-    /// If true, this Hook is associated with a --withhold argument and we need to mark all
-    /// events that matched one of our keys.
-    mark_withholdable: bool,
 
     /// The current state mutable at runtime.
     trigger: Trigger,
@@ -277,26 +274,17 @@ pub struct Hook {
 }
 
 impl Hook {
-    pub fn new(trigger: Trigger, event_dispatcher: EventDispatcher, mark_withholdable: bool) -> Hook {
+    pub fn new(trigger: Trigger, event_dispatcher: EventDispatcher) -> Hook {
         Hook {
             trigger,
-            mark_withholdable,
             effects: Vec::new(),
             release_effects: Vec::new(),
             event_dispatcher,
         }
     }
 
-    fn apply(&mut self, mut event: Event, events_out: &mut Vec<Event>, state: &mut State, loopback: &mut LoopbackHandle) {
+    fn apply(&mut self, event: Event, events_out: &mut Vec<Event>, state: &mut State, loopback: &mut LoopbackHandle) {
         let response = self.trigger.apply(event, loopback);
-
-        if self.mark_withholdable {
-            match response {
-                TriggerResponse::Matches | TriggerResponse::Activates | TriggerResponse::Releases
-                    => event.flags.set(EventFlag::Withholdable),
-                TriggerResponse::None => (),
-            }
-        }
 
         self.event_dispatcher.map_event(event, response, events_out);
 
@@ -394,7 +382,6 @@ impl EventDispatcher {
                 for key in &self.send_keys {
                     let mut additional_event = key.merge(event);
                     additional_event.value = 1;
-                    additional_event.flags.unset(EventFlag::Withholdable);
                     events_out.push(additional_event);
                 };
             },
@@ -409,7 +396,6 @@ impl EventDispatcher {
                 for key in self.send_keys.iter().rev() {
                     let mut additional_event = key.merge(activating_event);
                     additional_event.value = 0;
-                    additional_event.flags.unset(EventFlag::Withholdable);
                     events_out.push(additional_event);
                 }
                 events_out.push(event);
