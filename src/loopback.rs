@@ -102,14 +102,20 @@ impl Loopback {
     /// If two due tokens are due at the exact same time, returns them in the order they
     /// were added to the Loopback device.
     /// 
+    /// The `now` argument denotes what the current time logically is. All events that are
+    /// due before `now` will be added.
+    /// 
     /// The reason this returns only one token is because it is possible that while processing
     /// that one token, new tokens get added to the schedule that are due before any other tokens
     /// that are actually due already. The new token should then be handled first, and that is
     /// not possible if this function were to return multiple tokens at once.
-    pub fn poll_once(&mut self) -> Option<(Instant, Token)> {
+    pub fn poll_once(&mut self, now: Instant) -> Option<(Instant, Token)> {
+        if self.schedule.is_empty() {
+            return None;
+        }
+
         let mut ready_tokens: Vec<(Instant, Token)> = Vec::new();
         let mut remaining_schedule: Vec<(Instant, Token)> = Vec::new();
-        let now = Instant::now();
 
         for (instant, token) in std::mem::take(&mut self.schedule) {
             if instant <= now {

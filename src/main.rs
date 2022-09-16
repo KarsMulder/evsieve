@@ -215,7 +215,7 @@ fn enter_main_loop(program: &mut Program) -> Result<(), RuntimeError> {
     loop {
         let timeout: i32 = match program.setup.time_until_next_wakeup() {
             loopback::Delay::Now => {
-                stream::wakeup(&mut program.setup);
+                stream::wakeup_until(&mut program.setup, crate::time::Instant::now());
                 continue;
             },
             loopback::Delay::Never => crate::io::epoll::INDEFINITE_TIMEOUT,
@@ -273,6 +273,7 @@ fn handle_ready_file(program: &mut Program, index: FileIndex) -> Result<Action, 
                 format!("While polling the input device {}:", device.path().display())
             )?;
             for event in events {
+                stream::wakeup_until(&mut program.setup, crate::time::Instant::now());
                 stream::run(&mut program.setup, event);
             }
             Ok(Action::Continue)

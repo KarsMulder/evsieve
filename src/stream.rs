@@ -23,6 +23,7 @@ use crate::capability::{Capability, InputCapabilites};
 use crate::io::output::OutputSystem;
 use crate::error::RuntimeError;
 use crate::loopback::{Loopback, LoopbackHandle, Delay};
+use crate::time::Instant;
 
 /// An enum of everything that can be part of the event processing stream.
 ///
@@ -170,8 +171,10 @@ pub fn run(setup: &mut Setup, event: Event) {
     }
 }
 
-pub fn wakeup(setup: &mut Setup) {
-    while let Some((instant, token)) = setup.loopback.poll_once() {
+/// Runs all events from the loopback device that were due before `now`. If running such an event causes
+/// other events to get added that are due before now, then those events get processed as well.
+pub fn wakeup_until(setup: &mut Setup, now: Instant) {
+    while let Some((instant, token)) = setup.loopback.poll_once(now) {
         let mut loopback_handle = setup.loopback.get_handle(instant);
         run_wakeup(
             token,
