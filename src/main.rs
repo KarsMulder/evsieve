@@ -273,7 +273,6 @@ fn handle_ready_file(program: &mut Program, index: FileIndex) -> Result<Action, 
                 format!("While polling the input device {}:", device.path().display())
             )?;
             for event in events {
-                stream::wakeup_until(&mut program.setup, crate::time::Instant::now());
                 stream::run(&mut program.setup, event);
             }
             Ok(Action::Continue)
