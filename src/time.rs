@@ -6,13 +6,26 @@
 //! time module.
 
 use std::mem::MaybeUninit;
-use std::convert::TryFrom;
+use std::convert::TryInto;
 use crate::bindings::libevdev;
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+const NANOSECONDS_PER_SECOND: i64 = 1_000_000_000;
+const NANOSECONDS_PER_MICROSECOND: i64 = 1_000;
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct Instant {
-    // Nanoseconds since some arbitrary start point.
-    nsec: i128,
+    // Second and nanoseconds since some arbitrary start point.
+    sec: i64,
+    // Expects invariant: 0 <= nsec < NANOSECONDS_PER_SECOND
+    nsec: i64,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Duration {
+    // Expects invariant: 0 <= sec
+    sec: u64,
+    // Expects invariant: 0 <= nsec < NANOSECONDS_PER_SECOND
+    nsec: u64,
 }
 
 impl Instant {
@@ -30,14 +43,19 @@ impl Instant {
         }
     }
 
+    // The checked part referst to making sure that self is after other.
+    // Panic in case of integer overflow.
     pub fn checked_duration_since(self, other: Instant) -> Option<Duration> {
-        // The checked part referst to making sure that self is after other.
-        // Panic in case of integer overflow.
-        let duration = self.nsec.checked_sub(other.nsec).expect("Integer overflow while handling time.");
+        let mut nsec = self.nsec - other.nsec;
+        let mut sec = self.sec - other.sec;
+        if nsec < 0 {
+            nsec += NANOSECONDS_PER_SECOND;
+            sec -= 1;
+        }
 
         Some(Duration {
-            // Casting to u128 makes this function return None if other happens after self.
-            nsec: u128::try_from(duration).ok()?
+            sec: sec.try_into().ok()?,
+            nsec: nsec.try_into().ok()?
         })
     }
 }
@@ -45,8 +63,8 @@ impl Instant {
 impl From<libc::timespec> for Instant {
     fn from(timespec: libc::timespec) -> Self {
         Self {
-            nsec: NANOSECONDS_PER_SECOND * i128::from(timespec.tv_sec)
-                  + i128::from(timespec.tv_nsec)
+            sec: timespec.tv_sec,
+            nsec: timespec.tv_nsec,
         }
     }
 }
@@ -54,18 +72,10 @@ impl From<libc::timespec> for Instant {
 impl From<libevdev::timeval> for Instant {
     fn from(timeval: libevdev::timeval) -> Self {
         Self {
-            nsec: NANOSECONDS_PER_SECOND * i128::from(timeval.tv_sec)
-                  + NANOSECONDS_PER_MICROSECOND * i128::from(timeval.tv_usec)
+            sec: timeval.tv_sec,
+            nsec: NANOSECONDS_PER_MICROSECOND * timeval.tv_usec,
         }
     }
-}
-
-const NANOSECONDS_PER_SECOND: i128 = 1_000_000_000;
-const NANOSECONDS_PER_MICROSECOND: i128 = 1_000;
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct Duration {
-    nsec: u128,
 }
 
 impl Duration {
@@ -82,18 +92,47 @@ impl Duration {
     }
 
     pub fn from_nanos(nsec: u64) -> Duration {
-        Duration { nsec: nsec.into() }
+        Duration {
+            sec: nsec / NANOSECONDS_PER_SECOND as u64,
+            nsec: nsec % NANOSECONDS_PER_SECOND as u64
+        }
     }
 
-    pub fn as_millis(self) -> u128 {
-        self.nsec / 1_000_000
+    pub fn as_millis(self) -> u64 {
+        self.sec * 1_000 + self.nsec / 1_000_000
     }
 }
 
+// TODO: Should we prevent the user from entering ridiculously large time values in attempt to cause
+// integer overflow?
 impl std::ops::Add<Duration> for Instant {
     type Output = Instant;
     fn add(self, rhs: Duration) -> Self::Output {
-        let nsec = self.nsec + i128::try_from(rhs.nsec).unwrap();
-        Instant { nsec }
+        let mut sec = self.sec + rhs.sec as i64;
+        let mut nsec = self.nsec + rhs.nsec as i64;
+        if nsec > NANOSECONDS_PER_SECOND {
+            nsec -= NANOSECONDS_PER_SECOND;
+            sec += 1;
+        }
+        
+        Instant { sec, nsec }
     }
+}
+
+#[test]
+fn unittest() {
+    let now = Instant::now();
+
+    assert_eq!(
+        now + Duration::from_secs(3),
+        now + Duration::from_millis(500) + Duration::from_micros(1_700_000) + Duration::from_nanos(800_000_000)
+    );
+    assert_eq!(
+        (now + Duration::from_secs(3)).checked_duration_since(now),
+        Some(Duration::from_millis(3000))
+    );
+    assert_eq!(
+        now.checked_duration_since(now + Duration::from_secs(3)),
+        None
+    );
 }
