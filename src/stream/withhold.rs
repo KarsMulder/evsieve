@@ -34,17 +34,18 @@ impl Withhold {
         // Check which triggers just activated because of this event.
         let mut activated_triggers: Vec<&Trigger> = Vec::new();
         let mut any_tracker_active_on_channel: bool = false;
-        let mut any_tracker_matches: bool = false;
+        let mut any_tracker_interacts: bool = false;
         for trigger in &mut self.triggers {
             match trigger.apply(event, loopback) {
                 TriggerResponse::None => {},
+                TriggerResponse::Interacts
                 | TriggerResponse::Matches
                 | TriggerResponse::Releases => {
-                    any_tracker_matches = true;
+                    any_tracker_interacts = true;
                 },
                 TriggerResponse::Activates => {
                     activated_triggers.push(trigger);
-                    any_tracker_matches = true;
+                    any_tracker_interacts = true;
                 },
             }
             // TODO: maybe this information should be returnded by trigger.apply()?
@@ -54,7 +55,7 @@ impl Withhold {
         }
 
         // Skip all events that did not match any preceding hook.
-        if ! any_tracker_matches {
+        if ! any_tracker_interacts {
             return events_out.push(event);
         }
 

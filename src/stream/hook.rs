@@ -123,6 +123,9 @@ pub struct Trigger {
 pub enum TriggerResponse {
     /// This event does not interact with this hook in any way.
     None,
+    /// This event has changed the state of this trigger someway. Does not guarantee that this
+    /// event actually matches one of its keys.
+    Interacts,
     /// This event matches the key one of the trackers. Does not guarantee that the actual
     /// state of the tracker was changed.
     Matches,
@@ -295,7 +298,7 @@ impl Hook {
             TriggerResponse::Releases => {
                 self.apply_release_effects(state);
             },
-            TriggerResponse::Matches | TriggerResponse::None => (),
+            TriggerResponse::Interacts | TriggerResponse::Matches | TriggerResponse::None => (),
         }
     }
 
@@ -400,7 +403,7 @@ impl EventDispatcher {
                 }
                 events_out.push(event);
             },
-            TriggerResponse::Matches | TriggerResponse::None => {
+            TriggerResponse::Matches | TriggerResponse::Interacts | TriggerResponse::None => {
                 events_out.push(event);
             },
         }
