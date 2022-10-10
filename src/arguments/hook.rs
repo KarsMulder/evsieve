@@ -35,13 +35,16 @@ pub(super) struct HookArg {
     /// Specified by the send-key clause. Whenever this hook is triggered, a kEY_DOWN
     /// of the following keys is sent, and a KEY_UP is sent when this hook is released.
     pub send_keys: Vec<Key>,
+    /// Specified by the breaks-on clause. Whenever an event matches one of the following
+    /// keys but not one of its keys_and_str, all trackers invalidate.
+    pub breaks_on: Vec<Key>,
 }
 
 impl HookArg {
 	pub fn parse(args: Vec<String>) -> Result<HookArg, ArgumentError> {
         let arg_group = ComplexArgGroup::parse(args,
             &["toggle", "sequential"],
-            &["exec-shell", "toggle", "period", "send-key"],
+            &["exec-shell", "toggle", "period", "send-key", "breaks-on"],
             false,
             true,
         )?;
@@ -68,20 +71,23 @@ impl HookArg {
             namespace: Namespace::User,
         }.parse_all(&arg_group.get_clauses("send-key"))?;
 
+        let breaks_on = KeyParser::default_filter()
+            .parse_all(&arg_group.get_clauses("breaks_on"))?;
+
         if arg_group.keys.is_empty() {
             Err(ArgumentError::new("A --hook argument requires at least one key."))
         } else {
             Ok(HookArg {
                 keys_and_str,
                 exec_shell: arg_group.get_clauses("exec-shell"),
-                toggle_action, period, sequential, send_keys,
+                toggle_action, period, sequential, send_keys, breaks_on
             })
         }
     }
 
     pub fn compile_trigger(&self) -> Trigger {
         let keys: Vec<Key> = self.keys_and_str.iter().map(|(key, _)| key.clone()).collect();
-        Trigger::new(keys, self.period, self.sequential)
+        Trigger::new(keys, self.breaks_on.clone(), self.period, self.sequential)
     }
 
     pub fn compile_event_dispatcher(&self) -> EventDispatcher {

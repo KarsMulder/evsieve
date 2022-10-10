@@ -112,6 +112,7 @@ pub struct Trigger {
     /// order. If a tracker is activated while its previous tracker is still inactive, then
     /// that tracker becomes invalid.
     sequential: bool,
+    breaks_on: Vec<Key>,
 
     trackers: Vec<Tracker>,
     state: TriggerState,
@@ -144,10 +145,10 @@ enum TriggerState {
 }
 
 impl Trigger {
-    pub fn new(keys: Vec<Key>, period: Option<Duration>, sequential: bool) -> Trigger {
+    pub fn new(keys: Vec<Key>, breaks_on : Vec<Key>, period: Option<Duration>, sequential: bool) -> Trigger {
         let trackers = keys.into_iter().map(Tracker::new).collect();
         Trigger {
-            period, trackers, sequential,
+            period, trackers, sequential, breaks_on,
             state: TriggerState::Inactive,
         }
     }
@@ -257,6 +258,7 @@ impl Trigger {
         Trigger {
             sequential: self.sequential,
             period: self.period,
+            breaks_on: self.breaks_on.clone(),
             trackers: self.trackers.iter().map(Tracker::clone_empty).collect(),
             state: TriggerState::Inactive,
         }
