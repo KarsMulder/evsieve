@@ -38,6 +38,12 @@ enum TrackerState {
     Invalid,
 }
 
+impl std::default::Default for TrackerState {
+    fn default() -> Self {
+        TrackerState::Inactive
+    }
+}
+
 impl TrackerState {
     fn is_active(&self) -> bool {
         match self {
@@ -124,12 +130,10 @@ pub struct Trigger {
 pub enum TriggerResponse {
     /// This event does not interact with this hook in any way.
     None,
-    /// This event has changed the state of this trigger someway. Does not guarantee that this
-    /// event actually matches one of its keys.
+    /// This event may have changed the state of this trigger some way. Does not guarantee that
+    /// this event actually matches one of its keys or that the state was actually changed.
+    /// Guarantees that the trigger was not activated or released.
     Interacts,
-    /// This event matches the key one of the trackers. Does not guarantee that the actual
-    /// state of the tracker was changed.
-    Matches,
     /// The hook has activated because of this event. Its effects should be triggered.
     Activates,
     /// The hook has released because of this event. Its on-release effects should be triggered.
@@ -179,8 +183,29 @@ impl Trigger {
         }
         
         if ! any_tracker_matched {
-            // No trackers care about this event.
-            return TriggerResponse::None;
+            // If none of the trackers match this event, but it does match one of the breaks-on
+            // notes, then invalidate all trackers.
+            if self.breaks_on.iter().any(|key| key.matches(&event)) {
+                let mut any_tracker_invalidated = false;
+
+                for tracker in &mut self.trackers {
+                    match tracker.state {
+                        TrackerState::Active(_) => {
+                            tracker.state = TrackerState::Invalid;
+                            any_tracker_invalidated = true;
+                            // TODO: Cancel token.
+                        },
+                        TrackerState::Inactive | TrackerState::Invalid => {},
+                    }
+                }
+
+                if ! any_tracker_invalidated {
+                    return TriggerResponse::None;
+                }
+            } else {
+                // No trackers care about this event.
+                return TriggerResponse::None;
+            }
         }
 
         if self.sequential {
@@ -212,7 +237,7 @@ impl Trigger {
                 TriggerResponse::Releases
             },
             (TriggerState::Active {..}, true) | (TriggerState::Inactive, false)
-                => TriggerResponse::Matches,
+                => TriggerResponse::Interacts,
         }
     }
 
@@ -300,7 +325,7 @@ impl Hook {
             TriggerResponse::Releases => {
                 self.apply_release_effects(state);
             },
-            TriggerResponse::Interacts | TriggerResponse::Matches | TriggerResponse::None => (),
+            TriggerResponse::Interacts | TriggerResponse::None => (),
         }
     }
 
@@ -405,7 +430,7 @@ impl EventDispatcher {
                 }
                 events_out.push(event);
             },
-            TriggerResponse::Matches | TriggerResponse::Interacts | TriggerResponse::None => {
+            TriggerResponse::Interacts | TriggerResponse::None => {
                 events_out.push(event);
             },
         }

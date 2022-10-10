@@ -39,7 +39,6 @@ impl Withhold {
             match trigger.apply(event, loopback) {
                 TriggerResponse::None => {},
                 TriggerResponse::Interacts
-                | TriggerResponse::Matches
                 | TriggerResponse::Releases => {
                     any_tracker_interacts = true;
                 },
