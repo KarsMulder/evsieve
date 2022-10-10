@@ -272,8 +272,9 @@ fn handle_ready_file(program: &mut Program, index: FileIndex) -> Result<Action, 
             let events = device.poll().with_context_of(||
                 format!("While polling the input device {}:", device.path().display())
             )?;
-            for event in events {
-                stream::run(&mut program.setup, event);
+            for (time, event) in events {
+                stream::wakeup_until(&mut program.setup, time);
+                stream::run(&mut program.setup, time, event);
             }
             Ok(Action::Continue)
         },
@@ -321,9 +322,11 @@ fn handle_broken_file(program: &mut Program, index: FileIndex) -> Action {
             // Release all keys that this device had pressed, so we don't end up with a key stuck on
             // an output device.
             let pressed_keys: Vec<EventCode> = device.get_pressed_keys().collect();
+            let now = crate::time::Instant::now();
+
             for key_code in pressed_keys {
                 let release_event = device.synthesize_event(key_code, 0);
-                stream::run(&mut program.setup, release_event);
+                stream::run(&mut program.setup, now, release_event);
             }
             stream::syn(&mut program.setup);
 

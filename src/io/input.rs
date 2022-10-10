@@ -15,6 +15,7 @@ use crate::ecodes;
 use crate::predevice::{GrabMode, PersistMode, PreInputDevice};
 use crate::error::{SystemError, Context};
 use crate::persist::blueprint::Blueprint;
+use crate::time::Instant;
 
 use super::fd::HasFixedFd;
 
@@ -135,10 +136,10 @@ impl InputDevice {
         self.domain
     }
 
-    fn read_raw(&mut self) -> Result<Vec<(EventCode, EventValue)>, SystemError> {
+    fn read_raw(&mut self) -> Result<Vec<(Instant, EventCode, EventValue)>, SystemError> {
         let mut event: MaybeUninit<libevdev::input_event> = MaybeUninit::uninit();
         let mut should_sync = false;
-        let mut events: Vec<(EventCode, EventValue)> = Vec::new();
+        let mut events: Vec<(Instant, EventCode, EventValue)> = Vec::new();
 
         loop {
             let flags = match should_sync {
@@ -160,7 +161,8 @@ impl InputDevice {
                         let event = event.assume_init();
                         let event_type = EventType::new(event.type_);
                         let event_code = EventCode::new(event_type, event.code);
-                        events.push((event_code, event.value));
+                        let event_time = event.time.into();
+                        events.push((event_time, event_code, event.value));
                     }
 
                     should_sync = res == SYNC;
@@ -196,10 +198,10 @@ impl InputDevice {
 
     /// Reads the raw events from the device and attached additional information such as the
     /// domain of this device and whatever value this event had the last time it was seen.
-    pub fn poll(&mut self) -> Result<Vec<Event>, SystemError> {
-        let events: Vec<Event> = self.read_raw()?
+    pub fn poll(&mut self) -> Result<Vec<(Instant, Event)>, SystemError> {
+        let events: Vec<(Instant, Event)> = self.read_raw()?
             .into_iter()
-            .map(|(code, value)| self.synthesize_event(code, value))
+            .map(|(time, code, value)| (time, self.synthesize_event(code, value)))
             .collect();
 
         self.grab_if_desired()?;

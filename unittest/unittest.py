@@ -1322,7 +1322,7 @@ def unittest_withhold_period():
                 (e.EV_KEY, e.KEY_C, 0),
                 (e.EV_KEY, e.KEY_Z, 1),
                 (e.EV_KEY, e.KEY_A, 1),
-                Delay(0.002),
+                Delay(0.001),
                 (e.EV_KEY, e.KEY_C, 1),
                 Delay(0.003),
                 (e.EV_KEY, e.KEY_Z, 0),
