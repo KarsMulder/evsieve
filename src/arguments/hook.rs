@@ -72,7 +72,7 @@ impl HookArg {
         }.parse_all(&arg_group.get_clauses("send-key"))?;
 
         let breaks_on = KeyParser::default_filter()
-            .parse_all(&arg_group.get_clauses("breaks_on"))?;
+            .parse_all(&arg_group.get_clauses("breaks-on"))?;
 
         if arg_group.keys.is_empty() {
             Err(ArgumentError::new("A --hook argument requires at least one key."))
