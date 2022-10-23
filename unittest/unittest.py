@@ -996,6 +996,35 @@ def unittest_delay():
         },
     )
 
+def unittest_send_key():
+    run_unittest(
+        ["--input", "/dev/input/by-id/unittest-send-key-in", "grab=force",
+        "--hook", "key:a", "key:b", "send-key=key:x", "send-key=key:y", "send-key=key:z",
+        "--output", "create-link=/dev/input/by-id/unittest-send-key-out"],
+        {
+            "/dev/input/by-id/unittest-send-key-in": [
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_A, 0),
+                (e.EV_KEY, e.KEY_B, 0),
+            ],
+        },
+        {
+            "/dev/input/by-id/unittest-send-key-out": [
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_X, 1),
+                (e.EV_KEY, e.KEY_Y, 1),
+                (e.EV_KEY, e.KEY_Z, 1),
+                (e.EV_KEY, e.KEY_Z, 0),
+                (e.EV_KEY, e.KEY_Y, 0),
+                (e.EV_KEY, e.KEY_X, 0),
+                (e.EV_KEY, e.KEY_A, 0),
+                (e.EV_KEY, e.KEY_B, 0),
+            ],
+        },
+    )
+
 def unittest_withhold():
     run_unittest(
         ["--input", "/dev/input/by-id/unittest-withhold-in", "grab=force",
@@ -1469,6 +1498,7 @@ unittest_bynumber()
 unittest_merge()
 unittest_relative()
 unittest_delay()
+unittest_send_key()
 unittest_withhold()
 unittest_withhold_2()
 unittest_withhold_3()
