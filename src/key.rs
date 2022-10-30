@@ -192,6 +192,9 @@ impl KeyProperty {
             KeyProperty::Value(range) => range.contains(event.value),
             KeyProperty::PreviousValue(range) => range.contains(event.previous_value),
             KeyProperty::AffineFactor(_) => {
+                // Similarly to `KeyProperty::merge`, benchmarks show that the mere threat of panicking
+                // during this function can significantly reduce performance, therefore this assertion
+                // is only made during debug builds.
                 if cfg!(debug_assertions) {
                     panic!("Cannot filter events based on relative values. Panicked during event mapping.");
                 }
