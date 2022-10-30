@@ -138,7 +138,6 @@ pub fn run(setup: &mut Setup, time: Instant, event: Event) {
             }
         }
 
-        // TODO: time handling.
         let mut loopback_handle = setup.loopback.get_handle(time);
         let mut events_out = Vec::new();
 

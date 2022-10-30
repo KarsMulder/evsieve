@@ -10,7 +10,6 @@ use crate::capability::{Capability, CapMatch};
 use crate::time::Duration;
 use std::collections::HashSet;
 
-// TODO: Add a unittest for a hook with multiple send-keys.
 // TODO: Check whether the ordering behaviour of --withhold is consistent with --hook send-key.
 
 pub type Effect = Box<dyn Fn(&mut State)>;
