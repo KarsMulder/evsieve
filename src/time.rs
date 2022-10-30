@@ -103,8 +103,6 @@ impl Duration {
     }
 }
 
-// TODO: Should we prevent the user from entering ridiculously large time values in attempt to cause
-// integer overflow?
 impl std::ops::Add<Duration> for Instant {
     type Output = Instant;
     fn add(self, rhs: Duration) -> Self::Output {

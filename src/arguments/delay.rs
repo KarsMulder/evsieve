@@ -51,6 +51,13 @@ pub fn parse_period_value(value: &str) -> Result<Duration, ArgumentError> {
         "Cannot interpret {} as a number.", value,
     )))?;
 
+    // A quick check to avoid cases of integer overflow.
+    if seconds > 1_000_000_000 {
+        return Err(ArgumentError::new(format!(
+            "Period of {} seconds too long: unable to work with periods that are over a billion seconds.", seconds
+        )))
+    }
+
     // Compute the amount of nanoseconds after the period.
     let nanoseconds = match after_decimal {
         Some(string) => {
