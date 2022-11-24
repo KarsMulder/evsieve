@@ -211,9 +211,19 @@ pub fn event_code(type_name: &str, code_name: &str) -> Result<EventCode, Argumen
     // Check for a (name, number) pair.
     let code_name_numstr = match code_name.strip_prefix('%') {
         Some(string) => string,
-        None => return Err(ArgumentError::new(format!(
-            "Unknown event code \"{}:{}\".", type_name, code_name
-        ))),
+        None => {
+            // Return a specifically helpful error if the user entered a number as code, e.g.
+            // tried btn:300 instead of btn:%300.
+            if code_name.parse::<u16>().is_ok() {
+                return Err(ArgumentError::new(format!(
+                    "Unknown event code \"{}:{}\". (Tip: if you meant to specify an event of type {} and a code of numeric value {}, then you need to add a % prefix like this: \"{}:%{}\")", type_name, code_name, type_name, code_name, type_name, code_name
+                )));
+            } else {
+                return Err(ArgumentError::new(format!(
+                    "Unknown event code \"{}:{}\".", type_name, code_name
+                )));
+            }
+        }
     };
 
     let ev_type = event_type(type_name)?;
