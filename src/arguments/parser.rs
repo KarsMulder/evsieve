@@ -26,19 +26,28 @@ use std::path::PathBuf;
 use super::merge::MergeArg;
 
 const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
-// TODO: if control-fifo does not make it to release 1.4, remove it from this USAGE_MSG.
-const USAGE_MSG: &str = 
+
+/// Returns the help message that should be printed for the --help argument.
+fn get_usage_msg() -> String {
+    let mut result =
 "Usage: evsieve [--input PATH... [domain=DOMAIN] [grab[=auto|force]] [persist=none|reopen|exit]]...
                [--map SOURCE [DEST...] [yield]]...
                [--copy SOURCE [DEST...] [yield]]...
                [--block [SOURCE...]]...
-               [--control-fifo PATH...]...
                [--toggle SOURCE DEST... [id=ID] [mode=consistent|passive]]...
                [--hook KEY... [exec-shell=COMMAND]... [toggle[=[ID][:INDEX]]]... [sequential] [period=SECONDS] [send-key=KEY]... [breaks-on=KEY]...]...
                [--merge [EVENTS...]]...
                [--print [EVENTS...] [format=default|direct]]...
                [--delay [EVENTS...] period=SECONDS]...
-               [--output [EVENTS...] [create-link=PATH] [name=NAME] [repeat[=MODE]]]...";
+               [--output [EVENTS...] [create-link=PATH] [name=NAME] [repeat[=MODE]]]...".to_owned();
+
+    if cfg!(feature = "control-fifo") {
+        result += "
+               [--control-fifo PATH...]..."
+    }
+
+    result
+}
 
 enum Argument {
     InputDevice(InputDevice),
@@ -69,7 +78,13 @@ impl Argument {
             "--merge" => Ok(Argument::MergeArg(MergeArg::parse(args)?)),
             "--delay" => Ok(Argument::DelayArg(DelayArg::parse(args)?)),
             "--withhold" => Ok(Argument::WithholdArg(WithholdArg::parse(args)?)),
-            "--control-fifo" => Ok(Argument::ControlFifoArg(ControlFifoArg::parse(args)?)),
+            "--control-fifo" => {
+                if cfg!(feature = "control-fifo") {
+                    Ok(Argument::ControlFifoArg(ControlFifoArg::parse(args)?))
+                } else {
+                    Err(ArgumentError::new("The --control-fifo argument is not stabilized yet. This version of evsieve was compiled without support for --control-fifo.").into())
+                }
+            },
             _ => Err(ArgumentError::new(format!("Encountered unknown argument: {}", first_arg)).into()),
         }
     }
@@ -82,7 +97,7 @@ pub fn check_help_and_version(args: &[String]) -> bool {
             || args.contains(&"-?".to_owned())
             || args.contains(&"-h".to_owned())
             || args.contains(&"--help".to_owned()) {
-        println!("{}", USAGE_MSG);
+        println!("{}", get_usage_msg());
         return true;
     }
 
