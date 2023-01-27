@@ -182,7 +182,7 @@ pub fn wakeup_until(setup: &mut Setup, now: Instant) {
             &mut setup.state,
             &mut loopback_handle,
         );
-        // TODO: consider the pooling behaviour for events with the same instant.
+        // TODO: MODERATE-PRIORITY: consider the pooling behaviour for events with the same instant.
         syn(setup);
     };
 }

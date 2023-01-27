@@ -11,7 +11,7 @@ use crate::io::fd::{OwnedFd, ReadableFd};
 
 use super::fd::HasFixedFd;
 
-// TODO: Move this structure elsewhere.
+// TODO: LOW-PRIORITY: Move this structure elsewhere.
 struct OwnedPath(PathBuf);
 
 pub trait LineRead : AsRawFd {
@@ -148,8 +148,8 @@ impl LineRead for Fifo {
         let lines = self.reader.read_lines()?;
 
         if ! self.reader.get_buffered_data().is_empty() {
-            // TODO: this blatantly assumes that the Fifo is used as command fifo.
-            // TODO: Also, this somehow does not work. Figure out why.
+            // TODO: FEATURE(control-fifo) this blatantly assumes that the Fifo is used as command fifo.
+            // TODO: FEATURE(control-fifo) Also, this somehow does not work. Figure out why.
             let partial_command = String::from_utf8_lossy(self.reader.get_buffered_data());
             eprintln!("Error: received a command \"{}\" that was not terminated by a newline character. All commands must be terminated by newline characters.", partial_command);
         }

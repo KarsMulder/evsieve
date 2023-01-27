@@ -95,7 +95,7 @@ impl OutputSystem {
             // The device is supposed to have more capabilities than it used to. We must recreate it.
             // Free up the old symlink so the new device can create a symlink in its place.
             let symlink = old_device.take_symlink();
-            drop(symlink); // TODO: make this operation atomical with its recreation.
+            drop(symlink); // TODO: MEDIUM-PRIORITY: make this operation atomical with its recreation.
 
             let new_device = match create_output_device(pre_device, capabilities) {
                 Ok(device) => device,
@@ -175,7 +175,8 @@ impl OutputDevice {
 
             // If EV_MSC events are automatically generated, we may need to manually activate
             // their capabilities.
-            // TODO: prevent EV_MSC capabilities from getting activated by capabilities.
+            // TODO: FEATURE(auto-scan) prevent EV_MSC capabilities from getting activated by
+            // capabilities.
             // ... in fact, refactor this to cooperate with the capability interface.
             if cfg!(feature = "auto-scan") {
                 libevdev::libevdev_enable_event_type(dev, EventType::MSC.into());
@@ -270,7 +271,7 @@ impl OutputDevice {
 
     #[cfg(feature = "auto-scan")]
     fn write_event(&mut self, event: Event) {
-        // TODO: conside moving the following snippet to another stage of the event pipeline.
+        // TODO: LOW-PRIORITY conside moving the following snippet to another stage of the event pipeline.
         if event.ev_type() == EventType::KEY && (event.value == 0 || event.value == 1) {
             if let Some(scancode) = crate::scancodes::from_event_code(event.code) {
                 self.write(EventType::MSC.into(), crate::event::EventCode::MSC_SCAN.code().into(), scancode)

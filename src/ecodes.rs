@@ -181,7 +181,6 @@ pub fn event_type(name: &str) -> Result<EventType, ArgumentError> {
         ))),
     };
 
-    // TODO: should this (and similar for codes) be a strict inequality?
     if type_u16 <= EV_MAX {
         for &ev_type in EVENT_TYPES.values() {
             if type_u16 == ev_type.into() {
@@ -279,7 +278,6 @@ pub const MSC_SCAN: u16 = libevdev::MSC_SCAN as u16;
 
 /// Returns an iterator over all event types that fall within EV_MAX,
 /// whether those types are named or not.
-/// TODO: Should EV_MAX itself be checked as well?
 pub fn event_types() -> impl Iterator<Item=EventType> {
     (0 ..= EV_MAX).map(EventType::new)
 }

@@ -47,7 +47,7 @@ impl Withhold {
                     any_tracker_interacts = true;
                 },
             }
-            // TODO: maybe this information should be returnded by trigger.apply()?
+            // TODO: MEDIUM-PRIORITY maybe this information should be returned by trigger.apply()?
             if trigger.has_active_tracker_matching_channel(event.channel()) {
                 any_tracker_active_on_channel = true;
             }
@@ -90,7 +90,7 @@ impl Withhold {
                 if event.value == 0 {
                     // Remove a Residual block. If no Residual block is present, pass the event on.
                     match current_channel_state {
-                        // TODO: Consider whether a KEY_UP event should unconditionally release the withheld event.
+                        // TODO: HIGH-PRIORITY Consider whether a KEY_UP event should unconditionally release the withheld event.
                         None | Some(ChannelState::Withheld { .. }) => {
                             final_event = Some(event);
                         },

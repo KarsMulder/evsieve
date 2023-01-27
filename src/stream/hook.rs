@@ -10,7 +10,8 @@ use crate::capability::{Capability, CapMatch};
 use crate::time::Duration;
 use std::collections::HashSet;
 
-// TODO: Check whether the ordering behaviour of --withhold is consistent with --hook send-key.
+// TODO: HIGH-PRIORITY Check whether the ordering behaviour of --withhold is consistent
+// with --hook send-key.
 
 pub type Effect = Box<dyn Fn(&mut State)>;
 
@@ -192,7 +193,7 @@ impl Trigger {
                         TrackerState::Active(_) => {
                             tracker.state = TrackerState::Invalid;
                             any_tracker_invalidated = true;
-                            // TODO: Cancel token.
+                            // TODO: LOW-PRIORITY Cancel token.
                         },
                         TrackerState::Inactive | TrackerState::Invalid => {},
                     }
@@ -215,7 +216,7 @@ impl Trigger {
                 // ... then find all trackers that are active but not consecutively so.
                 .filter(|tracker| tracker.is_active())
                 // ... and invalidate them.
-                // TODO: Consider canceling the activation token.
+                // TODO: LOW-PRIORITY Consider canceling the activation token.
                 .for_each(|tracker| tracker.state = TrackerState::Invalid);
         }
 
@@ -225,7 +226,7 @@ impl Trigger {
         match (self.state, all_trackers_active) {
             (TriggerState::Inactive, true) => {
                 self.state = TriggerState::Active;
-                // TODO: Cancel tokens?
+                // TODO: LOW-PRIORITY Cancel tokens?
                 for tracker in &mut self.trackers {
                     tracker.state = TrackerState::Active(ExpirationTime::Never);
                 }
@@ -440,11 +441,11 @@ impl EventDispatcher {
     /// 
     /// Similar in purpose to apply_to_all_caps(), but does not copy the base capabilities.
     fn generate_additional_caps(&self, trigger: &Trigger, caps: &[Capability], caps_out: &mut Vec<Capability>) {
-        // TODO: Fix encapsulation?
+        // TODO: LOW-PRIORITY Fix encapsulation?
         let keys: Vec<&Key> = trigger.trackers.iter().map(|tracker| &tracker.key).collect();
-        // TODO: write unittest for this function.
+        // TODO: HIGH-PRIORITY write unittest for this function.
         let mut additional_caps: HashSet<Capability> = HashSet::new();
-        // TODO: reduce this implementation to a special case of Map.
+        // TODO: MEDIUM-PRIORITY reduce this implementation to a special case of Map.
 
         for cap_in in caps {
             let matches_cap = keys.iter()

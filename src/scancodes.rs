@@ -25,7 +25,7 @@ pub type Scancode = i32;
 
 lazy_static! {
     static ref SCANCODES: HashMap<EventCode, Scancode> = {
-        // TODO: the following table is still incomplete and possibly incorrect.
+        // TODO: LOW-PRIORITY: the following table is still incomplete and possibly incorrect.
         let hardcoded_scancodes: &[(&'static str, Scancode)] = &[
             (&"key:a", 458756),
             (&"key:b", 458757),

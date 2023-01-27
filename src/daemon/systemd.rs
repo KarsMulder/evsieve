@@ -28,7 +28,7 @@ lazy_static! {
 
 #[cfg(not(feature = "systemd"))]
 fn notify(state: &str) {
-    // TODO: consider using the subprocess subsystem for this.
+    // TODO: LOW-PRIORITY: consider using the subprocess subsystem for this.
     if ! is_available() {
         return;
     }

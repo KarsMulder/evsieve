@@ -306,7 +306,6 @@ pub struct KeyParser<'a> {
     pub allow_relative_values: bool,
     /// Allows the empty key "" and all keys starting with "btn" or "key". Forbids keys that
     /// explicitly require another type.
-    /// TODO: add a KeyProperty::EventType.
     pub forbid_non_EV_KEY: bool,
 
     pub namespace: Namespace,
@@ -433,7 +432,7 @@ fn interpret_key(key_str: &str, parser: &KeyParser) -> Result<Key, ArgumentError
     // Interpret the event type.
     let event_type_name = parts.next().unwrap();
     let event_type = ecodes::event_type(event_type_name).map_err(|err|
-        // TODO: Consider allowing this instead of throwing an error.
+        // TODO: LOW-PRIORITY: Consider allowing this instead of throwing an error.
         match event_type_name {
             "" => ArgumentError::new("Cannot specify event code or value without specifying event type."),
             _ => err,

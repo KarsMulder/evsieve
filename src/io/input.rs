@@ -38,7 +38,7 @@ pub fn open_and_query_capabilities(pre_input_devices: Vec<PreInputDevice>)
     // Precompute the capabilities of the input devices.
     let mut capabilities: InputCapabilites = InputCapabilites::new();
     for device in &input_devices {
-        // TODO: Consider using an Rc instead of a clone.
+        // TODO: LOW-PRIORITY: Consider using an Rc instead of a clone.
         capabilities.insert(device.domain, device.capabilities.clone());
     }
 

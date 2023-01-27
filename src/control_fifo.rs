@@ -15,7 +15,7 @@ pub struct ControlFifo {
 }
 
 impl ControlFifo {
-    // TODO: Reuse existing Fifo's on the filesystem.
+    // TODO: FEATURE(control-fifo) Reuse existing Fifo's on the filesystem.
     pub fn create(path: String) -> Result<ControlFifo, SystemError> {
         let source = Box::new(Fifo::create(&path)?);
         Ok(ControlFifo { path, source })
@@ -72,7 +72,7 @@ impl Command {
     pub fn execute(self, setup: &mut Setup) -> Result<(), ArgumentError> {
         match self {
             Command::Toggle(action) => {
-                // TODO: More helpful error.
+                // TODO: FEATURE(control-fifo) More helpful error.
                 let effects = action.implement(setup.state(), setup.toggle_indices())?;
                 for effect in effects {
                     effect(setup.state_mut());
