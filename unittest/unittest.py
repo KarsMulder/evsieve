@@ -1478,6 +1478,47 @@ def unittest_withhold_sequential():
         },
     )
 
+def unittest_withhold_sequential_2():
+    run_unittest(
+        ["--input", "/dev/input/by-id/unittest-withhold-sequential-2-in", "grab=force",
+        "--hook", "key:a", "key:b", "key:c", "key:d", "key:e", "key:f", "send-key=key:x", "sequential",
+        "--withhold",
+        "--output", "create-link=/dev/input/by-id/unittest-withhold-sequential-2-out"],
+        {
+            "/dev/input/by-id/unittest-withhold-sequential-2-in": [
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_C, 1),
+                (e.EV_KEY, e.KEY_D, 1),
+                (e.EV_KEY, e.KEY_E, 1),
+
+                (e.EV_KEY, e.KEY_B, 0),
+                
+                (e.EV_KEY, e.KEY_A, 0),
+
+                (e.EV_KEY, e.KEY_C, 0),
+                (e.EV_KEY, e.KEY_D, 0),
+                (e.EV_KEY, e.KEY_E, 0),
+            ],
+        },
+        {
+            "/dev/input/by-id/unittest-withhold-sequential-2-out": [
+                (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_C, 1),
+                (e.EV_KEY, e.KEY_D, 1),
+                (e.EV_KEY, e.KEY_E, 1),
+
+                (e.EV_KEY, e.KEY_B, 0),
+
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_A, 0),
+
+                (e.EV_KEY, e.KEY_C, 0),
+                (e.EV_KEY, e.KEY_D, 0),
+                (e.EV_KEY, e.KEY_E, 0),
+            ],
+        },
+    )
 
 unittest_mirror()
 unittest_syn()
@@ -1504,3 +1545,4 @@ unittest_withhold_2()
 unittest_withhold_3()
 unittest_withhold_period()
 unittest_withhold_sequential()
+unittest_withhold_sequential_2()
