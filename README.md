@@ -872,7 +872,7 @@ This will move the active target to the first one (`@target-1`) for `first-toggl
 The `--input` argument has the following basic syntax:
 
 ```
-    --input PATH [PATH...] [domain=DOMAIN] [grab[=auto|force]] [persist=reopen|none]
+    --input PATH [PATH...] [domain=DOMAIN] [grab[=auto|force]] [persist=reopen|none|exit]
 ```
 
 At least one path to a device to open is mandatory, everything else is optional. All paths must be represented in absolute form, i.e. starting with a "/" character. It is possible to provide more than one path, in which case multiple devices will be opened with a single argument.
