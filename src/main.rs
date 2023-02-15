@@ -239,10 +239,14 @@ fn enter_main_loop(program: &mut Program) -> Result<(), RuntimeError> {
                     handle_broken_file(program, index)
                 },
                 Message::Hup(index) => {
-                    // Ignore EPOLLHUP for control FIFO's. For all other devices, treat
-                    // them as broken.
                     match program.epoll.get(index) {
-                        Some(Pollable::ControlFifo(_)) => Action::Continue,
+                        Some(Pollable::ControlFifo(_)) => {
+                            // HUP for a control FIFO should never happen because we keep the FIFO open
+                            // for writing ourselves in order to prevent HUP's from happening. If a HUP
+                            // happens anyway, I suppose something is really wrong.
+                            eprintln!("Warning: unexpected EPOLLHUP received on a control FIFO.");
+                            handle_broken_file(program, index)
+                        },
                         _ => handle_broken_file(program, index),
                     }
                 },

@@ -122,8 +122,25 @@ impl Fifo {
 
         let owned_path = OwnedPath::new(path.into());
         let fd = unsafe {
+            // Workaround suggested by:
+            //     https://stackoverflow.com/questions/22021253/poll-on-named-pipe-returns-with-pollhup-constantly-and-immediately
+            //
+            // You might think that we should open this epoll with O_RDONLY because we only ever read
+            // from it. However, the Linux kernel devs, in their infinite wisdom, decided that whenever
+            // an FIFO gets closed by its last writer, it generates an EPOLLHUP event which is not
+            // cleared after being read from the epoll, and which does not seem to be clearable by any
+            // less-than-farfetched means. (Or at least, I haven't found a good way to clear it yet.)
+            // Consequently, a level-triggered epoll will immediately return from any subsequent
+            // `epoll_wait()` calls, resulting in a busy loop consuming 100% CPU.
+            //
+            // Other than switching to an edge-triggered epoll (which is another whole can of worms)
+            // the best workaround I found seems to be to open the FIFO for writing ourselves, which
+            // ensures that the last writer (us) never closes the FIFO and thereby preventing that
+            // EPOLLHUP event from happening.
+            //
+            // Hence the O_RDWR mode.
             OwnedFd::from_syscall(
-                libc::open(path_cstring.as_ptr(), libc::O_RDONLY | libc::O_NONBLOCK)
+                libc::open(path_cstring.as_ptr(), libc::O_RDWR | libc::O_NONBLOCK)
             ).with_context_of(|| format!(
                 "While trying to open the fifo at {}:", path
             ))?
