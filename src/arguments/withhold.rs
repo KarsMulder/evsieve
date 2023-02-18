@@ -7,6 +7,11 @@ use crate::arguments::hook::HookArg;
 use crate::stream::hook::Trigger;
 use crate::key::{Key, KeyParser};
 
+// The --withhold argument imposes the following rules upon the preceding hooks:
+// 1. None of the hooks may dispatch events (via send-key) that can match any of the preceding hooks.
+// 2. Only events of type EV_KEY (key/btn) can be withheld.
+// 3. All keys on the hook/withhold that may interact with withheld events must be pure.
+
 /// Represents a --withhold argument.
 pub(super) struct WithholdArg {
     pub keys: Vec<Key>,
@@ -69,8 +74,7 @@ impl WithholdArg {
                 }
 
                 // Only permit matching with default (unspecified) values.
-                let mut pedantic_parser = super::hook::PARSER;
-                pedantic_parser.allow_values = false;
+                let pedantic_parser = KeyParser::pure().and_filter(super::hook::PARSER);
                 if pedantic_parser.parse(key_str).is_err() {
                     return Err(ArgumentError::new(format!(
                         "Cannot use --withhold after a --hook that activates on events with a specific value such as \"{}\".",

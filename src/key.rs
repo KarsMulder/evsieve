@@ -327,6 +327,23 @@ impl<'a> KeyParser<'a> {
         }
     }
 
+    /// Returns a KeyParser that functions the same as self, except that it will only
+    /// parse keys that would be deemed to be valid keys according to `other` as well.
+    /// 
+    /// Does not guarantee that `self` and `other` would parse keys to the same key.
+    pub fn and_filter(self, other: KeyParser) -> Self {
+        KeyParser {
+            default_value: self.default_value,
+            allow_values: self.allow_values && other.allow_values,
+            allow_transitions: self.allow_transitions && other.allow_transitions,
+            allow_ranges: self.allow_ranges && other.allow_ranges,
+            allow_types: self.allow_types && other.allow_types,
+            allow_relative_values: self.allow_relative_values && other.allow_relative_values,
+            forbid_non_EV_KEY: self.forbid_non_EV_KEY || other.forbid_non_EV_KEY,
+            namespace: self.namespace,
+        }
+    }
+
     /// Returns the KeyParser that is the most commonly used one for masking events,
     /// e.g. the second key in `--map key:a key:b` but not the first key.
     pub fn default_mask() -> KeyParser<'static> {
@@ -447,7 +464,7 @@ fn interpret_key(key_str: &str, parser: &KeyParser) -> Result<Key, ArgumentError
         ))
     }
 
-    // Extract the event code, or return a key that matches on type only.
+    // Extract the event code, or set a property that matches on type only.
     match parts.next() {
         // If no event code is available, then either throw an error or return a key that matches only on
         // the virtual type depending on whether parser.allow_types is set.
