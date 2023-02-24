@@ -65,11 +65,19 @@ impl Withhold {
         let final_event: Option<Event>;
 
         if self.keys.iter().any(|key| key.matches(&event)) {
+            // Decide whether or not to hold this event.
+
             let current_channel_state: Option<&mut ChannelState> =
                 self.channel_state.iter_mut()
                 .find(|(channel, _state)| *channel == event.channel())
                 .map(|(_channel, state)| state);
+
             if any_tracker_active_on_channel {
+                // If the event value were zero, then the constraint of "no custom value declarations"
+                // for the preceding hooks should have made sure that no trackers are active on this
+                // channel because a value-zero event would deactivate all of them.
+                debug_assert!(event.value != 0);
+
                 if event.value == 1 {
                     // Withhold the event unless an event was already being withheld.
                     match current_channel_state {
@@ -88,19 +96,27 @@ impl Withhold {
                 }
             } else { // No trackers active at the event's channel.
                 if event.value == 0 {
-                    // Remove a Residual block. If no Residual block is present, pass the event on.
+                    // Due to the restrictions on the hooks (i.e. only default values), an event of
+                    // value zero cannot possibly contribute to activating any hook, so we are free
+                    // to pass on this event unless a residual state instructs us to drop this event.
+
                     match current_channel_state {
-                        // TODO: HIGH-PRIORITY Consider whether a KEY_UP event should unconditionally release the withheld event.
                         None | Some(ChannelState::Withheld { .. }) => {
+                            // The withheld event will be released by a later piece of code.
                             final_event = Some(event);
                         },
                         Some(ChannelState::Residual) => {
+                            // Drop this event and clear the residual state.
                             self.channel_state.retain(|(channel, _)| *channel != event.channel());
                             final_event = None;
                         }
                     }
                 } else {
                     // In this case, all corresponding trackers are probably in invalid state.
+                    // Anyway, knowing that no trackers are active means that this event won't
+                    // contribute to activating a hook, and its value being nonzero means that
+                    // we don't have to deal with the residual rules, so we can pass this event
+                    // on.
                     final_event = Some(event);
                 }
             }
