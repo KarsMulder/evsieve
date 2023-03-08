@@ -443,7 +443,6 @@ impl EventDispatcher {
     fn generate_additional_caps(&self, trigger: &Trigger, caps: &[Capability], caps_out: &mut Vec<Capability>) {
         // TODO: LOW-PRIORITY Fix encapsulation?
         let keys: Vec<&Key> = trigger.trackers.iter().map(|tracker| &tracker.key).collect();
-        // TODO: HIGH-PRIORITY write unittest for this function.
         let mut additional_caps: HashSet<Capability> = HashSet::new();
         // TODO: MEDIUM-PRIORITY reduce this implementation to a special case of Map.
 

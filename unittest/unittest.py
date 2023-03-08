@@ -998,9 +998,17 @@ def unittest_delay():
 
 def unittest_send_key():
     run_unittest(
-        ["--input", "/dev/input/by-id/unittest-send-key-in", "grab=force",
+        ["--input", "/dev/input/by-id/unittest-send-key-in", "domain=in", "grab=force",
+
+        # We use --block to prevent capabilities from the input device from propagating to
+        # the output device in order to test whether send-key generates the appropriate
+        # capabilities.
+        "--map", "key:a", "@out",
+        "--map", "key:b", "@out",
+        "--block", "@in",
+
         "--hook", "key:a", "key:b", "send-key=key:x", "send-key=key:y", "send-key=key:z",
-        "--output", "create-link=/dev/input/by-id/unittest-send-key-out"],
+        "--output", "@out", "create-link=/dev/input/by-id/unittest-send-key-out"],
         {
             "/dev/input/by-id/unittest-send-key-in": [
                 (e.EV_KEY, e.KEY_A, 1),
