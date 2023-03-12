@@ -55,6 +55,8 @@ fn get_usage_msg() -> String {
     result
 }
 
+/// Represents all arguments an user may pass to the evsieve program, except for
+/// some special arguments like --config that may represent several other arguments.
 enum Argument {
     InputDevice(InputDevice),
     OutputDevice(OutputDevice),
@@ -69,6 +71,12 @@ enum Argument {
     ControlFifoArg(ControlFifoArg),
 }
 
+/// The MetaArgument represents things that may get turned into common arguments.
+/// For example, the --config argument gets replaced by multiple other arguments
+/// at an early stage in the parsing.
+/// 
+/// This distinction between Argument and MetaArgument helps us to be sure that
+/// no unhandled meta-arguments are left during later stages of parsing.
 enum MetaArgument {
     Common(Argument),
     ConfigArg(ConfigArg),
@@ -136,8 +144,10 @@ pub fn check_help_and_version(args: &[String]) -> bool {
     false
 }
 
+/// Sorts arguments like ["--input", "/dev/foo", "--map", "key:a", "key:b"] into groups like
+///     [["--input", "/dev/foo"], ["/dev/foo", "--map", "key:a", "key:b"]]
+/// and uses the appropriate MetaArgument to represent each group.
 fn sort_into_groups(args: Vec<String>) -> Result<Vec<MetaArgument>, RuntimeError> {
-	// Sort the arguments into groups.
     let mut groups: Vec<Vec<String>> = Vec::new();
     let mut args_iter = args.into_iter().peekable();
 	while let Some(first_arg) = args_iter.next() {
