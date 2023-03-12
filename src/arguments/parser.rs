@@ -145,7 +145,7 @@ pub fn check_help_and_version(args: &[String]) -> bool {
 }
 
 /// Sorts arguments like ["--input", "/dev/foo", "--map", "key:a", "key:b"] into groups like
-///     [["--input", "/dev/foo"], ["/dev/foo", "--map", "key:a", "key:b"]]
+///     [["--input", "/dev/foo"], ["--map", "key:a", "key:b"]]
 /// and uses the appropriate MetaArgument to represent each group.
 fn sort_into_groups(args: Vec<String>) -> Result<Vec<MetaArgument>, RuntimeError> {
     let mut groups: Vec<Vec<String>> = Vec::new();
