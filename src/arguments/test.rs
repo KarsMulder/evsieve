@@ -72,8 +72,7 @@ fn require_err(args: impl IntoIterator<Item=impl Into<String>>) {
 
 fn try_implement(args: impl IntoIterator<Item=impl Into<String>>) -> Result<crate::arguments::parser::Implementation, RuntimeError> {
     let args: Vec<String> =
-        std::env::args().take(1)
-        .chain(args.into_iter().map(|item| item.into()))
+        args.into_iter().map(|item| item.into())
         .collect();
 
     crate::arguments::parser::implement(args)

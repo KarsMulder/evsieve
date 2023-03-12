@@ -34,5 +34,7 @@ lto = true
 systemd = []
 # If enabled, evsieve will accept the --control-fifo command line argument.
 control-fifo = []
+#If enabled, evsieve will accept the --config command line argument.
+config = []
 # If enabled, evsieve will partially autogenerate EV_MSC events sent to output devices.
 auto-scan = []

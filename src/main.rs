@@ -69,6 +69,7 @@ pub mod arguments {
     pub mod withhold;
     pub mod control_fifo;
     pub mod test;
+    pub mod config;
 }
 
 pub mod bindings {
@@ -150,7 +151,7 @@ const TERMINATION_SIGNALS: [libc::c_int; 3] = [libc::SIGTERM, libc::SIGINT, libc
 
 fn run() -> Result<(), RuntimeError> {
     // Check if the arguments contain --help or --version.
-    let args: Vec<String> = std::env::args().collect();
+    let args: Vec<String> = std::env::args().skip(1).collect();
     if arguments::parser::check_help_and_version(&args) {
         daemon::notify_ready_async();
         return Ok(());

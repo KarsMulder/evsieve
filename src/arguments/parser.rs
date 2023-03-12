@@ -23,6 +23,7 @@ use crate::arguments::control_fifo::ControlFifoArg;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
+use super::config::ConfigArg;
 use super::merge::MergeArg;
 
 const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
@@ -43,8 +44,13 @@ fn get_usage_msg() -> String {
 
     if cfg!(feature = "control-fifo") {
         result += "
-               [--control-fifo PATH...]..."
+                [--control-fifo PATH...]..."
     }
+    if cfg!(feature = "config") {
+        result += "
+                [--config PATH...]..."
+    }
+                    
 
     result
 }
@@ -63,9 +69,14 @@ enum Argument {
     ControlFifoArg(ControlFifoArg),
 }
 
+enum MetaArgument {
+    Common(Argument),
+    ConfigArg(ConfigArg),
+}
+
 impl Argument {
     fn parse(args: Vec<String>) -> Result<Argument, RuntimeError> {
-        let first_arg = args[0].clone();
+        let first_arg = &args[0];
         match first_arg.as_str() {
             "--input" => Ok(Argument::InputDevice(InputDevice::parse(args)?)),
             "--output" => Ok(Argument::OutputDevice(OutputDevice::parse(args)?)),
@@ -90,10 +101,25 @@ impl Argument {
     }
 }
 
+impl MetaArgument {
+    fn parse(args: Vec<String>) -> Result<MetaArgument, RuntimeError> {
+        match args[0].as_str() {
+            "--config" => {
+                if cfg!(feature = "config") {
+                    Ok(MetaArgument::ConfigArg(ConfigArg::parse(args)?))
+                } else {
+                    Err(ArgumentError::new("The --config argument is not stabilized yet. This version of evsieve was compiled without support for --config.").into())
+                }
+            },
+            _ => Argument::parse(args).map(MetaArgument::Common),
+        }
+    }
+}
+
 /// If a --version or --help or something is specified, prints a helpful message.
 /// Returns true if --version or --help was requested, otherwise returns false.
 pub fn check_help_and_version(args: &[String]) -> bool {
-    if args.len() == 1 // Only the program name.
+    if args.is_empty() // No args (program name was skipped)
             || args.contains(&"-?".to_owned())
             || args.contains(&"-h".to_owned())
             || args.contains(&"--help".to_owned()) {
@@ -110,11 +136,10 @@ pub fn check_help_and_version(args: &[String]) -> bool {
     false
 }
 
-fn parse(args: Vec<String>) -> Result<Vec<Argument>, RuntimeError> {
+fn sort_into_groups(args: Vec<String>) -> Result<Vec<MetaArgument>, RuntimeError> {
 	// Sort the arguments into groups.
     let mut groups: Vec<Vec<String>> = Vec::new();
     let mut args_iter = args.into_iter().peekable();
-    args_iter.next(); // Skip the program name.
 	while let Some(first_arg) = args_iter.next() {
 		if ! first_arg.starts_with("--") {
 			return Err(ArgumentError::new(format!(
@@ -135,10 +160,52 @@ fn parse(args: Vec<String>) -> Result<Vec<Argument>, RuntimeError> {
     }
 
     groups.into_iter().map(
-        |group| Argument::parse(group.clone()).with_context(format!(
+        |group| MetaArgument::parse(group.clone()).with_context(format!(
             "While parsing the arguments \"{}\":", group.join(" ")
         )
-    )).collect::<Result<Vec<Argument>, RuntimeError>>()
+    )).collect()
+}
+
+/// Sorts arguments that are strings into argument groups, then replaces all --config
+/// arguments with the contents of their files and sorts those as well, recursively.
+fn sort_and_expand_config(
+    args_to_sort: Vec<String>,
+    output_buffer: &mut Vec<Argument>,
+    visited_config_files: Vec<String>,
+) -> Result<(), RuntimeError> {
+    let meta_args = sort_into_groups(args_to_sort)?;
+
+    for meta_arg in meta_args {
+        match meta_arg {
+            MetaArgument::Common(arg) => output_buffer.push(arg),
+            MetaArgument::ConfigArg(config) => {
+                for path in config.paths {
+                    if visited_config_files.contains(&path) {
+                        return Err(ArgumentError::new(
+                            // TODO: More helpful error?
+                            format!("The configuration file {} is getting recursively included.", path)
+                        ).into());
+                    }
+                    let file_content = std::fs::read_to_string(&path)?;
+                    let file_args = crate::arguments::config::shell_lex(file_content)?;
+                    let mut local_visited_config_files = visited_config_files.clone();
+                    local_visited_config_files.push(path);
+
+                    sort_and_expand_config(
+                        file_args, output_buffer, local_visited_config_files
+                    )?;
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn parse(args: Vec<String>) -> Result<Vec<Argument>, RuntimeError> {
+    let mut output: Vec<Argument> = Vec::new();
+    sort_and_expand_config(args, &mut output, Vec::new())?;
+    Ok(output)
 }
 
 pub struct Implementation {
