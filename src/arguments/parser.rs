@@ -44,11 +44,11 @@ fn get_usage_msg() -> String {
 
     if cfg!(feature = "control-fifo") {
         result += "
-                [--control-fifo PATH...]..."
+               [--control-fifo PATH...]..."
     }
     if cfg!(feature = "config") {
         result += "
-                [--config PATH...]..."
+               [--config PATH...]..."
     }
                     
 
