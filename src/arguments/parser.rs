@@ -171,7 +171,7 @@ fn sort_into_groups(args: Vec<String>) -> Result<Vec<MetaArgument>, RuntimeError
 fn sort_and_expand_config(
     args_to_sort: Vec<String>,
     output_buffer: &mut Vec<Argument>,
-    visited_config_files: Vec<String>,
+    visited_config_files: Vec<&str>,
 ) -> Result<(), RuntimeError> {
     let meta_args = sort_into_groups(args_to_sort)?;
 
@@ -180,20 +180,24 @@ fn sort_and_expand_config(
             MetaArgument::Common(arg) => output_buffer.push(arg),
             MetaArgument::ConfigArg(config) => {
                 for path in config.paths {
-                    if visited_config_files.contains(&path) {
+                    if visited_config_files.contains(&path.as_str()) {
                         return Err(ArgumentError::new(
-                            // TODO: More helpful error?
                             format!("The configuration file {} is getting recursively included.", path)
                         ).into());
                     }
-                    let file_content = std::fs::read_to_string(&path)?;
-                    let file_args = crate::arguments::config::shell_lex(file_content)?;
+                    let file_content = std::fs::read_to_string(&path)
+                        .map_err(SystemError::from)
+                        .with_context_of(|| format!("While trying to read the file {}:", &path))?;
+
+                    let file_args = crate::arguments::config::shell_lex(file_content)
+                        .with_context_of(|| format!("While parsing the configuration file {}:", &path))?;
+
                     let mut local_visited_config_files = visited_config_files.clone();
-                    local_visited_config_files.push(path);
+                    local_visited_config_files.push(&path);
 
                     sort_and_expand_config(
                         file_args, output_buffer, local_visited_config_files
-                    )?;
+                    ).with_context_of(|| format!("While interpreting the configuration file {}:", &path))?
                 }
             }
         }
