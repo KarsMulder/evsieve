@@ -65,6 +65,9 @@ pub fn lex(input: &str) -> Result<Vec<String>, ArgumentError> {
                         state = MaybeEscapedState::Escaped(last_state);
                     },
                     '\'' | '\"' => {
+                        if next_token.is_none() {
+                            next_token = Some(String::new());
+                        }
                         state = MaybeEscapedState::NotEscaped(State::Quoted(
                             QuoteMark::try_from(character).unwrap()
                         ));
@@ -134,7 +137,7 @@ pub fn lex(input: &str) -> Result<Vec<String>, ArgumentError> {
     // All characters have been read. Make sure we are in a valid state now.
     match state {
         MaybeEscapedState::Escaped(_) => {
-            return Err(ArgumentError::new("Encountered a escape character (\\) at end of stream."));
+            return Err(ArgumentError::new("Encountered an escape character (\\) at end of stream."));
         },
         MaybeEscapedState::NotEscaped(State::Quoted(quote_char)) => {
             return Err(ArgumentError::new(format!(
@@ -197,6 +200,27 @@ fn unittest() {
         lex("foo\\\nbar").unwrap(),
         vec!["foobar".to_owned()],
     );
+    assert_eq!(
+        lex("").unwrap(),
+        Vec::<String>::new(),
+    );
+    assert_eq!(
+        lex("\"\"").unwrap(),
+        vec!["".to_owned()],
+    );
+    assert_eq!(
+        lex("--map \"\" key:a").unwrap(),
+        vec!["--map".to_owned(), "".to_owned(), "key:a".to_owned()],
+    );
+    assert_eq!(
+        lex("   foo    ").unwrap(),
+        vec!["foo".to_owned()],
+    );
+    assert_eq!(
+        lex("   foo  \\  ").unwrap(),
+        vec!["foo".to_owned(), " ".to_owned()],
+    );
+    
 
     lex("foo \"bar").unwrap_err();
     lex("foo \\").unwrap_err();
