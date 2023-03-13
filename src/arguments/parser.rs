@@ -199,7 +199,7 @@ fn sort_and_expand_config(
                         .map_err(SystemError::from)
                         .with_context_of(|| format!("While trying to read the file {}:", &path))?;
 
-                    let file_args = crate::arguments::config::shell_lex(file_content)
+                    let file_args = crate::utils::shelllex::lex(&file_content)
                         .with_context_of(|| format!("While parsing the configuration file {}:", &path))?;
 
                     let mut local_visited_config_files = visited_config_files.clone();

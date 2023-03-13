@@ -20,8 +20,3 @@ impl ConfigArg {
         Ok(ConfigArg { paths: arg_group.paths })
     }
 }
-
-// TODO: FEATURE(config) Replace this with a proper lexer.
-pub fn shell_lex(input: String) -> Result<Vec<String>, ArgumentError> {
-    Ok(input.split_whitespace().filter(|token| !token.is_empty()).map(String::from).collect())
-}
