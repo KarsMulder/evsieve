@@ -4,6 +4,8 @@ use std::sync::Mutex;
 use std::ffi::CStr;
 use libc::c_char;
 
+pub mod shelllex;
+
 pub fn split_once<'a>(value: &'a str, deliminator: &str) -> (&'a str, Option<&'a str>) {
     let mut splitter = value.splitn(2, deliminator);
     (splitter.next().unwrap(), splitter.next())

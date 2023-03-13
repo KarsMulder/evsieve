@@ -22,7 +22,6 @@ pub mod key;
 pub mod domain;
 pub mod state;
 pub mod signal;
-pub mod utils;
 pub mod error;
 pub mod capability;
 pub mod affine;
@@ -35,6 +34,7 @@ pub mod loopback;
 pub mod stream;
 pub mod control_fifo;
 pub mod time;
+pub mod utils;
 
 #[cfg(feature = "auto-scan")]
 pub mod scancodes;

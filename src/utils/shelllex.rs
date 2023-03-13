@@ -1,0 +1,166 @@
+use crate::error::ArgumentError;
+
+#[derive(Clone, Copy)]
+enum State {
+    /// Nothing special about the next character.    
+    Normal,
+    /// The next character is part of a comment.
+    Comment,
+    /// The next character is part of a string.
+    Quoted(QuoteMark),
+}
+
+#[derive(Clone, Copy)]
+enum MaybeEscapedState {
+    /// We are currently processing the character after a \ character.
+    /// After processing it, return to the state contained.
+    Escaped(State),
+    /// We are not processing the character escaped by a \ character.
+    NotEscaped(State),
+}
+
+/// Used to distinguish single-quoted strings from double-quoted strings.
+#[derive(Clone, Copy)]
+enum QuoteMark {
+    Single,
+    Double,
+}
+
+impl QuoteMark {
+    fn as_char(&self) -> char {
+        match self {
+            QuoteMark::Single => '\'',
+            QuoteMark::Double => '\"',
+        }
+    }
+
+    fn try_from(character: char) -> Option<QuoteMark> {
+        match character {
+            '\'' => Some(QuoteMark::Single),
+            '\"' => Some(QuoteMark::Double),
+            _ => None,
+        }
+    }
+}
+
+// TODO: FEATURE(config) Should we also interpret the `# ... ` sequence, since we use it in
+// quite a lot of our own examples?
+
+/// Tries to split a string into tokens in a way similar to how a shell does it.
+pub fn lex(input: &str) -> Result<Vec<String>, ArgumentError> {
+    let mut state = MaybeEscapedState::NotEscaped(State::Normal);
+    let mut next_token: Option<String> = None;
+    let mut tokens: Vec<String> = Vec::new();
+
+    for character in input.chars() {
+        match state {
+            // Handle generic characters that are not under any special mode of processing.
+            MaybeEscapedState::NotEscaped(last_state @ State::Normal) => {
+                match character {
+                    '#' => {
+                        finalize_token(&mut tokens, &mut next_token);
+                        state = MaybeEscapedState::NotEscaped(State::Comment);
+                    },
+                    '\\' => {
+                        state = MaybeEscapedState::Escaped(last_state);
+                    },
+                    '\'' | '\"' => {
+                        state = MaybeEscapedState::NotEscaped(State::Quoted(
+                            QuoteMark::try_from(character).unwrap()
+                        ));
+                    },
+                    _ if character.is_whitespace() => {
+                        finalize_token(&mut tokens, &mut next_token);
+                    },
+                    _ => {
+                        push_to_token(&mut next_token, character);
+                    },
+                }
+            },
+
+            // Handle characters in comments.
+            MaybeEscapedState::NotEscaped(State::Comment) => {
+                if character == '\n' {
+                    state = MaybeEscapedState::NotEscaped(State::Normal);
+                } else {
+                    // Ignore character.
+                }
+            },
+
+            // Handle characters inside a string.
+            MaybeEscapedState::NotEscaped(quote_state @ State::Quoted(used_quote_mark)) => {
+                match character {
+                    mark if mark == used_quote_mark.as_char() => {
+                        state = MaybeEscapedState::NotEscaped(State::Normal);
+                    },
+                    '\\' => {
+                        state = MaybeEscapedState::Escaped(quote_state);
+                    },
+                    _ => {
+                        push_to_token(&mut next_token, character);
+                    }
+                } 
+            },
+
+            // Handle escaped characters after a backslash (\) character.
+            MaybeEscapedState::Escaped(last_state) => {
+                // A backslash before a newline causes that newline to be ignored.
+                if character == '\n' {
+                    state = MaybeEscapedState::NotEscaped(last_state);
+                    continue;
+                }
+
+                // TODO: Expand the following list.
+                let mapped_char = match character {
+                    'n' => '\n',
+                    't' => '\t',
+                    '\\' => '\\',
+                    '\'' => '\'',
+                    '\"' => '\"',
+                    '*' => '*',
+                    '?' => '?',
+                    _ => return Err(ArgumentError::new(format!(
+                        "Unknown escape sequence encountered: \\{}", character
+                    ))),
+                };
+
+                push_to_token(&mut next_token, mapped_char);
+                state = MaybeEscapedState::NotEscaped(last_state);
+            }
+        }
+    }
+
+    // All characters have been read. Make sure we are in a valid state now.
+    match state {
+        MaybeEscapedState::Escaped(_) => {
+            return Err(ArgumentError::new("Encountered a escape character (\\) at end of stream."));
+        },
+        MaybeEscapedState::NotEscaped(State::Quoted(quote_char)) => {
+            return Err(ArgumentError::new(format!(
+                "Reached end-of-stream before finding the end of a string: {}{}",
+                quote_char.as_char(),
+                next_token.unwrap_or_default(),
+            )));
+        }
+        MaybeEscapedState::NotEscaped(State::Normal | State::Comment) => {
+            finalize_token(&mut tokens, &mut next_token);
+        }
+    }
+
+    Ok(tokens)
+}
+
+fn push_to_token(token: &mut Option<String>, character: char) {
+    match token {
+        Some(string) => string.push(character),
+        None => {
+            *token = Some(character.into());
+        },
+    }
+}
+
+fn finalize_token(tokens: &mut Vec<String>, token: &mut Option<String>) {
+    if let Some(item) = token.take() {
+        tokens.push(item);
+    }
+}
