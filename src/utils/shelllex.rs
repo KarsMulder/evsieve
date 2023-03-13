@@ -119,6 +119,7 @@ pub fn lex(input: &str) -> Result<Vec<String>, ArgumentError> {
                     '\"' => '\"',
                     '*' => '*',
                     '?' => '?',
+                    ' ' => ' ',
                     _ => return Err(ArgumentError::new(format!(
                         "Unknown escape sequence encountered: \\{}", character
                     ))),
@@ -163,4 +164,40 @@ fn finalize_token(tokens: &mut Vec<String>, token: &mut Option<String>) {
     if let Some(item) = token.take() {
         tokens.push(item);
     }
+}
+
+// TODO: Write some more unittests.
+#[test]
+fn unittest() {
+    assert_eq!(
+        lex("--hook exec-shell=\"echo Hello, world!\"").unwrap(),
+        vec!["--hook".to_owned(), "exec-shell=echo Hello, world!".to_owned()]
+    );
+    assert_eq!(
+        lex("foo bar # baz \nquux").unwrap(),
+        vec!["foo".to_owned(), "bar".to_owned(), "quux".to_owned()],
+    );
+    assert_eq!(
+        lex("foo bar # baz \nquux").unwrap(),
+        vec!["foo".to_owned(), "bar".to_owned(), "quux".to_owned()],
+    );
+    assert_eq!(
+        lex("a b\\ c").unwrap(),
+        vec!["a".to_owned(), "b c".to_owned()],
+    );
+    assert_eq!(
+        lex("foo \"bar 'baz' \\\"quux\\\"\"").unwrap(),
+        vec!["foo".to_owned(), "bar 'baz' \"quux\"".to_owned()],
+    );
+    assert_eq!(
+        lex("foo # \\\nbar").unwrap(),
+        vec!["foo".to_owned(), "bar".to_owned()],
+    );
+    assert_eq!(
+        lex("foo\\\nbar").unwrap(),
+        vec!["foobar".to_owned()],
+    );
+
+    lex("foo \"bar").unwrap_err();
+    lex("foo \\").unwrap_err();
 }
