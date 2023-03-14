@@ -1,5 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+//! This module is responsible for splitting strings into tokens in a way similar
+//! to how a shell would do it. For example, the following string:
+//! 
+//!     --hook key:a exec-shell="echo Hello, world!"
+//! 
+//! Should be split into three tokens: "--hook", "key:a" and "exec-shell=Hello, world!".
+//! Yes, removing the quotes around <<Hello, world!>> is intentional.
+
 use crate::error::ArgumentError;
 
 #[derive(Clone, Copy)]
@@ -47,6 +55,7 @@ impl QuoteMark {
 
 // TODO: FEATURE(config) Should we also interpret the `# ... ` sequence, since we use it in
 // quite a lot of our own examples?
+// TODO: FEATURE(config) Should we treat \r\n the same as we treat \n?
 
 /// Tries to split a string into tokens in a way similar to how a shell does it.
 pub fn lex(input: &str) -> Result<Vec<String>, ArgumentError> {
@@ -54,17 +63,28 @@ pub fn lex(input: &str) -> Result<Vec<String>, ArgumentError> {
     let mut next_token: Option<String> = None;
     let mut tokens: Vec<String> = Vec::new();
 
+    // Read characters from the input and append them to next_token.
+    //
+    // Unless the character is whitespace, in which case the current token shall be
+    // finalized, meaning that future characters must be written to a new token.
+    //
+    // Unless some control character gets encountered, in which case the state is modified
+    // according to that control character.
+    //
+    // Unless...
+    //
+    // You get the gist. I can't summarize the next 80 lines in a comment.
     for character in input.chars() {
         match state {
             // Handle generic characters that are not under any special mode of processing.
-            MaybeEscapedState::NotEscaped(last_state @ State::Normal) => {
+            MaybeEscapedState::NotEscaped(State::Normal) => {
                 match character {
                     '#' => {
                         finalize_token(&mut tokens, &mut next_token);
                         state = MaybeEscapedState::NotEscaped(State::Comment);
                     },
                     '\\' => {
-                        state = MaybeEscapedState::Escaped(last_state);
+                        state = MaybeEscapedState::Escaped(State::Normal);
                     },
                     '\'' | '\"' => {
                         if next_token.is_none() {
@@ -156,6 +176,8 @@ pub fn lex(input: &str) -> Result<Vec<String>, ArgumentError> {
     Ok(tokens)
 }
 
+/// Adds a character to the token that is currently being accumulated. Creates a new
+/// token if no token is currently being accumulated.
 fn push_to_token(token: &mut Option<String>, character: char) {
     match token {
         Some(string) => string.push(character),
@@ -165,6 +187,9 @@ fn push_to_token(token: &mut Option<String>, character: char) {
     }
 }
 
+/// If a token was getting accumulated, finalize it in the sense that no new character
+/// can be added to it anymore. Sets the currently accumulating token to empty, ensuring
+/// that all future characters will be added to a new token.
 fn finalize_token(tokens: &mut Vec<String>, token: &mut Option<String>) {
     if let Some(item) = token.take() {
         tokens.push(item);
