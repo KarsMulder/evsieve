@@ -177,6 +177,10 @@ fn unittest() {
         vec!["--hook".to_owned(), "exec-shell=echo Hello, world!".to_owned()]
     );
     assert_eq!(
+        lex("foo \"bar\" 'baz' \"q\"u'u'\"x\"").unwrap(),
+        vec!["foo".to_owned(), "bar".to_owned(), "baz".to_owned(), "quux".to_owned()],
+    );
+    assert_eq!(
         lex("foo bar # baz \nquux").unwrap(),
         vec!["foo".to_owned(), "bar".to_owned(), "quux".to_owned()],
     );
@@ -205,6 +209,14 @@ fn unittest() {
         Vec::<String>::new(),
     );
     assert_eq!(
+        lex(" ").unwrap(),
+        Vec::<String>::new(),
+    );
+    assert_eq!(
+        lex("\t\n").unwrap(),
+        Vec::<String>::new(),
+    );
+    assert_eq!(
         lex("\"\"").unwrap(),
         vec!["".to_owned()],
     );
@@ -224,4 +236,5 @@ fn unittest() {
 
     lex("foo \"bar").unwrap_err();
     lex("foo \\").unwrap_err();
+    lex("foo \"'").unwrap_err();
 }
