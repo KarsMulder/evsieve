@@ -142,6 +142,7 @@ pub fn lex(input: &str) -> Result<Vec<String>, ArgumentError> {
                     '\\' => '\\',
                     '\'' => '\'',
                     '\"' => '\"',
+                    '#' => '#',
                     '*' => '*',
                     '?' => '?',
                     ' ' => ' ',
@@ -258,6 +259,10 @@ fn unittest() {
     assert_eq!(
         lex("   foo  \\  ").unwrap(),
         vec!["foo".to_owned(), " ".to_owned()],
+    );
+    assert_eq!(
+        lex("foo \" # \" '#' \\# bar # baz").unwrap(),
+        vec!["foo".to_owned(), " # ".to_owned(), "#".to_owned(), "#".to_owned(), "bar".to_owned()],
     );
     
 
