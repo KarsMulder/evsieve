@@ -38,12 +38,6 @@ enum TrackerState {
     Invalid,
 }
 
-impl std::default::Default for TrackerState {
-    fn default() -> Self {
-        TrackerState::Inactive
-    }
-}
-
 impl TrackerState {
     fn is_active(&self) -> bool {
         match self {

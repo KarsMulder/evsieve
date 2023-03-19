@@ -506,7 +506,7 @@ fn interpret_key(key_str: &str, parser: &KeyParser) -> Result<Key, ArgumentError
         },
         None => match parser.default_value {
             "" => return Ok(key),
-            _ => &parser.default_value,
+            _ => parser.default_value,
         },
     };
 

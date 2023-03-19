@@ -261,12 +261,12 @@ impl OutputDevice {
         if res < 0 {
             eprintln!("Warning: an error occurred while writing an event to {}.", self.description());
         }
-        self.should_syn = ev_type as u32 != libevdev::EV_SYN;
+        self.should_syn = ev_type != libevdev::EV_SYN;
     }
 
     #[cfg(not(feature = "auto-scan"))]
     fn write_event(&mut self, event: Event) {
-        self.write(event.code.ev_type().into(), event.code.code() as u32, event.value as i32);
+        self.write(event.code.ev_type().into(), event.code.code() as u32, event.value);
     }
 
     #[cfg(feature = "auto-scan")]

@@ -58,7 +58,7 @@ lazy_static! {
                         Some(name_uppercase) => name_uppercase.to_lowercase(),
                         None => continue,
                     };
-                    let event_code = EventCode::new(ev_type, code as u16);
+                    let event_code = EventCode::new(ev_type, code);
 
                     result.insert((ev_type_name.to_string(), code_name), event_code);
                 }
@@ -129,7 +129,7 @@ pub fn type_name(ev_type: EventType) -> Cow<'static, str> {
         }
     }
 
-    return Cow::from(format!("{}", u16::from(ev_type)));
+    Cow::from(format!("{}", u16::from(ev_type)))
 }
 
 pub fn virtual_type_name(virtual_type: VirtualEventType) -> Cow<'static, str> {

@@ -34,7 +34,7 @@ fn notify(state: &str) {
     }
 
     let child_res = Command::new("systemd-notify")
-        .args(&["--", state])
+        .args(["--", state])
         .stdin(Stdio::null())
         .spawn();
 

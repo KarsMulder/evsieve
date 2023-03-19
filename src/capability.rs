@@ -224,7 +224,7 @@ impl Capabilities {
     /// Adds EV_REP capabilities to self with arbitrary delay and period.
     /// The kernel is going to ignore the delay and period we give it anyway.
     pub fn require_ev_rep(&mut self) {
-        if self.rep_info == None {
+        if self.rep_info.is_none() {
             self.set_ev_rep(RepeatInfo::kernel_default())
         }
     }

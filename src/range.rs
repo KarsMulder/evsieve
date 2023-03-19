@@ -265,7 +265,7 @@ impl Range {
     /// Returns a range if there is a contiguous range that is the union of both of these.
     /// If such a range does not exist (e.g. there is empty space between them), returns None.
     pub fn try_union(&self, other: &Range) -> Option<Range> {
-        if self.intersect(other) == None &&
+        if self.intersect(other).is_none() &&
            ! self.max.is_acjadent(other.min) &&
            ! self.min.is_acjadent(other.max)
         {
@@ -285,7 +285,7 @@ impl Range {
 
     /// Tests whether these ranges have no overlap.
     pub fn is_disjoint_with(&self, other: &Range) -> bool {
-        self.intersect(other) == None
+        self.intersect(other).is_none()
     }
 
     /// Returns whether this range is bounded in a mathematical sense.
