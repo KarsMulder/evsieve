@@ -10,9 +10,6 @@
 // Allowed because nested ifs allow for more-readable code.
 #![allow(clippy::collapsible_if)]
 
-// Allowed because the matches! macro is not supported in Rust 1.41.1, under which evsieve must compile.
-#![allow(clippy::match_like_matches_macro)]
-
 // Disallowed for code uniformity.
 #![warn(clippy::explicit_iter_loop)]
 #![warn(clippy::explicit_into_iter_loop)]

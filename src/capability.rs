@@ -209,10 +209,8 @@ impl Capabilities {
             if ! new_range.is_bounded() {
                 eprintln!("Warning: could not automatically derive the possible range of the absolute axis {}.", ecodes::event_name(cap.code));
             };
-            // i32::MIN and i32::MAX respectively. We use literals instead of constant names to be
-            // compatible with rustc version 1.41.1, which is shipped by Debian.
-            let min_value = new_range.min.discrete_or(-2147483648);
-            let max_value = new_range.max.discrete_or(2147483647);
+            let min_value = new_range.min.discrete_or(i32::MIN);
+            let max_value = new_range.max.discrete_or(i32::MAX);
 
             // Insert or overwrite the existing value.
             self.abs_info.insert(cap.code, AbsInfo {

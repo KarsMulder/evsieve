@@ -56,32 +56,3 @@ pub fn parse_number(string: &str) -> Option<f64> {
         }
     }
 }
-
-
-/// Rust 1.41.1 doesn't include str::strip_prefix or str::strip_suffix, so we roll our own implementation.
-pub fn strip_prefix<'a>(string: &'a str, prefix: &str) -> Option<&'a str> {
-    if string.starts_with(prefix) {
-        Some(&string[prefix.len() .. string.len()])
-    } else {
-        None
-    }
-}
-
-pub fn strip_suffix<'a>(string: &'a str, suffix: &str) -> Option<&'a str> {
-    if string.ends_with(suffix) {
-        Some(&string[0 .. string.len()-suffix.len()])
-    } else {
-        None
-    }
-}
-
-#[test]
-fn unittest() {
-    assert_eq!(strip_prefix("foobar", "foo"), Some("bar"));
-    assert_eq!(strip_prefix("foofoobar", "foo"), Some("foobar"));
-    assert_eq!(strip_prefix("foobaz", "baz"), None);
-
-    assert_eq!(strip_suffix("foobar", "bar"), Some("foo"));
-    assert_eq!(strip_suffix("foobarbar", "bar"), Some("foobar"));
-    assert_eq!(strip_suffix("foobaz", "bar"), None);
-}
