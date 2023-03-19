@@ -6,6 +6,7 @@ edition = "2018"
 keywords = ["evdev"]
 categories = ["command-line-utilities"]
 links = "evdev"
+rust-version = "1.59"
 
 # The following "license = " key includes licenses from some dependencies, even if no code
 # from those dependencies is on this repository. See the COPYING file for more detailed information.

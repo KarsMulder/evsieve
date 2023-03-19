@@ -35,7 +35,7 @@ impl Instant {
             let result = libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut timespec as *mut _ as *mut libc::timespec);
             if result < 0 {
                 panic!("Failed to determine the current time using [libc] clock_gettime(). Error code: {}",
-                    std::io::Error::last_os_error().kind()
+                    std::io::Error::last_os_error().raw_os_error().map(|x| x.to_string()).unwrap_or_else(|| "(unknown)".to_owned())
                 );
             }
 
@@ -43,7 +43,7 @@ impl Instant {
         }
     }
 
-    // The checked part referst to making sure that self is after other.
+    // The checked part refers to making sure that self is after other.
     // Panic in case of integer overflow.
     pub fn checked_duration_since(self, other: Instant) -> Option<Duration> {
         let mut nsec = self.nsec - other.nsec;
