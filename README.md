@@ -789,16 +789,18 @@ To address this problem, `mode=consistent` exists. If a toggle operates in consi
 The `--hook` argument has the following basic syntax:
 
 ```
-    --hook KEY... [exec-shell=COMMAND]... [toggle[=[ID][:INDEX]]]...
+    --hook KEY... [exec-shell=COMMAND]... [toggle[=[ID][:INDEX]]]... [send-key=KEY]... [sequential] [period=SECONDS] [breaks-on=...]
 ```
 
-Hooks take actions upon events, but do not modify events. An example of such an action is executing a certain script. The following hook will print "Hello, world!" every time lctrl+A is pressed:
+Hooks take actions when it receives a certain combination events. By default, they do not modify the event stream. An example of such an action is executing a certain script. The following hook will print "Hello, world!" every time LCtrl+A is pressed:
 
 ```
     --hook key:a key:leftcontrol exec-shell="echo Hello, world!"
 ```
 
 One or more KEYs can be specified. The syntax for specifying the keys that trigger the hook is the same as the one used to match events for maps, but the semantics are different. The simple explanation of KEYs is that the hook will trigger whenever all those keys are held down simultaneously, and that is probably all you need to remember about them.
+
+The clauses/flags `sequential`, `period`, and `breaks-on` can be provided to add additional restrictions to when the hook can trigger. The clauses `exec-shell`, `toggle`, or `send-key` can be used to decide what to do when the hook triggers.
 
 **In detail: key format**
 
@@ -866,6 +868,65 @@ By default, the active target is always moved to the next one in the list. It is
 ```
 
 This will move the active target to the first one (`@target-1`) for `first-toggle` when lctrl is pressed, and move the active target to the second one (`@target-2`) for all toggles when rctrl is pressed.
+
+**Send-key**
+
+The `send-key` clause allows you to send EV_KEY-type events when the hook triggers, for example:
+
+```
+    --hook key:leftctrl key:z send-key=key:f1
+```
+
+This will send a KEY_DOWN event for the F1 key when Ctrl+A is pressed, and sends a corresponding KEY_UP event when either the Ctrl key or the Z key is released.
+
+**Sequential**
+
+If the `sequential` flag is specified on a hook, then all KEYs associated with the hook additionally need to arrive in the specified order to trigger the hook. For example:
+
+```
+    --hook key:leftctrl key:z sequential exec-shell="echo Hello, world!"
+```
+
+This hook will only print `Hello world!` if you first press the LCtrl key and thereafter press the Z key. This hook will do nothing if you first press the Z key and thereafter the LCtrl key.
+
+To avoid confusion, here is what the `sequential` flag does *not* do:
+
+* The `sequential` flag does not forbid other events from arriving between the specified events. For example, pressing LCtrl+X+Z will still trigger the hook;
+* The `sequential` flag does not remove the requirement that all specified keys must be pressed at the same time. For example, pressing LCtrl, releasing LCtrl, and then pressing Z, will not trigger the hook.
+
+**Period**
+
+The `period=SECONDS` clause adds the requirement that all KEYs associated with the hook need to be pressed within a certain amount of seconds, otherwise the hook won't trigger. For example:
+
+```
+    --hook key:leftctrl key:z period=0.5 exec-shell="echo Hello, world!"
+```
+
+This hook will only print `Hello, world!` if the LCtrl and Z keys are pressed within half a second of each other. If more than half a second passes after pressing either key before the other key is pressed, nothing happens.
+
+**Breaks-on**
+
+By default, the `--hook` agument does not care about events that do not match any of its KEYs. For example,
+
+```
+    --hook key:leftctrl key:z sequential exec-shell="echo Hello, world!"
+```
+
+will trigger on LCtrl+Z, but also on LCtrl+X+Z. As long as both LCtrl+Z are pressed at the same time, it does not matter how many other events arrive in the meanwhile.
+
+The `breaks-on` clause allows you to prevent the hook from triggering if the hook receives a certain event before the key combination is completed. For examle,
+
+```
+    --hook key:leftctrl key:z breaks-on=key:x:1 exec-shell="echo Hello, world!"
+```
+
+will print `Hello, world!` if you press LCtrl+Z, but not if you press LCtrl+X+Z, because the `key:x:1` event would match the breaks-on clause. The combination `LCtrl+Y+Z` would still cause the hook to trigger.
+
+An event that contributes towards activating the hook will never break it. This makes it possible to use something like the following to break the combination when any key other than LCtrl or Z is pressed:
+
+```
+    --hook key:leftctrl key:z breaks-on=key::1 exec-shell="echo Hello, world!"
+```
 
 ## Inputs
 
