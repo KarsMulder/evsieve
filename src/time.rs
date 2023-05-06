@@ -61,19 +61,23 @@ impl Instant {
 }
 
 impl From<libc::timespec> for Instant {
+    #[allow(clippy::unnecessary_cast)]
     fn from(timespec: libc::timespec) -> Self {
+        // Some platforms use different datatypes for tv_sec and tv_nsec than we internally
+        // use, so we need these casts.
         Self {
-            sec: timespec.tv_sec,
-            nsec: timespec.tv_nsec,
+            sec: timespec.tv_sec as i64,
+            nsec: timespec.tv_nsec as i64,
         }
     }
 }
 
 impl From<libevdev::timeval> for Instant {
+    #[allow(clippy::unnecessary_cast)]
     fn from(timeval: libevdev::timeval) -> Self {
         Self {
-            sec: timeval.tv_sec,
-            nsec: NANOSECONDS_PER_MICROSECOND * timeval.tv_usec,
+            sec: timeval.tv_sec as i64,
+            nsec: NANOSECONDS_PER_MICROSECOND * timeval.tv_usec as i64,
         }
     }
 }
