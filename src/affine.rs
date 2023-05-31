@@ -196,8 +196,6 @@ fn lex_to_components(source: &str) -> Result<Vec<Component>, ArgumentError> {
 }
 
 pub fn parse_affine_factor(source: &str) -> Result<AffineFactor, ArgumentError> {
-    // TODO: BEFORE-STABILIZE: Forbid multiple copies of the same variable?
-    // 0.1d + 0.25d may mean something different from 0.35d.
     let components = lex_to_components(source)?;
     let mut result = AffineFactor {
         absolute: 0.0,
