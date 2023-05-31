@@ -440,10 +440,21 @@ fn interpret_key_with_domain(key_str: &str, parser: &KeyParser) -> Result<Key, A
 fn interpret_key(key_str: &str, parser: &KeyParser) -> Result<Key, ArgumentError> {
     let mut key = Key::new();
     key.add_property(KeyProperty::Namespace(parser.namespace));
+
+    // The empty key is canonically deemed acceptable.
     if key_str == "" {
         return Ok(key)
     }
-        
+    // This forbids keys like "key:", "key:a:" or "key::".
+    if key_str.ends_with(':') {
+        return Err(ArgumentError::new(
+            format!(
+                "A key must not end on a colon (\":\"). Please try \"{}\" instead.",
+                key_str.trim_end_matches(':')
+            )
+        ));
+    }
+    
     let mut parts = key_str.split(':');
 
     // Interpret the event type.

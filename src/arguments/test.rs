@@ -39,10 +39,9 @@ fn test_argument_validity() {
     require_err(["--map", "rel:x:d", "rel:x:1"]);
     require_ok( ["--map", "rel:x:1", "rel:x:1"]);
 
-    // TODO: BEFORE-STABILIZE: Consider whether we want to allow or forbid the following keys.
-    //require_err(["--map", "key:"]);
-    //require_err(["--map", "key::"]);
-    //require_err(["--map", "key:a:"]);
+    require_err(["--map", "key:"]);
+    require_err(["--map", "key::"]);
+    require_err(["--map", "key:a:"]);
     
     // Test --withhold.
     require_ok( ["--hook", "key:a", "--withhold"]);
