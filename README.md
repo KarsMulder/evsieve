@@ -930,6 +930,62 @@ An event that contributes towards activating the hook will never break it. This 
     --hook key:leftctrl key:z breaks-on=key::1 exec-shell="echo Hello, world!"
 ```
 
+## The --withhold argument**
+
+The `--withhold` argument must directly follow one or multiple `--hook` arguments and has the following basic syntax:
+
+```
+    --withhold [KEY...]
+```
+
+The `--withhold` argument can follow one or multiple consecutive hooks. Any event that may trigger one of the preceding hooks will be removed from the envent stream and withheld until either (1) it becomes clear that the event will not actually trigger any of the preceding hooks, in which case it is put back in the event stream, or (2) it actually triggers one of the preceding hooks, in which case the event is definitively dropped.
+
+This is useful when you want to take some action when the user presses a certain key combination. Let's say you want to intercept the combinations Ctrl+A and Ctrl+B. This is also a conceptually difficult task: when the user presses the Ctrl key, we do not yet know whether an A or B key will follow. Consider the following script:
+
+```
+evsieve --input /dev/input/by-id/my-keyboard \
+        --hook key:leftctrl key:a exec-shell="echo Pressed Ctrl+A" \
+        --hook key:leftctrl key:b exec-shell="echo Pressed Ctrl+B" \
+        --withhold \
+        --output
+```
+
+This script takes an absolutionist approach: a `key:leftctrl:1` event will not be sent to the output device unless it is clear that this event will not contribute to activating the preceding hooks, which only becomes clear when the Ctrl key gets released, in which case the output device will receive the `key:leftctrl:1`, `key:leftctrl:0` events directly after each other.
+
+The above script has the unintended side effect of making it impossible to type key combinations like Ctrl+X, because the Ctrl key gets withheld until it is released. To get closer to the intended goal of only blocking the Ctrl+A and Ctrl+B keys, two things can be done:
+
+* You can make the `--withhold` argument apply to only some keys;
+* You can add additional restrictions to the preceding hooks.
+
+For example, the following script comes much closer to the intended effect:
+
+```
+evsieve --input /dev/input/by-id/my-keyboard \
+        --hook key:leftctrl key:a exec-shell="echo Pressed Ctrl+A" sequential \
+        --hook key:leftctrl key:b exec-shell="echo Pressed Ctrl+B" sequential \
+        --withhold key:a key:b \
+        --output
+```
+
+By restricting the `--withhold` argument to only the A and B keys, we ensured that the Ctrl key never gets withheld, so that we can enter other combinations like Ctrl+X without issue.
+
+Adding the `sequential` flag to the hooks ensures that the A and B keys will not be withheld unless the Ctrl key is already pressed before them (the combination A+Ctrl cannot trigger a sequential hook, so there is no point in withholding the A key if Ctrl is not pressed already.)
+
+Although it is not necessary in this case, the `--hook period=...` clause is also often useful in combination with the `--withhold` argument to ensure that events are not withheld for more than a certain amount of time.
+
+Important to note is that the `--withhold` argument applies to all consecutive preceding hooks. So in the above example, the `--withhold` argument will withold potential combinations for both the preceding hooks. However, in the following script, the `--withhold` argument will not withhold the C or D keys, because there is a non-hook argument between them and the `--withhold` argument:
+
+```
+evsieve --input /dev/input/by-id/my-keyboard \
+        --hook key:leftctrl key:c exec-shell="echo Pressed Ctrl+C" sequential \
+        --hook key:leftctrl key:d exec-shell="echo Pressed Ctrl+D" sequential \
+        --map key:x key:y \
+        --hook key:leftctrl key:a exec-shell="echo Pressed Ctrl+A" sequential \
+        --hook key:leftctrl key:b exec-shell="echo Pressed Ctrl+B" sequential \
+        --withhold \
+        --output
+```
+
 ## Inputs
 
 The `--input` argument has the following basic syntax:
