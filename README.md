@@ -22,7 +22,9 @@ Evsieve is intended to make simple manipulations easy. It is **not** a tool for 
 
 Compiling this program requires the Rust toolchain and the libevdev library. To install these dependencies:
 
-* **Debian / Ubuntu:** `sudo apt install cargo libevdev2 libevdev-dev`
+* **Ubuntu:** `sudo apt install cargo libevdev2 libevdev-dev`
+* **Debian 12 (Bookworm):** `sudo apt install cargo libevdev2 libevdev-dev`
+* **Debian 11 (Bullseye):** `sudo apt install cargo-mozilla libevdev2 libevdev-dev`
 * **Fedora:** `sudo dnf install cargo libevdev libevdev-devel`
 * **Arch Linux:** `sudo pacman -S rust libevdev`
 
