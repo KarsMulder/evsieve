@@ -186,8 +186,15 @@ fn lex_to_components(source: &str) -> Result<Vec<Component>, ArgumentError> {
             _ => return Err(ArgumentError::new("Invalid expression.")),
         };
 
-        let number = numeric.into_iter().collect::<String>().parse::<f64>()
-            .map_err(|_| ArgumentError::new("Cannot parse factor as number."))?;
+        let numeric_str = numeric.into_iter().collect::<String>();
+        let number = match variable {
+            Variable::One => numeric_str.parse::<i32>()
+                .map_err(|_| ArgumentError::new("Cannot parse factor as integer."))?
+                as f64,
+            _ => numeric_str.parse::<f64>()
+                .map_err(|_| ArgumentError::new("Cannot parse factor as number."))?,
+        };
+
         let factor = match sign {
             Sign::Positive => number,
             Sign::Negative => -number,
@@ -242,8 +249,8 @@ fn unittest() {
         get_test_event(15, 13),
     );
     assert_eq!(
-        parse_affine_factor("-2.5x+0.5").unwrap().merge(get_test_event(7, 13)),
-        get_test_event(-17, 13),
+        parse_affine_factor("-2.5x+5").unwrap().merge(get_test_event(8, 13)),
+        get_test_event(-15, 13),
     );
     assert_eq!(
         parse_affine_factor("d+x").unwrap().merge(get_test_event(7, 13)),
