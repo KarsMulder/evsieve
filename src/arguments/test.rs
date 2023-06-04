@@ -41,7 +41,11 @@ fn test_argument_validity() {
     require_err(["--map", "rel:x", "rel:x:xd"]);
     require_err(["--map", "rel:x:x", "rel:x:1"]);
     require_err(["--map", "rel:x:d", "rel:x:1"]);
-    require_ok( ["--map", "rel:x:1", "rel:x:1"]);
+    
+    require_ok( ["--map", "rel:x", "rel:x:1+d"]);
+    require_ok( ["--map", "rel:x", "rel:x:1+2d"]);
+    require_ok( ["--map", "rel:x", "rel:x:1+0d"]);
+    require_ok( ["--map", "rel:x", "rel:x:0x"]);
 
     require_err(["--map", "key:"]);
     require_err(["--map", "key::"]);

@@ -563,15 +563,31 @@ fn interpret_key(parts: KeyParts, parser: &KeyParser) -> Result<Key, ArgumentErr
     };
 
     // Check if it is a relative value.
-    if let Some(property) = interpret_relative_value(event_value_str) {
-        if parser.allow_relative_values {
-            key.add_property(property);
-            return Ok(key);
-        } else {
-            return Err(ArgumentError::new(format!(
-                "It is not possible to specify relative values for the key {}.", parts.key_str,
-            )))
-        }
+    match interpret_relative_value(event_value_str) {
+        AffineParseResult::IsAffine(property) => {
+            if parser.allow_relative_values {
+                key.add_property(property);
+                return Ok(key);
+            } else {
+                return Err(ArgumentError::new(format!(
+                    "It is not possible to specify relative values for the key {}.", parts.key_str,
+                )))
+            }
+        },
+        AffineParseResult::IsConstant(property) => {
+            if parser.allow_relative_values {
+                key.add_property(property);
+                return Ok(key);
+            } else {
+                // Do nothing.
+                //
+                // We do not want to accept it yet because that could lead to cases like
+                // ::4+0x getting accepted where it shouldn't, but we shouldn't throw an
+                // error either because that could cause errors on ::4 getting interpreted
+                // as an affine factor;
+            }
+        },
+        AffineParseResult::Unparsable => (),
     }
 
     // Determine what the previous event value (if any) is, and the current event value.
@@ -633,18 +649,29 @@ fn parse_int_or_wildcard(value_str: &str) -> Result<Option<i32>, ArgumentError> 
     }
 }
 
+enum AffineParseResult {
+    // This value is an actual affine factor.
+    IsAffine(KeyProperty),
+    // This value turns out to be constant.
+    IsConstant(KeyProperty),
+    // This value is neither affine nor a constant, but it may be something else, like a range.
+    Unparsable,
+}
+
 /// Parses a value like "0.1d" or "-x".
-/// 
-/// Returns Some if the value_str can be interpreted as an affine factor.
-/// Returns None if it cannot.
-/// 
-/// A constant map shall never be interpreted as an affine map.
-fn interpret_relative_value(value_str: &str) -> Option<KeyProperty> {
-    let factor = crate::affine::parse_affine_factor(value_str).ok()?;
-    if ! factor.is_constant() {
-        Some(KeyProperty::AffineFactor(factor))
+fn interpret_relative_value(value_str: &str) -> AffineParseResult {
+    let factor = match crate::affine::parse_affine_factor(value_str) {
+        Ok(factor) => factor,
+        Err(_) => return AffineParseResult::Unparsable,
+    };
+    if let Some(value) = factor.as_constant() {
+        if value.trunc() != value {
+            return AffineParseResult::Unparsable;
+        };
+        let value_as_i32: i32 = value.trunc() as i32;
+        AffineParseResult::IsConstant(KeyProperty::Value(Range::new(value_as_i32, value_as_i32)))
     } else {
-        None
+        AffineParseResult::IsAffine(KeyProperty::AffineFactor(factor))
     }
 }
 

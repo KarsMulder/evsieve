@@ -66,9 +66,13 @@ impl AffineFactor {
         cap
     }
 
-    /// Returns true if it maps all event values to the same output value.
-    pub fn is_constant(&self) -> bool {
-        self.absolute == 0.0 && self.relative == 0.0
+    /// Returns Some(value) if this factor can be seen as a simple constant.
+    pub fn as_constant(&self) -> Option<f64> {
+        if self.absolute == 0.0 && self.relative == 0.0 {
+            Some(self.addition)
+        } else {
+            None
+        }
     }
 }
 
@@ -248,6 +252,10 @@ fn unittest() {
     assert_eq!(
         parse_affine_factor("-d+x").unwrap().merge(get_test_event(7, 13)),
         get_test_event(13, 13),
+    );
+    assert_eq!(
+        parse_affine_factor("5+0x").unwrap().merge(get_test_event(7, 13)),
+        get_test_event(5, 13),
     );
 
     assert_eq!(
