@@ -1033,6 +1033,8 @@ The `persist=` clause tells evsieve what to do in case it somehow fails to read 
 
 For the sake of backwards compatibility, the default mode is `persist=none`, which tells evsieve to close any device that it fails to read events from and try to continue without said device. If all input devices have been closed, evsieve will exit.
 
+If `persist=exit` has been specified, evsieve exit whenever this input device disconnects, even if other input devices are still available.
+
 If `persist=reopen` has been specified, evsieve will instead wait until the input device becomes available again and then try to reopen it. Even if `persist=reopen` is used, all input devices must be available when `evsieve` starts.
 
 If the closed and reopened input devices are somehow not identical, evsieve may destroy and recreate some virtual output devices if necessary to ensure all virtual output devices have the correct capabilities.
