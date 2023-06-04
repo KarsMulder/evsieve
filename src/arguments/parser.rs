@@ -171,7 +171,7 @@ fn sort_into_groups(args: Vec<String>) -> Result<Vec<MetaArgument>, RuntimeError
     }
 
     groups.into_iter().map(
-        |group| MetaArgument::parse(group.clone()).with_context(format!(
+        |group| MetaArgument::parse(group.clone()).with_context_of(|| format!(
             "While parsing the arguments \"{}\":", group.join(" ")
         )
     )).collect()
