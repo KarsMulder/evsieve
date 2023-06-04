@@ -659,6 +659,17 @@ There is one notable exception to the above scheme. There are events with type E
     EV_KEY, BTN_NORTH -> btn:north
 ```
 
+You can also specify an event code by its numeric value, which is useful in case your device emits an event with a code that does not have a name in the Linux kernel. When specifying event codes by numeric value, you need to add a `%` character before the number to avoid ambiguity:
+```
+    key:%30   # Represents the event (EV_KEY, 30), equivalent to key:a or (EV_KEY, KEY_A)
+    btn:%300  # Represents the event (EV_KEY, 300), has no name in the Linux kernel
+
+    # While acknowledging that the % character looks silly, the following would be
+    # ambiguous if this rule didn't exist:
+    key:%1    # Represents the event (EV_KEY, 1), equivalent to key:esc or (EV_KEY, KEY_ESC)
+    key:1     # Represents the event (EV_KEY, KEY_1), equivalent to key:%2 or (EV_KEY, 2)
+```
+
 **Domains**
 
 Domains are not something that exists according to the evdev protocol, they are merely a tool invented by evsieve to help you write advanced maps. Domains are strings of text. Any event being processed by evsieve has a domain attached to it. This domain can be specified using the `domain=` clause on an `--input` argument, otherwise the domain of an event is set to the path to the input device that emitted said event.
