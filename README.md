@@ -945,7 +945,7 @@ An event that contributes towards activating the hook will never break it. This 
     --hook key:leftctrl key:z breaks-on=key::1 exec-shell="echo Hello, world!"
 ```
 
-## The --withhold argument**
+## The `--withhold` argument**
 
 The `--withhold` argument must directly follow one or multiple `--hook` arguments and has the following basic syntax:
 
@@ -1000,6 +1000,23 @@ evsieve --input /dev/input/by-id/my-keyboard \
         --withhold \
         --output
 ```
+
+## The `--delay` argument
+
+The `--delay` argument has the following basic syntax:
+
+```
+    --delay [EVENTS...] period=SECONDS
+```
+
+Example usages are:
+
+```
+    --delay period=1          # Delays all events by one second.
+    --delay key:a period=0.2  # Delays all events related to the A key by 0.2 seconds.
+```
+
+The `--delay` argument removes all events that match one of the specified EVENTS from the event stream. If no EVENTS are specified, it removes all events from the event stream. All events that it removes will be added back to the event stream after an amount of seconds specified by the `period` flag passes.
 
 ## Inputs
 
