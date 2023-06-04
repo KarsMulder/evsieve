@@ -13,6 +13,10 @@ fn test_argument_validity() {
     require_ok( ["--map", "key:a"]);
     require_err(["--map", "key:quux"]);
     require_ok( ["--map", "key:a:1"]);
+    require_err(["--map", "key:a:1:2"]);
+    require_ok( ["--map", "::1"]);
+    require_ok( ["--map", "::1", "::2"]);
+    require_err(["--map", "::1", "key::2"]);
     require_err(["--map", "key:a:quux"]);
     require_ok( ["--map", "key:a:1~"]);
     require_ok( ["--map", "key:a:~1"]);

@@ -426,10 +426,10 @@ pub fn resembles_key(key_str: &str) -> bool {
 
 /// Interprets a key that optionally has a domain attached, like "key:a@keyboard".
 fn interpret_key_with_domain(key_str: &str, parser: &KeyParser) -> Result<Key, ArgumentError> {
-    let (event_str, domain_str_opt) = utils::split_once(key_str, "@");
-    let mut key = interpret_key(event_str, parser)?;
+    let parts = key_str_to_parts(key_str)?;
+    let mut key = interpret_key(parts, parser)?;
 
-    if let Some(domain_str) = domain_str_opt {
+    if let Some(domain_str) = parts.domain {
         let domain = domain::resolve(domain_str)?;
         key.properties.push(KeyProperty::Domain(domain));
     }
@@ -437,14 +437,34 @@ fn interpret_key_with_domain(key_str: &str, parser: &KeyParser) -> Result<Key, A
     Ok(key)
 }
 
-fn interpret_key(key_str: &str, parser: &KeyParser) -> Result<Key, ArgumentError> {
-    let mut key = Key::new();
-    key.add_property(KeyProperty::Namespace(parser.namespace));
+#[derive(Clone, Copy)]
+struct KeyParts<'a> {
+    /// The full string of which these parts were lexed.
+    key_str: &'a str,
 
-    // The empty key is canonically deemed acceptable.
-    if key_str == "" {
-        return Ok(key)
+    // The following three fields represent respectively the "key", "a" and "1" parts of a string
+    // like "key:a:1". They will never equal Some(""); in those cases they should be turned into
+    // None instead.
+    ev_type: Option<&'a str>,
+    code: Option<&'a str>,
+    value: Option<&'a str>,
+
+    domain: Option<&'a str>,
+}
+
+fn key_str_to_parts(key_str: &str) -> Result<KeyParts, ArgumentError> {
+    let (key_str, domain) = utils::split_once(key_str, "@");
+
+    let mut parts_iter = key_str.split(':').peekable();
+
+    // Make sure that we never store the empty string in the type, code, or value options.
+    fn treat_empty_as_none(option: Option<&str>) -> Option<&str> {
+        option.filter(|content| !content.is_empty())
     }
+    let ev_type = treat_empty_as_none(parts_iter.next());
+    let code = treat_empty_as_none(parts_iter.next());
+    let value = treat_empty_as_none(parts_iter.next());
+
     // This forbids keys like "key:", "key:a:" or "key::".
     if key_str.ends_with(':') {
         return Err(ArgumentError::new(
@@ -454,57 +474,78 @@ fn interpret_key(key_str: &str, parser: &KeyParser) -> Result<Key, ArgumentError
             )
         ));
     }
-    
-    let mut parts = key_str.split(':');
+
+    // Make sure there is nothing after the last colon, such as in key:a:1:2.
+    // TODO: TEST THIS
+    if parts_iter.peek().is_some() {
+        let superfluous_part = parts_iter.collect::<Vec<_>>().join(":");
+        return Err(ArgumentError::new(format!(
+            "Too many colons encountered in the key \"{}\". There is no way to interpret the \":{}\" part.", key_str, superfluous_part
+        )));
+    }
+
+    Ok(KeyParts {
+        key_str,
+        ev_type,
+        code,
+        value,
+        domain,
+    })
+}
+
+fn interpret_key(parts: KeyParts, parser: &KeyParser) -> Result<Key, ArgumentError> {
+    let mut key = Key::new();
+    key.add_property(KeyProperty::Namespace(parser.namespace));
+
+    if parts.code.is_some() && parts.ev_type.is_none() {
+        // TODO: LOW-PRIORITY: Consider allowing this instead of throwing an error.
+        return Err(ArgumentError::new("Cannot specify event code or value without specifying event type."));
+    }
 
     // Interpret the event type.
-    let event_type_name = parts.next().unwrap();
-    let event_type = ecodes::event_type(event_type_name).map_err(|err|
-        // TODO: LOW-PRIORITY: Consider allowing this instead of throwing an error.
-        match event_type_name {
-            "" => ArgumentError::new("Cannot specify event code or value without specifying event type."),
-            _ => err,
+    if let Some(event_type_name) = parts.ev_type {
+        let event_type = ecodes::event_type(event_type_name)?;
+
+        if event_type.is_syn() {
+            return Err(ArgumentError::new("Cannot use event type \"syn\": it is impossible to manipulate synchronisation events because synchronisation is automatically taken care of by evsieve."));
         }
-    )?;
-    if event_type.is_syn() {
-        return Err(ArgumentError::new("Cannot use event type \"syn\": it is impossible to manipulate synchronisation events because synchronisation is automatically taken care of by evsieve."));
-    }
-    if parser.forbid_non_EV_KEY && event_type != EventType::KEY {
-        return Err(ArgumentError::new(
-            "Only events of type EV_KEY (i.e. \"key:something\" or \"btn:something\") can be specified in this position."
-        ))
-    }
-
-    // Extract the event code, or set a property that matches on type only.
-    match parts.next() {
-        // If no event code is available, then either throw an error or return a key that matches only on
-        // the virtual type depending on whether parser.allow_types is set.
-        //
-        // The Some("") guard exists to allow stuff like key::2 to be parsed.
-        None | Some("") => {
-            if ! parser.allow_types {
-                return Err(ArgumentError::new(format!("No event code provided for the key \"{}\".", key_str)));
-            }
-
-            let property = match event_type_name {
-                VirtualEventType::KEY => KeyProperty::VirtualType(VirtualEventType::Key),
-                VirtualEventType::BUTTON => KeyProperty::VirtualType(VirtualEventType::Button),
-                _ => KeyProperty::Type(event_type),
-            };
-            key.add_property(property);
-        },
-        Some(event_code_name) => {
-            let event_code = ecodes::event_code(event_type_name, event_code_name)?;
-            key.add_property(KeyProperty::Code(event_code));
-
-            // ISSUE: ABS_MT support
-            if ecodes::is_abs_mt(event_code) {
-                utils::warn_once("Warning: it seems you're trying to manipulate ABS_MT events. Keep in mind that evsieve's support for ABS_MT is considered unstable. Evsieve's behaviour with respect to ABS_MT events is subject to change in the future.");
-            }
+        if parser.forbid_non_EV_KEY && event_type != EventType::KEY {
+            return Err(ArgumentError::new(
+                "Only events of type EV_KEY (i.e. \"key:something\" or \"btn:something\") can be specified in this position."
+            ))
         }
-    };
-    
-    let event_value_str = match parts.next() {
+
+        // Extract the event code, or set a property that matches on type only.
+        match parts.code {
+            // If no event code is available, then either throw an error or return a key that matches only on
+            // the virtual type depending on whether parser.allow_types is set.
+            //
+            // The Some("") case should never happen, but we add this match for defensive programming.
+            None | Some("") => {
+                if ! parser.allow_types {
+                    return Err(ArgumentError::new(format!("No event code provided for the key \"{}\".", parts.key_str)));
+                }
+
+                let property = match event_type_name {
+                    VirtualEventType::KEY => KeyProperty::VirtualType(VirtualEventType::Key),
+                    VirtualEventType::BUTTON => KeyProperty::VirtualType(VirtualEventType::Button),
+                    _ => KeyProperty::Type(event_type),
+                };
+                key.add_property(property);
+            },
+            Some(event_code_name) => {
+                let event_code = ecodes::event_code(event_type_name, event_code_name)?;
+                key.add_property(KeyProperty::Code(event_code));
+
+                // ISSUE: ABS_MT support
+                if ecodes::is_abs_mt(event_code) {
+                    utils::warn_once("Warning: it seems you're trying to manipulate ABS_MT events. Keep in mind that evsieve's support for ABS_MT is considered unstable. Evsieve's behaviour with respect to ABS_MT events is subject to change in the future.");
+                }
+            }
+        };
+    } 
+
+    let event_value_str = match parts.value {
         Some(value) => {
             if parser.allow_values {
                 value
@@ -528,7 +569,7 @@ fn interpret_key(key_str: &str, parser: &KeyParser) -> Result<Key, ArgumentError
             return Ok(key);
         } else {
             return Err(ArgumentError::new(format!(
-                "It is not possible to specify relative values for the key {}.", key_str,
+                "It is not possible to specify relative values for the key {}.", parts.key_str,
             )))
         }
     }
