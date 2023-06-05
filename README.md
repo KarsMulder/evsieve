@@ -24,7 +24,7 @@ Compiling this program requires the Rust toolchain and the libevdev library. To 
 
 * **Ubuntu:** `sudo apt install cargo libevdev2 libevdev-dev`
 * **Debian 12 (Bookworm):** `sudo apt install cargo libevdev2 libevdev-dev`
-* **Debian 11 (Bullseye):** `sudo apt install cargo-mozilla libevdev2 libevdev-dev`
+* **Debian 11 (Bullseye):** `sudo apt install rustc-mozilla cargo libevdev2 libevdev-dev`
 * **Fedora:** `sudo dnf install cargo libevdev libevdev-devel`
 * **Arch Linux:** `sudo pacman -S rust libevdev`
 
