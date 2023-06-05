@@ -50,6 +50,7 @@ pub mod persist {
     pub mod blueprint;
     pub mod subsystem;
     pub mod interface;
+    pub mod path;
 }
 
 pub mod arguments {
