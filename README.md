@@ -583,16 +583,18 @@ Most parts are optional. Any part that is not specified will be interpreted to m
     key:a           # Matches any event with type EV_KEY, code KEY_A
     key:a:1         # Matches any event with type EV_KEY, code KEY_A, value 1 (down)
     key:a@keyboard  # Matches any event with type EV_KEY, code KEY_A with domain "keyboard"
-    key::1          # Matches any event with type EV_KEY, code KEY_(something), value 1 (down)
     @keyboard       # Matches any event with domain "keyboard"   
+    key::1          # Matches any event with type EV_KEY, code KEY_(something), value 1 (down)
+    ::1             # Matches any event with value 1.
 ```
 
 For output events, any part that is not specified will be interpreted as "same as the source event". For example:
 
 ```
-    --map key:a   key:b    # Will map any EV_KEY, KEY_A event to a EV_KEY, KEY_B event with the same event value.
-    --map key:a:1 key:b:0  # Will map any EV_KEY, KEY_A, value=1 event to a EV_KEY, KEY_B, value=0 event.
-    --map key:a   ""       # Will map any EV_KEY, KEY_A event to an identical event.
+    --map key:a   key:b    # Will map any (EV_KEY, KEY_A) event to a (EV_KEY, KEY_B) event with the same event value.
+    --map key:a:1 key:b:0  # Will map any (EV_KEY, KEY_A, value=1) event to a (EV_KEY, KEY_B, value=0) event.
+    --map key:a   ""       # Will map any (EV_KEY, KEY_A) event to an identical event.
+    --map abs:x   ::0      # Will map any (EV_ABS, ABS_X) event to an (EV_ABS, ABS_X, value=0) event.
 ```
 
 The value for input events may also be expressed as an (optionally bounded) range. For example:
@@ -619,7 +621,7 @@ Ranges and transitions are particularly useful for mapping absolute events to ke
     --map abs:x:200~..~199 key:a:0
 ```
 
-There are two special variables `x` and `d` that can be used to make the value of the mapped event dependent on the value of the input event. The variable `x` represents the value of the source event, and can be used for example in the following ways:
+For output events, ranges and transitions cannot be used. However, there are two special variables `x` and `d` that can be used to make the value of the mapped event dependent on the value of the input event. The variable `x` represents the value of the source event, and can be used for example in the following ways:
 
 ```
     --map rel:y rel:y:0.5x   # Halves the value of all rel:y events.
@@ -771,6 +773,23 @@ Input event | State of input keyboard | Output event | State of output keyboard
 It is possible to specify a filter after the `--merge` argument to make it apply to only a specific set of events, e.g. `--merge key:a` will only merge (EV_KEY, KEY_A) events and leave other events untouched. If no filter is specified, `--merge` will apply to all events of type EV_KEY.
 
 Only events that have the same event code and domain are merged with each other.
+
+**The `--delay` argument**
+
+The `--delay` argument has the following basic syntax:
+
+```
+    --delay [EVENTS...] period=SECONDS
+```
+
+Example usages are:
+
+```
+    --delay period=1          # Delays all events by one second.
+    --delay key:a period=0.2  # Delays all events related to the A key by 0.2 seconds.
+```
+
+The `--delay` argument removes all events that match one of the specified EVENTS from the event stream. If no EVENTS are specified, it removes all events from the event stream. All events that it removes will be added back to the event stream after an amount of seconds specified by the `period` flag passes. This effectively makes the events reach the further arguments at a later point in time.
 
 ## Toggles
 
@@ -945,17 +964,19 @@ An event that contributes towards activating the hook will never break it. This 
     --hook key:leftctrl key:z breaks-on=key::1 exec-shell="echo Hello, world!"
 ```
 
-## The `--withhold` argument**
+**The `--withhold` argument**
 
-The `--withhold` argument must directly follow one or multiple `--hook` arguments and has the following basic syntax:
+The `--withhold` argument must directly follow one or multiple consective `--hook` arguments and has the following basic syntax:
 
 ```
     --withhold [KEY...]
 ```
 
-The `--withhold` argument can follow one or multiple consecutive hooks. Any event that may trigger one of the preceding hooks will be removed from the envent stream and withheld until either (1) it becomes clear that the event will not actually trigger any of the preceding hooks, in which case it is put back in the event stream, or (2) it actually triggers one of the preceding hooks, in which case the event is definitively dropped.
+The `--withhold` argument is useful when you want to trigger a hook on a certain key combination, but do not want those keys to reach the output device if they trigger the hook. This is conceptually non-trivial when that hook requires more than one key to trigger, because when the first event of a combination arrives it is unclear whether the other required events will follow, and it is impossible to undo writing an event to an output device.
 
-This is useful when you want to take some action when the user presses a certain key combination. Let's say you want to intercept the combinations Ctrl+A and Ctrl+B. This is also a conceptually difficult task: when the user presses the Ctrl key, we do not yet know whether an A or B key will follow. Consider the following script:
+Any event that may trigger one of the consecutively preceding hooks will be removed from the event stream and withheld until either (1) it becomes clear that the event will not actually trigger any of the preceding hooks, in which case it is put back in the event stream, or (2) it actually triggers one of the preceding hooks, in which case the event is definitively dropped.
+
+For example, let's say you want to intercept the combinations Ctrl+A and Ctrl+B. Consider the following script:
 
 ```
 evsieve --input /dev/input/by-id/my-keyboard \
@@ -967,12 +988,12 @@ evsieve --input /dev/input/by-id/my-keyboard \
 
 This script takes an absolutionist approach: a `key:leftctrl:1` event will not be sent to the output device unless it is clear that this event will not contribute to activating the preceding hooks, which only becomes clear when the Ctrl key gets released, in which case the output device will receive the `key:leftctrl:1`, `key:leftctrl:0` events directly after each other.
 
-The above script has the unintended side effect of making it impossible to type key combinations like Ctrl+X, because the Ctrl key gets withheld until it is released. To get closer to the intended goal of only blocking the Ctrl+A and Ctrl+B keys, two things can be done:
+This leads to the unintended side effect of making it impossible to type key combinations like Ctrl+X, because the Ctrl key gets withheld until it is released. To get closer to the intended goal of only blocking the Ctrl+A and Ctrl+B keys, two things can be done:
 
 * You can make the `--withhold` argument apply to only some keys;
 * You can add additional restrictions to the preceding hooks.
 
-For example, the following script comes much closer to the intended effect:
+The following script comes much closer to the intended effect:
 
 ```
 evsieve --input /dev/input/by-id/my-keyboard \
@@ -984,7 +1005,7 @@ evsieve --input /dev/input/by-id/my-keyboard \
 
 By restricting the `--withhold` argument to only the A and B keys, we ensured that the Ctrl key never gets withheld, so that we can enter other combinations like Ctrl+X without issue.
 
-Adding the `sequential` flag to the hooks ensures that the A and B keys will not be withheld unless the Ctrl key is already pressed before them (the combination A+Ctrl cannot trigger a sequential hook, so there is no point in withholding the A key if Ctrl is not pressed already.)
+Adding the `sequential` flag to the hooks ensures that the A and B keys will not be withheld unless the Ctrl key is already pressed before them: the combination A+Ctrl cannot trigger a sequential hook, so there is no point in withholding the A key if Ctrl is not pressed already.
 
 Although it is not necessary in this case, the `--hook period=...` clause is also often useful in combination with the `--withhold` argument to ensure that events are not withheld for more than a certain amount of time.
 
@@ -994,29 +1015,12 @@ Important to note is that the `--withhold` argument applies to all consecutive p
 evsieve --input /dev/input/by-id/my-keyboard \
         --hook key:leftctrl key:c exec-shell="echo Pressed Ctrl+C" sequential \
         --hook key:leftctrl key:d exec-shell="echo Pressed Ctrl+D" sequential \
-        --map key:x key:y \
+        --map  key:x key:y \
         --hook key:leftctrl key:a exec-shell="echo Pressed Ctrl+A" sequential \
         --hook key:leftctrl key:b exec-shell="echo Pressed Ctrl+B" sequential \
         --withhold \
         --output
 ```
-
-## The `--delay` argument
-
-The `--delay` argument has the following basic syntax:
-
-```
-    --delay [EVENTS...] period=SECONDS
-```
-
-Example usages are:
-
-```
-    --delay period=1          # Delays all events by one second.
-    --delay key:a period=0.2  # Delays all events related to the A key by 0.2 seconds.
-```
-
-The `--delay` argument removes all events that match one of the specified EVENTS from the event stream. If no EVENTS are specified, it removes all events from the event stream. All events that it removes will be added back to the event stream after an amount of seconds specified by the `period` flag passes.
 
 ## Inputs
 
