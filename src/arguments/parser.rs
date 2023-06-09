@@ -23,6 +23,7 @@ use crate::arguments::control_fifo::ControlFifoArg;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
+use super::absrel::RelToAbsArg;
 use super::config::ConfigArg;
 use super::merge::MergeArg;
 
@@ -38,6 +39,7 @@ fn get_usage_msg() -> String {
                [--toggle SOURCE DEST... [id=ID] [mode=consistent|passive]]...
                [--hook KEY... [exec-shell=COMMAND]... [toggle[=[ID][:INDEX]]]... [sequential] [period=SECONDS] [send-key=KEY]... [breaks-on=KEY]...]...
                [--withhold [KEY...]]...
+               [--rel-to-abs [KEY...]]...
                [--merge [EVENTS...]]...
                [--print [EVENTS...] [format=default|direct]]...
                [--delay [EVENTS...] period=SECONDS]...
@@ -69,6 +71,7 @@ enum Argument {
     MergeArg(MergeArg),
     DelayArg(DelayArg),
     WithholdArg(WithholdArg),
+    RelToAbsArg(RelToAbsArg),
     ControlFifoArg(ControlFifoArg),
 }
 
@@ -98,6 +101,7 @@ impl Argument {
             "--merge" => Ok(Argument::MergeArg(MergeArg::parse(args)?)),
             "--delay" => Ok(Argument::DelayArg(DelayArg::parse(args)?)),
             "--withhold" => Ok(Argument::WithholdArg(WithholdArg::parse(args)?)),
+            "--rel-to-abs" => Ok(Argument::RelToAbsArg(RelToAbsArg::parse(args)?)),
             "--control-fifo" => {
                 if cfg!(feature = "control-fifo") {
                     Ok(Argument::ControlFifoArg(ControlFifoArg::parse(args)?))
@@ -371,6 +375,9 @@ pub fn implement(args_str: Vec<String>)
                 stream.push(StreamEntry::Withhold(
                     Withhold::new(withhold_arg.keys, withhold_arg.associated_triggers)
                 ));
+            },
+            Argument::RelToAbsArg(rel_to_abs_arg) => {
+                stream.push(StreamEntry::RelToAbs(rel_to_abs_arg.compile()));
             },
             Argument::ToggleArg(toggle_arg) => {
                 let index = match &toggle_arg.id {

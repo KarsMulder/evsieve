@@ -6,9 +6,11 @@ pub mod hook;
 pub mod map;
 pub mod delay;
 pub mod merge;
+pub mod absrel;
 
 use std::collections::HashMap;
 
+use self::absrel::RelToAbs;
 use self::map::{Map, Toggle};
 use self::hook::Hook;
 use self::print::EventPrinter;
@@ -52,6 +54,7 @@ pub enum StreamEntry {
     Print(EventPrinter),
     Merge(Merge),
     Withhold(Withhold),
+    RelToAbs(RelToAbs),
     Delay(self::delay::Delay),
 }
 
@@ -208,6 +211,8 @@ fn run_events(events_in: Vec<Event>, events_out: &mut Vec<Event>, stream: &mut [
     let mut buffer: Vec<Event> = Vec::new();
 
     for entry in stream {
+        // TODO: (low-priority) Maybe it is time to write a trait with some default implementations
+        // for the following almost-copy-pasta?
         match entry {
             StreamEntry::Map(map) => {
                 map.apply_to_all(&events, &mut buffer);
@@ -221,6 +226,11 @@ fn run_events(events_in: Vec<Event>, events_out: &mut Vec<Event>, stream: &mut [
             },
             StreamEntry::Merge(merge) => {
                 merge.apply_to_all(&events, &mut buffer);
+                events.clear();
+                std::mem::swap(&mut events, &mut buffer);
+            },
+            StreamEntry::RelToAbs(rel_to_abs) => {
+                rel_to_abs.apply_to_all(&events, &mut buffer);
                 events.clear();
                 std::mem::swap(&mut events, &mut buffer);
             },
@@ -255,9 +265,9 @@ fn run_wakeup(token: crate::loopback::Token, events_out: &mut Vec<Event>, stream
 
     for index in 0 .. stream.len() {
         match &mut stream[index] {
-            StreamEntry::Map(_map) => {},
-            StreamEntry::Toggle(_toggle) => {},
-            StreamEntry::Merge(_merge) => {},
+            StreamEntry::Map(_) => {},
+            StreamEntry::Toggle(_) => {},
+            StreamEntry::Merge(_) => {},
             StreamEntry::Hook(hook) => {
                 hook.wakeup(&token);
             },
@@ -267,7 +277,8 @@ fn run_wakeup(token: crate::loopback::Token, events_out: &mut Vec<Event>, stream
             StreamEntry::Withhold(withhold) => {
                 withhold.wakeup(&token, &mut events);
             },
-            StreamEntry::Print(_printer) => {},
+            StreamEntry::Print(_) => {},
+            StreamEntry::RelToAbs(_) => {},
         }
 
         if ! events.is_empty() {
@@ -299,6 +310,11 @@ pub fn run_caps(stream: &[StreamEntry], capabilities: Vec<Capability>) -> Vec<Ca
             StreamEntry::Merge(_) => (),
             StreamEntry::Hook(hook) => {
                 hook.apply_to_all_caps(&caps, &mut buffer);
+                caps.clear();
+                std::mem::swap(&mut caps, &mut buffer);
+            },
+            StreamEntry::RelToAbs(rel_to_abs) => {
+                rel_to_abs.apply_to_all_caps(&caps, &mut buffer);
                 caps.clear();
                 std::mem::swap(&mut caps, &mut buffer);
             },

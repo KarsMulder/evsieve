@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 use crate::error::Context;
 use crate::range::Range;
 use crate::key::Key;

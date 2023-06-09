@@ -65,6 +65,7 @@ pub mod arguments {
     pub mod merge;
     pub mod delay;
     pub mod withhold;
+    pub mod absrel;
     pub mod control_fifo;
     pub mod test;
     pub mod config;
