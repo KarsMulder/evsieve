@@ -7,12 +7,13 @@ use crate::ecodes;
 pub type EventValue = i32;
 pub type Channel = (EventCode, Domain);
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct EventType(u16);
 
 impl EventType {
     pub const KEY: EventType = EventType(ecodes::EV_KEY);
     pub const ABS: EventType = EventType(ecodes::EV_ABS);
+    pub const REL: EventType = EventType(ecodes::EV_REL);
     pub const REP: EventType = EventType(ecodes::EV_REP);
     pub const SYN: EventType = EventType(ecodes::EV_SYN);
     pub const MSC: EventType = EventType(ecodes::EV_MSC);
@@ -22,6 +23,9 @@ impl EventType {
     }
     pub fn is_abs(self) -> bool {
         self == EventType::ABS
+    }
+    pub fn is_rel(self) -> bool {
+        self == EventType::REL
     }
     pub fn is_rep(self) -> bool {
         self == EventType::REP
@@ -45,7 +49,7 @@ impl EventType {
 ///
 /// Upholds invariant: the code is a valid code for this type.
 /// Creating an EventCode with a nonexistent (type, code) pair is considered undefined behaviour.
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct EventCode {
     ev_type: EventType,
     code: u16,

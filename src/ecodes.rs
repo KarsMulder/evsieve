@@ -37,6 +37,7 @@ lazy_static! {
         result
     };
 
+    // Maps e.g. ("abs", "x") -> abs:x
     pub static ref EVENT_CODES: HashMap<(String, String), EventCode> = {
         let mut result = HashMap::new();
         for (ev_type_name, &ev_type) in EVENT_TYPES.iter() {
@@ -114,6 +115,25 @@ lazy_static! {
         }
 
         ranges
+    };
+
+    /// Contains all pairs of event codes like (abs:x, rel:x), (abs:ry, rel:ry).
+    pub static ref ABS_REL_PAIRS: Vec<(EventCode, EventCode)> = {
+        let mut result = Vec::new();
+
+        // Iterate over all EV_ABS events.
+        for ((_type_name, code_name), abs_code) in EVENT_CODES.iter() {
+            if ! abs_code.ev_type().is_abs() {
+                continue;
+            }
+
+            // Check if there is a corresponding EV_REL event.
+            if let Some(rel_code) = EVENT_CODES.get(&("rel".to_owned(), code_name.to_owned())) {
+                result.push((*abs_code, *rel_code));
+            }
+        }
+
+        result
     };
 }
 
@@ -266,6 +286,7 @@ pub fn event_code(type_name: &str, code_name: &str) -> Result<EventCode, Argumen
 }
 
 pub const EV_ABS: u16 = libevdev::EV_ABS as u16;
+pub const EV_REL: u16 = libevdev::EV_REL as u16;
 pub const EV_SYN: u16 = libevdev::EV_SYN as u16;
 pub const EV_REP: u16 = libevdev::EV_REP as u16;
 pub const EV_KEY: u16 = libevdev::EV_KEY as u16;
@@ -298,4 +319,22 @@ fn unittest() {
     assert!(is_abs_mt(EventCode::new(EventType::ABS, 0x35)));
     assert!(!is_abs_mt(EventCode::new(EventType::ABS, 0x01)));
     assert!(!is_abs_mt(EventCode::new(EventType::KEY, 0x35)));
+
+    // Make sure that this vector doesn't end up empty.
+    assert!(ABS_REL_PAIRS.len() >= 6);
+
+    // Make sure that we don't have the same keycode twice.
+    let mut unique_keys: Vec<EventCode> = ABS_REL_PAIRS.iter().map(|(abs, _)| *abs).collect();
+    unique_keys.sort();
+    unique_keys.dedup();
+    assert!(unique_keys.len() == ABS_REL_PAIRS.len());
+
+    let mut unique_vals: Vec<EventCode> = ABS_REL_PAIRS.iter().map(|(_, rel)| *rel).collect();
+    unique_vals.sort();
+    unique_vals.dedup();
+    assert!(unique_vals.len() == ABS_REL_PAIRS.len());
+
+    // Make sure the pairs are of the supposed event types.
+    assert!(ABS_REL_PAIRS.iter().all(|(abs, _)| abs.ev_type().is_abs()));
+    assert!(ABS_REL_PAIRS.iter().all(|(_, rel)| rel.ev_type().is_rel()));
 }
