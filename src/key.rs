@@ -291,7 +291,6 @@ impl KeyProperty {
 }
 
 /// Represents the options for how a key can be parsed in different contexts.
-#[allow(non_snake_case)]
 pub struct KeyParser<'a> {
     pub default_value: &'a str,
     /// Whether event values like the :1 in "key:a:1" are allowed.
@@ -304,9 +303,9 @@ pub struct KeyParser<'a> {
     /// Whether keys with an event value that depends on which event is getting masked, are allowed.
     /// Only ever set this to true for mask keys.
     pub allow_relative_values: bool,
-    /// Allows the empty key "" and all keys starting with "btn" or "key". Forbids keys that
-    /// explicitly require another type.
-    pub forbid_non_EV_KEY: bool,
+    /// Is Some, then it only allows keys that require this type or have no type/code requirements.
+    /// Forbids keys that that require a type/code outside this range.
+    pub type_whitelist: Option<Vec<EventType>>,
 
     pub namespace: Namespace,
 }
@@ -322,7 +321,7 @@ impl<'a> KeyParser<'a> {
             allow_transitions: true,
             allow_types: true,
             allow_relative_values: false,
-            forbid_non_EV_KEY: false,
+            type_whitelist: None,
             namespace: Namespace::User,
         }
     }
@@ -332,6 +331,16 @@ impl<'a> KeyParser<'a> {
     /// 
     /// Does not guarantee that `self` and `other` would parse keys to the same key.
     pub fn and_filter(self, other: KeyParser) -> Self {
+        let merged_whitelist = match (self.type_whitelist, other.type_whitelist) {
+            (None, None) => None,
+            (None, whitelist) | (whitelist, None) => whitelist,
+            (Some(list1), Some(list2)) => {
+                let mut joined_list: Vec<_> = list1.into_iter().chain(list2).collect();
+                joined_list.sort();
+                joined_list.dedup();
+                Some(joined_list)
+            }
+        };
         KeyParser {
             default_value: self.default_value,
             allow_values: self.allow_values && other.allow_values,
@@ -339,7 +348,7 @@ impl<'a> KeyParser<'a> {
             allow_ranges: self.allow_ranges && other.allow_ranges,
             allow_types: self.allow_types && other.allow_types,
             allow_relative_values: self.allow_relative_values && other.allow_relative_values,
-            forbid_non_EV_KEY: self.forbid_non_EV_KEY || other.forbid_non_EV_KEY,
+            type_whitelist: merged_whitelist,
             namespace: self.namespace,
         }
     }
@@ -354,7 +363,7 @@ impl<'a> KeyParser<'a> {
             allow_transitions: false,
             allow_types: false,
             allow_relative_values: true,
-            forbid_non_EV_KEY: false,
+            type_whitelist: None,
             namespace: Namespace::User,
         }
     }
@@ -369,7 +378,7 @@ impl<'a> KeyParser<'a> {
             allow_transitions: false,
             allow_types: true,
             allow_relative_values: false,
-            forbid_non_EV_KEY: false,
+            type_whitelist: None,
             namespace: Namespace::User,
         }
     }
@@ -413,7 +422,7 @@ pub fn resembles_key(key_str: &str) -> bool {
             allow_transitions: true,
             allow_types: true,
             allow_relative_values: true,
-            forbid_non_EV_KEY: false,
+            type_whitelist: None,
             namespace: Namespace::User,
         }.parse(key_str).is_ok()
         // Otherwise, check if it contains some of the key-like characters.
@@ -509,10 +518,31 @@ fn interpret_key(parts: KeyParts, parser: &KeyParser) -> Result<Key, ArgumentErr
         if event_type.is_syn() {
             return Err(ArgumentError::new("Cannot use event type \"syn\": it is impossible to manipulate synchronisation events because synchronisation is automatically taken care of by evsieve."));
         }
-        if parser.forbid_non_EV_KEY && event_type != EventType::KEY {
-            return Err(ArgumentError::new(
-                "Only events of type EV_KEY (i.e. \"key:something\" or \"btn:something\") can be specified in this position."
-            ))
+        if let Some(whitelist) = &parser.type_whitelist {
+            if ! whitelist.contains(&event_type) {
+                // Return an error message depending on what the whitelist was.
+                if whitelist == &[EventType::KEY] {
+                    return Err(ArgumentError::new(
+                        "Only events of type EV_KEY (i.e. \"key:something\" or \"btn:something\") can be specified in this position."
+                    ));
+                } else if let Some(example_type) = whitelist.first() {
+                    let allowed_keys = whitelist.iter().map(|ev_type| ecodes::type_name(*ev_type))
+                        .collect::<Vec<_>>().join(", ");
+                    let example_name = ecodes::type_name(*example_type);
+                    let plural = match whitelist.len() {
+                        1 => "",
+                        _ => "s",
+                    };
+
+                    return Err(ArgumentError::new(
+                        format!("Only events of type{plural} {allowed_keys} (i.e. \"{example_name}:something\") can be specified in this position.")
+                    ));
+                } else {
+                    return Err(ArgumentError::new(
+                        "No specific event type can can be specified in this position."
+                    ));
+                }
+            }
         }
 
         // Extract the event code, or set a property that matches on type only.

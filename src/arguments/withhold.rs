@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use crate::event::EventType;
+use crate::event::{EventType};
 use crate::error::ArgumentError;
 use crate::arguments::lib::ComplexArgGroup;
 use crate::arguments::hook::HookArg;
@@ -29,7 +29,7 @@ impl WithholdArg {
         )?;
 
         let mut parser = KeyParser::pure();
-        parser.forbid_non_EV_KEY = true;
+        parser.type_whitelist = Some(vec![EventType::KEY]);
         let keys = parser.parse_all(&arg_group.get_keys_or_empty_key())?;
 
         Ok(WithholdArg { keys, associated_triggers: Vec::new() })

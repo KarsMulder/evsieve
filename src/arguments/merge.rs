@@ -2,6 +2,7 @@
 
 use crate::error::ArgumentError;
 use crate::arguments::lib::ComplexArgGroup;
+use crate::event::EventType;
 use crate::key::{Key, KeyParser};
 use crate::stream::merge::Merge;
 
@@ -26,7 +27,7 @@ impl MergeArg {
             allow_transitions: false,
             allow_types: true,
             allow_relative_values: false,
-            forbid_non_EV_KEY: true,
+            type_whitelist: Some(vec![EventType::KEY]),
             namespace: crate::event::Namespace::User,
         };
 

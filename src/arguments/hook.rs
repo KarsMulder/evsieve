@@ -5,7 +5,7 @@ use crate::utils;
 use crate::state::{State, ToggleIndex};
 use crate::stream::hook::{Effect, Trigger, EventDispatcher};
 use crate::key::{Key, KeyParser};
-use crate::event::Namespace;
+use crate::event::{Namespace, EventType};
 use crate::arguments::lib::ComplexArgGroup;
 use std::collections::HashMap;
 use crate::time::Duration;
@@ -18,7 +18,7 @@ pub(super) const PARSER: KeyParser = KeyParser {
     allow_types: false,
     default_value: "1~",
     allow_relative_values: false,
-    forbid_non_EV_KEY: false,
+    type_whitelist: None,
     namespace: Namespace::User,
 };
 
@@ -67,7 +67,7 @@ impl HookArg {
             allow_types: false,
             default_value: "",
             allow_relative_values: false,
-            forbid_non_EV_KEY: true,
+            type_whitelist: Some(vec![EventType::KEY]),
             namespace: Namespace::User,
         }.parse_all(&arg_group.get_clauses("send-key"))?;
 
