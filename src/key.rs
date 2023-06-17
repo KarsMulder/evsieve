@@ -115,6 +115,29 @@ impl Key {
         None
     }
 
+    /// Returns Some(Range) if this Key will only ever accept events withhin a certain range.
+    /// It currently returns the following, I am not yet certain whether these are sane:
+    ///     abs:x => None
+    ///     abs:x:~ => [-Inf, +Inf]
+    ///     abs:x:1 => [1, 1]
+    ///     abs:x:1~1 => [1, 1]
+    pub fn requires_range(&self) -> Option<Range> {
+        for property in &self.properties {
+            match property {
+                KeyProperty::Value(range) => return Some(*range),
+                KeyProperty::Type(_)
+                | KeyProperty::Code(_)
+                | KeyProperty::VirtualType(_)
+                | KeyProperty::Domain(_)
+                | KeyProperty::Namespace(_)
+                | KeyProperty::PreviousValue(_)
+                | KeyProperty::AffineFactor(_)
+                => (),
+            }
+        }
+        None
+    }
+
     /// Returns true if some event may match both key_1 and key_2.
     pub fn intersects_with(&self, other: &Key) -> bool {
         // Tests interaction between (Type, VirtualType) and (Type, Code).
@@ -745,4 +768,14 @@ fn unittest_intersection() {
         assert!(! parser.parse(key_1).unwrap().intersects_with(&parser.parse(key_2).unwrap()));
         assert!(! parser.parse(key_2).unwrap().intersects_with(&parser.parse(key_1).unwrap()));
     }
+}
+
+#[test]
+fn unittest_requires_range() {
+    let parser = KeyParser::default_filter();
+    assert!(parser.parse("abs:x").unwrap().requires_range().is_none());
+    assert!(parser.parse("abs:~").unwrap().requires_range() == Some(Range::new(None, None)));
+    assert!(parser.parse("abs:1").unwrap().requires_range() == Some(Range::new(1, 1)));
+    assert!(parser.parse("abs:1~1").unwrap().requires_range() == Some(Range::new(1, 1)));
+    
 }
