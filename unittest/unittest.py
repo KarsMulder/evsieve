@@ -1528,6 +1528,62 @@ def unittest_withhold_sequential_2():
         },
     )
 
+
+def unittest_rel_to_abs():
+    run_unittest(
+        ["--input", "/dev/input/by-id/unittest-rel-to-abs-in", "domain=foo", "grab=force",
+        "--map", "key:r:1", "abs:x:100@foo",
+        "--map", "key:s:1", "abs:x:200@bar",
+        "--block", "key",
+        "--rel-to-abs", "rel:x", "abs:x:0~1000",
+        "--rel-to-abs", "rel:y", "abs:y:0~1000",
+        "--output", "create-link=/dev/input/by-id/unittest-rel-to-abs-out"],
+        {
+            "/dev/input/by-id/unittest-rel-to-abs-in": [
+                (e.EV_REL, e.REL_X, 10),
+                (e.EV_REL, e.REL_X, 15),
+                (e.EV_REL, e.REL_X, -5),
+
+                (e.EV_REL, e.REL_Y, 10),
+                (e.EV_REL, e.REL_Z, 10),
+                
+                (e.EV_KEY, e.KEY_R, 1),
+                (e.EV_KEY, e.KEY_S, 1),
+                (e.EV_REL, e.REL_X, 5),
+                
+                (e.EV_REL, e.REL_Y, 10),
+                (e.EV_REL, e.REL_Z, 10),
+
+                (e.EV_REL, e.REL_X, 2000),
+                (e.EV_REL, e.REL_X, -200),
+                (e.EV_REL, e.REL_X, -2000),
+                (e.EV_REL, e.REL_X, 40),
+            ],
+        },
+        {
+            "/dev/input/by-id/unittest-rel-to-abs-out": [
+                (e.EV_ABS, e.ABS_X, 10),
+                (e.EV_ABS, e.ABS_X, 25),
+                (e.EV_ABS, e.ABS_X, 20),
+                
+                (e.EV_ABS, e.ABS_Y, 10),
+                (e.EV_REL, e.REL_Z, 10),
+
+                (e.EV_ABS, e.ABS_X, 100),
+                (e.EV_ABS, e.ABS_X, 200),
+                (e.EV_ABS, e.ABS_X, 105),
+
+                (e.EV_ABS, e.ABS_Y, 20),
+                (e.EV_REL, e.REL_Z, 10),
+
+                (e.EV_ABS, e.ABS_X, 1000),
+                (e.EV_ABS, e.ABS_X, 800),
+                (e.EV_ABS, e.ABS_X, 0),
+                (e.EV_ABS, e.ABS_X, 40),
+            ],
+        },
+    )
+
 unittest_mirror()
 unittest_syn()
 unittest_capslock()
@@ -1554,3 +1610,4 @@ unittest_withhold_3()
 unittest_withhold_period()
 unittest_withhold_sequential()
 unittest_withhold_sequential_2()
+unittest_rel_to_abs()

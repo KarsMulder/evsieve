@@ -31,6 +31,7 @@ impl RelToAbs {
             let mut output_event = self.output_key.merge(event);
 
             // Add the input event's value to the current value of the target channel.
+            // TODO: figure out initial value.
             let channel_state = self.state.entry(output_event.channel()).or_insert(0.0);
             *channel_state += (event.value as f64) * self.speed;
             *channel_state = self.output_range.bound_f64(*channel_state);
@@ -44,6 +45,7 @@ impl RelToAbs {
         // overwrite the stored value with the value of this event. In any case, pass the event
         // on as-is.
         if self.output_key.matches_channel(event.channel()) {
+            // TODO: Better handling of out-of-range values.
             *self.state.entry(event.channel()).or_default() = event.value as f64;
         }
         output_events.push(event);
