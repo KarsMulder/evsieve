@@ -115,16 +115,15 @@ impl Key {
         None
     }
 
-    /// Returns Some(Range) if this Key will only ever accept events withhin a certain range.
-    /// It currently returns the following, I am not yet certain whether these are sane:
-    ///     abs:x => None
-    ///     abs:x:~ => [-Inf, +Inf]
-    ///     abs:x:1 => [1, 1]
-    ///     abs:x:1~1 => [1, 1]
-    pub fn requires_range(&self) -> Option<Range> {
-        for property in &self.properties {
+    /// Removes the value/range requirement from this key and returns it separately if it existed.
+    pub fn split_value(mut self) -> (Key, Option<Range>) {
+        let mut range_requirement = None;
+        self.properties.retain(|property|
             match property {
-                KeyProperty::Value(range) => return Some(*range),
+                KeyProperty::Value(range) => {
+                    range_requirement = Some(*range);
+                    false
+                },
                 KeyProperty::Type(_)
                 | KeyProperty::Code(_)
                 | KeyProperty::VirtualType(_)
@@ -132,10 +131,11 @@ impl Key {
                 | KeyProperty::Namespace(_)
                 | KeyProperty::PreviousValue(_)
                 | KeyProperty::AffineFactor(_)
-                => (),
+                => true,
             }
-        }
-        None
+        );
+
+        (self, range_requirement)
     }
 
     /// Returns true if some event may match both key_1 and key_2.
@@ -773,9 +773,9 @@ fn unittest_intersection() {
 #[test]
 fn unittest_requires_range() {
     let parser = KeyParser::default_filter();
-    assert!(parser.parse("abs:x").unwrap().requires_range().is_none());
-    assert!(parser.parse("abs:~").unwrap().requires_range() == Some(Range::new(None, None)));
-    assert!(parser.parse("abs:1").unwrap().requires_range() == Some(Range::new(1, 1)));
-    assert!(parser.parse("abs:1~1").unwrap().requires_range() == Some(Range::new(1, 1)));
+    assert!(parser.parse("abs:x").unwrap().split_value().1.is_none());
+    assert!(parser.parse("abs:~").unwrap().split_value().1 == Some(Range::new(None, None)));
+    assert!(parser.parse("abs:1").unwrap().split_value().1 == Some(Range::new(1, 1)));
+    assert!(parser.parse("abs:1~1").unwrap().split_value().1 == Some(Range::new(1, 1)));
     
 }
