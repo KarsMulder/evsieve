@@ -202,6 +202,21 @@ impl Range {
         value
     }
 
+    /// Returns the closest integer to value that lies within this Range.
+    pub fn bound_f64(&self, value: f64) -> f64 {
+        if let ExtendedInteger::Discrete(min_value) = self.min {
+            if value < min_value as f64 {
+                return min_value as f64;
+            }
+        }
+        if let ExtendedInteger::Discrete(max_value) = self.max {
+            if value > max_value as f64 {
+                return max_value as f64;
+            }
+        }
+        value
+    }
+
     /// The maximum difference between two event values that can fall in this range, which is one less
     /// than the total amount of event values that can fall in this range.
     ///

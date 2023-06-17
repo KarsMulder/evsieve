@@ -10,7 +10,6 @@ use crate::stream::absrel::RelToAbs;
 /// Represents a --rel-to-abs argument.
 pub(super) struct RelToAbsArg {
     pub input_key: Key,
-    /// The output key should be a pure key.
     pub output_key: Key,
     pub output_range: Range,
     pub speed: f64,
@@ -25,21 +24,28 @@ impl RelToAbsArg {
             true,
         )?;
 
-        let mut parser = KeyParser::default_filter();
-        parser.type_whitelist = Some(vec![EventType::REL]);
-        let keys = parser.parse_all(&arg_group.get_keys_or_empty_key())?;
+        let mut rel_parser = KeyParser::default_filter();
+        rel_parser.type_whitelist = Some(vec![EventType::REL]);
 
-        let (input_key, output_key) = match keys.as_slice() {
-            [a, b] => (a.clone(), b.clone()),
+        let abs_parser = KeyParser {
+            default_value: "",
+            allow_values: true,
+            allow_transitions: false,
+            allow_ranges: true,
+            allow_types: false,
+            allow_relative_values: false,
+            type_whitelist: Some(vec![EventType::ABS]),
+            namespace: crate::event::Namespace::User,
+        };
+
+        let key_strs = arg_group.get_keys_or_empty_key();
+        let (input_key_str, output_key_str) = match key_strs.as_slice() {
+            [a, b] => (a, b),
             _ => return Err(ArgumentError::new("The --rel-to-abs argument needs to be provided exactly two keys, the first one matching the rel events that get mapped and the second matching the target abs event.")),
         };
 
-        if input_key.requires_event_type() != Some(EventType::REL) {
-            return Err(ArgumentError::new("The first key provided to --rel-to-abs must match events of type rel, e.g.: --rel-to-abs rel:x abs:x:0~255"));
-        }
-        if output_key.requires_event_type() != Some(EventType::ABS) {
-            return Err(ArgumentError::new("The second key provided to --rel-to-abs must match events of type abs, e.g.: --rel-to-abs rel:x abs:x:0~255"));
-        }
+        let input_key = rel_parser.parse(input_key_str)?;
+        let output_key = abs_parser.parse(output_key_str)?;
 
         let (output_key, output_range_opt) = output_key.split_value();
         let output_range = match output_range_opt {
