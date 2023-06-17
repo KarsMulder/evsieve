@@ -382,7 +382,7 @@ impl<'a> KeyParser<'a> {
         KeyParser {
             default_value: "",
             allow_values: true,
-            allow_ranges: false,
+            allow_ranges: true,
             allow_transitions: false,
             allow_types: false,
             allow_relative_values: true,
