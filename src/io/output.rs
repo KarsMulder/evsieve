@@ -321,10 +321,14 @@ impl OutputDevice {
         self.symlink.take()
     }
 
+    /// Use this function to tell the output device how to handle repeat events that are written
+    /// to it from evsieve.
     fn set_repeat_mode(&mut self, mode: RepeatMode) {
         self.allow_repeat(match mode {
             RepeatMode::Passive  => true,
             RepeatMode::Disable  => false,
+            // On mode "enable", the kernel will automatically generate repeat events, so all
+            // events written to it by evsieve shall be dropped.
             RepeatMode::Enable   => false,
         });
     }
@@ -396,6 +400,10 @@ fn capabilites_by_device(capabilities: &[Capability], pre_devices: &[PreOutputDe
 
     for device in pre_devices {
         let device_caps = capability_map.entry(device.domain).or_insert_with(Capabilities::new);
+        // The kernel will automatically generate repeat events when the EV_REP capability is set.
+        // As such, the EV_REP capability needs to be set if the "enable" repeat mode is specified,
+        // and it must not be set in any other case, even if the corresponding input device already
+        // had the EV_REP capability.
         match device.repeat_mode {
             RepeatMode::Disable => device_caps.remove_ev_rep(),
             RepeatMode::Passive => device_caps.remove_ev_rep(),
