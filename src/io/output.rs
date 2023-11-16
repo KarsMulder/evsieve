@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
 use std::fmt::Write;
+use crate::arguments::output::DeviceProperties;
 use crate::event::EventType;
 use crate::bindings::libevdev;
 use crate::capability::{Capability, Capabilities};
@@ -162,16 +163,29 @@ pub struct OutputDevice {
 }
 
 impl OutputDevice {
-    pub fn with_name_and_capabilities(name_str: String, caps: Capabilities) -> Result<OutputDevice, RuntimeError> {
+    pub fn with_properties_and_capabilities(properties: DeviceProperties, caps: Capabilities) -> Result<OutputDevice, RuntimeError> {
         unsafe {
             let dev = libevdev::libevdev_new();
 
-            let cstr = CString::new(name_str).unwrap();
+            let cstr = CString::new(properties.name).unwrap();
             let bytes = cstr.as_bytes_with_nul();
             let ptr = bytes.as_ptr();
             let name = ptr as *const libc::c_char;
 
             libevdev::libevdev_set_name(dev, name);
+
+            if let Some(device_id) = properties.device_id {
+                // Libevdev accepts ints for these parameters, but truncates them to 16 bits.
+                // Therefore, we only store u16 in our internal representation and upcast here.
+                libevdev::libevdev_set_id_vendor(dev, device_id.vendor_id.into());
+                libevdev::libevdev_set_id_product(dev, device_id.product_id.into());
+            }
+            if let Some(bus) = properties.bus {
+                libevdev::libevdev_set_id_bustype(dev, bus.into());
+            }
+            if let Some(version) = properties.version {
+                libevdev::libevdev_set_id_version(dev, version.into());
+            }
 
             // If EV_MSC events are automatically generated, we may need to manually activate
             // their capabilities.
@@ -415,7 +429,7 @@ fn capabilites_by_device(capabilities: &[Capability], pre_devices: &[PreOutputDe
 }
 
 fn create_output_device(pre_device: &PreOutputDevice, capabilities: Capabilities) -> Result<OutputDevice, RuntimeError> {
-    let mut device = OutputDevice::with_name_and_capabilities(pre_device.properties.name.clone(), capabilities)
+    let mut device = OutputDevice::with_properties_and_capabilities(pre_device.properties.clone(), capabilities)
         .with_context(match pre_device.create_link.clone() {
             Some(path) => format!("While creating the output device \"{}\":", path.display()),
             None => "While creating an output device:".to_string(),

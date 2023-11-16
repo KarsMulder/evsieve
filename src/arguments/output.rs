@@ -10,6 +10,7 @@ use std::path::PathBuf;
 const DEFAULT_NAME: &str = "Evsieve Virtual Device";
 
 /// Contains properties that evsieve itself does not care about, but are visible to other programs.
+#[derive(Clone)]
 pub struct DeviceProperties {
     pub name: String,
     pub device_id: Option<DeviceId>,
@@ -17,6 +18,7 @@ pub struct DeviceProperties {
     pub bus: Option<u16>,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct DeviceId {
     pub vendor_id: u16,
     pub product_id: u16,
