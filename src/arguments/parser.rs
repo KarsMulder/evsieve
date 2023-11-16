@@ -43,7 +43,7 @@ fn get_usage_msg() -> String {
                [--merge [EVENTS...]]...
                [--print [EVENTS...] [format=default|direct]]...
                [--delay [EVENTS...] period=SECONDS]...
-               [--output [EVENTS...] [create-link=PATH] [name=NAME] [repeat[=MODE]]]...".to_owned();
+               [--output [EVENTS...] [create-link=PATH] [name=NAME] [device-id=VENDOR:PRODUCT] [bus=BUS] [version=VERSION] [repeat[=MODE]]]...".to_owned();
 
     if cfg!(feature = "control-fifo") {
         result += "
@@ -332,8 +332,8 @@ pub fn implement(args_str: Vec<String>)
                 let output_device = PreOutputDevice {
                     domain: target_domain,
                     create_link: device.create_link,
-                    name: device.name,
                     repeat_mode: device.repeat_mode,
+                    properties: device.properties,
                 };
                 output_devices.push(output_device);
                 

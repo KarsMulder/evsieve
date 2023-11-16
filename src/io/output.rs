@@ -3,10 +3,10 @@
 use std::fmt::Error;
 use std::io;
 use std::fs;
-use std::ffi::{CString};
+use std::ffi::CString;
 use std::ptr;
 use std::collections::HashMap;
-use std::path::{Path};
+use std::path::Path;
 use std::path::PathBuf;
 use std::fmt::Write;
 use crate::event::EventType;
@@ -415,7 +415,7 @@ fn capabilites_by_device(capabilities: &[Capability], pre_devices: &[PreOutputDe
 }
 
 fn create_output_device(pre_device: &PreOutputDevice, capabilities: Capabilities) -> Result<OutputDevice, RuntimeError> {
-    let mut device = OutputDevice::with_name_and_capabilities(pre_device.name.clone(), capabilities)
+    let mut device = OutputDevice::with_name_and_capabilities(pre_device.properties.name.clone(), capabilities)
         .with_context(match pre_device.create_link.clone() {
             Some(path) => format!("While creating the output device \"{}\":", path.display()),
             None => "While creating an output device:".to_string(),

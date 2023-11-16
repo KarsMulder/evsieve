@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use crate::domain::Domain;
+use crate::{domain::Domain, arguments::output::DeviceProperties};
 use std::path::PathBuf;
 
 /// Represents whether and how the user has requested the device to be grabbed.
@@ -67,8 +67,8 @@ pub struct PreOutputDevice {
     pub domain: Domain,
     /// If Some, the user has requested a symlink to the device to be created at the given path.
     pub create_link: Option<PathBuf>,
-    /// The output device will be given this name.
-    pub name: String,
     /// Determined by "repeat" or "norepeat" flags on output devices.
     pub repeat_mode: RepeatMode,
+    /// Properties visible to other programs on the system.
+    pub properties: DeviceProperties,
 }
