@@ -86,7 +86,7 @@ use error::{RuntimeError, Context};
 use io::epoll::{Epoll, FileIndex, Message};
 use io::fd::HasFixedFd;
 use io::input::InputDevice;
-use persist::interface::{HostInterfaceState};
+use persist::interface::HostInterfaceState;
 use stream::Setup;
 use signal::{SigMask, SignalFd};
 use control_fifo::ControlFifo;
