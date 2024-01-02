@@ -52,6 +52,7 @@ pub mod persist {
     pub mod interface;
     pub mod path;
     pub mod format;
+    pub mod storage;
 }
 
 pub mod arguments {
