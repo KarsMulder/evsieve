@@ -3,7 +3,7 @@
 use crate::io::input::{InputDevice, InputDeviceName};
 use crate::predevice::PreInputDevice;
 use crate::capability::Capabilities;
-use crate::error::{SystemError};
+use crate::error::SystemError;
 
 /// Represents something can can be used to re-open a closed input device.
 pub struct Blueprint {

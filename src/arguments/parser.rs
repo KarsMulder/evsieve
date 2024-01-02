@@ -4,6 +4,7 @@ use crate::domain;
 use crate::error::{ArgumentError, RuntimeError, Context, SystemError};
 use crate::key::Key;
 use crate::event::Namespace;
+use crate::persist::blueprint::Blueprint;
 use crate::stream::hook::Hook;
 use crate::stream::map::{Map, Toggle};
 use crate::stream::withhold::Withhold;
@@ -230,6 +231,7 @@ fn parse(args: Vec<String>) -> Result<Vec<Argument>, RuntimeError> {
 pub struct Implementation {
     pub setup: Setup,
     pub input_devices: Vec<crate::io::input::InputDevice>,
+    pub blueprints: Vec<Blueprint>,
     pub control_fifos: Vec<ControlFifo>,
 }
 
@@ -415,10 +417,9 @@ pub fn implement(args_str: Vec<String>)
         .collect::<Result<Vec<ControlFifo>, SystemError>>()?;
 
     // Compute the capabilities of the output devices.
-    let (input_devices, input_capabilities) = crate::io::input::open_and_query_capabilities(input_devices)?;
+    let (input_devices, blueprints, input_capabilities) = crate::io::input::open_and_query_capabilities(input_devices)?;
     let setup = Setup::create(stream, output_devices, state, toggle_indices, input_capabilities)?;
-
-    Ok(Implementation { setup, input_devices, control_fifos })
+    Ok(Implementation { setup, input_devices, blueprints, control_fifos })
 }
 
 /// Returns true if all items in the iterator are unique, otherwise returns false.

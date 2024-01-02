@@ -20,15 +20,38 @@ use crate::time::Instant;
 use super::fd::HasFixedFd;
 
 pub fn open_and_query_capabilities(pre_input_devices: Vec<PreInputDevice>)
-    -> Result<(Vec<InputDevice>, InputCapabilites), SystemError>
+    -> Result<(Vec<InputDevice>, Vec<Blueprint>, InputCapabilites), SystemError>
 {
-    let mut input_devices = pre_input_devices.into_iter().map(
-        |device| {
-            let device_path = device.path.clone();
-            InputDevice::open(device)
-                .map_err(SystemError::from)
-                .with_context(format!("While opening the device \"{}\":", device_path.display()))
-    }).collect::<Result<Vec<InputDevice>, SystemError>>()?;
+    let mut input_devices: Vec<InputDevice> = Vec::new();
+    let mut blueprints: Vec<Blueprint> = Vec::new();
+    
+    for pre_device in pre_input_devices {
+        let open_result = InputDevice::open(pre_device.clone())
+            .map_err(SystemError::from)
+            .with_context(format!("While opening the device \"{}\":", pre_device.path.display()));
+        
+        let open_error = match open_result {
+            Ok(device) => {
+                input_devices.push(device);
+                continue;
+            }
+            Err(error) => error,
+        };
+
+        // If we reach this point, then the open result is guaranteed to be an error. Whether or not that
+        // means that evsieve fails to start up depends on the specified persistence mode.
+        match pre_device.persist_mode {
+            PersistMode::None | PersistMode::Reopen | PersistMode::Exit => return Err(open_error),
+            PersistMode::Full => {
+                let pre_device_path = pre_device.path.clone();
+                let blueprint = crate::persist::storage::load_blueprint(pre_device)
+                    .with_context_of(|| format!(
+                        "While trying to find the cached capabilities of the device \"{}\":", pre_device_path.display()
+                    ))?;
+                blueprints.push(blueprint);
+            },
+        }
+    }
 
     // Return an error if a device with grab=force cannot be grabbed.
     for device in &mut input_devices {
@@ -42,7 +65,7 @@ pub fn open_and_query_capabilities(pre_input_devices: Vec<PreInputDevice>)
         capabilities.insert(device.domain, device.capabilities.clone());
     }
 
-    Ok((input_devices, capabilities))
+    Ok((input_devices, blueprints, capabilities))
 }
 
 /// Represents a name as reported by libevdev_get_name().

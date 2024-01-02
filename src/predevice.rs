@@ -36,6 +36,9 @@ pub enum PersistMode {
     None,
     /// Try to reattach the device at runtime, or throw an error at startup time.
     Reopen,
+    /// Try to reattach the device at runtime. If at startup time the device is not available, use
+    /// the cached capabilities of it. Cache the capabilities of this device.
+    Full,
     /// If a device with mode exit disconnects, evsieve shall exit, even if other devices are still available.
     Exit,
 }

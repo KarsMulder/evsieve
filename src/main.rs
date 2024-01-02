@@ -93,6 +93,7 @@ use stream::Setup;
 use signal::{SigMask, SignalFd};
 use control_fifo::ControlFifo;
 
+use crate::error::SystemError;
 use crate::event::EventCode;
 use crate::persist::subsystem::Report;
 use crate::predevice::PersistMode;
@@ -173,7 +174,7 @@ fn run() -> Result<(), RuntimeError> {
     let _signal_block = unsafe { signal::SignalBlock::new(&sigmask)? };
 
     // Parse the arguments and set up the input/output devices.
-    let Implementation { setup, input_devices, control_fifos } = arguments::parser::implement(args)?;
+    let Implementation { setup, input_devices, blueprints, control_fifos } = arguments::parser::implement(args)?;
     for device in input_devices {
         epoll.add_file(Pollable::InputDevice(device))?;
     }
@@ -182,11 +183,24 @@ fn run() -> Result<(), RuntimeError> {
     }
 
     // If the persistence subsystem is running, this shall keep track of its index in the epoll.
-    let persist_subsystem: HostInterfaceState = HostInterfaceState::new();
+    let mut persist_subsystem: HostInterfaceState = HostInterfaceState::new();
+
+    // If we were given any blueprints, we must launch the persitence subsystem right now and declare
+    // that we want those blueprints to be opened.
+    if !blueprints.is_empty() {
+        let Some(interface) = persist_subsystem.require(&mut epoll) else {
+            return Err(SystemError::new("Failed to launch the persistence subsystem, which is required to open the input devices flagged with \"persist\".").into());
+        };
+        for blueprint in blueprints {
+            interface.add_blueprint(blueprint)
+                .with_context("While trying to register a perstent device to be opened later")?
+        }
+    }
 
     let mut program = Program {
         epoll, setup, persist_subsystem
     };
+
     daemon::notify_ready_async();
 
     // Make sure evsieve has something to do.
@@ -342,7 +356,7 @@ fn handle_broken_file(program: &mut Program, index: FileIndex) -> Action {
                 // Mode Exit: quit evsieve now.
                 PersistMode::Exit => return Action::Exit,
                 // Mode Reopen: try to reopen the device if it becomes available again later.
-                PersistMode::Reopen => {
+                PersistMode::Reopen | PersistMode::Full => {
                     if let Some(interface) = program.persist_subsystem.require(&mut program.epoll) {
                         interface.add_blueprint(device.to_blueprint())
                             .with_context("While trying to register a disconnected device for reopening:")

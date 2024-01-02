@@ -1,8 +1,54 @@
+use std::ffi::CString;
 use std::path::{PathBuf, Path};
+
+use crate::error::{SystemError, Context};
+use crate::predevice::PreInputDevice;
+
+use super::blueprint::Blueprint;
+use super::format::InvalidFormatError;
 
 pub enum StorageError {
     /// Not enough environment variables were defined to be able to figure out where we should store the data.
     CouldNotFindStateDirectory,
+}
+
+pub fn load_blueprint(pre_device: PreInputDevice) -> Result<Blueprint, SystemError> {
+    let capabilities_path = match capabilities_path_for_device(&pre_device.path.to_string_lossy()) {
+        Ok(path) => path,
+        Err(StorageError::CouldNotFindStateDirectory) => {
+            // TODO (Medium Priority): Should this error message be specified somewhere else?
+            return Err(SystemError::new("The environment variables do not give evsieve enough information to figure out where it is supposed to store its data. Please ensure that at least one of the following environment variables is defined: EVSIEVE_STATE_DIR, XDG_STATE_HOME, or HOME."))
+        },
+    }; // TODO (High Priority): Find something more elegant than to_string_lossy()
+    
+    let capabilities_data = match std::fs::read(&capabilities_path) {
+        Ok(data) => data,
+        Err(error) => match error.kind() {
+            std::io::ErrorKind::NotFound => return Err(SystemError::new(format!(
+                "No capabilities have been cached for the device \"{}\". In order to know which capabilities the created output devices must have, evsieve must know what the capabilities of the input devices are. These capabilities will be cached after the input device has been seen once. Please attach the specified device and then run evsieve again.",
+                pre_device.path.display()
+            ))),
+            _ => return Err(SystemError::from(error).with_context(format!(
+                "While trying to read the file \"{}\":",
+                capabilities_path.display()
+            ))),
+        }
+    };
+
+    let capabilities = match crate::persist::format::decode(&capabilities_data) {
+        Ok(data) => data,
+        Err(InvalidFormatError) => return Err(SystemError::new(format!(
+            "The data saved in the cached file \"{}\" has been corrupted. Please try restarting evsieve with the device \"{}\" to recreate the file. If this error keeps showing up, please file a bug report.",
+            capabilities_path.display(), pre_device.path.display()
+        ))),
+    };
+
+    Ok(Blueprint {
+        pre_device,
+        capabilities,
+        // TODO (Critical): do something about the name.
+        name: CString::new("(unknown)").unwrap()
+    })
 }
 
 pub fn capabilities_path_for_device(device_path: &str) -> Result<PathBuf, StorageError> {
