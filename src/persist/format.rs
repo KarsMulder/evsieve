@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-// Global overview:
-// 1. Magic number.
-// 2. File length.
-// 3. Event type count.
-// 4. Event code blocks.
+/// This module is responsible for deterministically serializing the capabilities of an input device into something
+/// that can be stored on the disk.
+
+// Global overview of the file format:
+// 1. Magic number;
+// 2. File length;
+// 3. Event type count;
+// 4. Event code blocks;
 // 5. Special blocks.
 //
 // # Magic number
@@ -55,7 +58,7 @@ use std::io::{BufRead, Cursor};
 use crate::capability::{Capabilities, RepeatInfo, AbsInfo, AbsMeta};
 use crate::ecodes;
 use crate::event::{EventType, EventCode};
-use crate::error::{RuntimeError, InternalError};
+use crate::error::InternalError;
 
 // The magic header that every file starts with.
 const MAGIC_NUMBER: [u8; 8] = [0x45, 0x56, 0x53, 0x56, 0x41, 0xe7, 0x75, 01];
@@ -74,7 +77,9 @@ impl Debug for InvalidFormatError {
     }
 }
 
-pub fn encode(caps: &Capabilities) -> Result<Vec<u8>, RuntimeError> {
+/// Serializes some capabilities as a vector of bytes. The current value of the axes is not serialized because it
+/// is desirable to always get the same value when a single file is serialized multiple times.
+pub fn encode(caps: &Capabilities) -> Result<Vec<u8>, InternalError> {
     let body = encode_body(&caps)?;
 
     // 1. Magic number
@@ -102,6 +107,8 @@ pub fn encode(caps: &Capabilities) -> Result<Vec<u8>, RuntimeError> {
     Ok(result)
 }
 
+/// The inverse of `encode()` written above. The current state of the axes may end up being different after an
+/// encode-decode round trip.
 pub fn decode(source: &[u8]) -> Result<Capabilities, InvalidFormatError> {
     let source_length = source.len();
 
