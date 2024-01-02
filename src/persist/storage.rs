@@ -7,38 +7,19 @@ pub enum StorageError {
 
 pub fn capabilities_path_for_device(device_path: &str) -> Result<PathBuf, StorageError> {
     let mut path = get_capabilities_path()?;
-    path.push(encode_path_for_device(device_path));
+    path.push(format!("caps:{}", encode_path_for_device(device_path)));
     Ok(path)
 }
 
+/// Performs a map from a string to a string which has the following two properties:
+/// 1. The output does not contain the character '/'.
+/// 2. The mapping is deterministic and injective.
+/// Tries to have the output resemble the input in a way that is sufficiently obvious for an observer.
 fn encode_path_for_device(device_path: &str) -> String {
-    // Tries to assign a unique name to each device path that contains no / characters. We do this by either of the
-    // following two methods:
-    // Method 1: substitute '/' -> '__'
-    // Method 2: substitute '/' -> '__', '_' -> '\_', '\' -> '\\'
-    //
-    // If the device path does not contain any of the following strings, then the first method is safe: no two path
-    // different will be mapped to the same name under the first method:
-    //    '__', '_/', '/_', '\'
-    // (Proof: the first method is reversible if nothing other than '/' could generate '__'. The first method is not
-    // used if the original contains a '__' sequence, nor is it used if any '_' character is adjacent to anything
-    // would be mapped into another '_' character.)
-    //
-    // If the path does contain any of the above strings, the second method must be used. The second method maps
-    // everything to an unique name, and they never conflict with the names we generated using the first method.
-    // (Proof: we only use the second method if the path contains '_' or '\', and under the second method, those
-    // all get mapped to something with '\', however the first method is never used on files that contain a '\'.)
-    let dangerous_patterns = ["__", "_/", "/_", "\\"];
-    if dangerous_patterns.iter().any(|pat| device_path.contains(pat)) {
-        // Use method #2
-        device_path
-            .replace('\\', "\\\\")
-            .replace('_', "\\_")
-            .replace('/', "__")
-    } else {
-        // Use method #1
-        device_path.replace('/', "__")
-    }
+    device_path
+        .replace('\\', "\\\\")
+        .replace('.', "\\.")
+        .replace('/', ".")
 }
 
 /// Returns the path to the directory in which the capabilities of input devices must be cached.
