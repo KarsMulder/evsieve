@@ -3,7 +3,7 @@
 use crate::error::{Context, SystemError};
 use crate::io::fd::{OwnedFd, HasFixedFd};
 use std::collections::HashMap;
-use std::os::unix::io::{AsRawFd};
+use std::os::unix::io::AsRawFd;
 
 pub const INDEFINITE_TIMEOUT: i32 = -1;
 

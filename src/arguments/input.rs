@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 use std::path::Path;
-use std::sync::{Arc, Mutex};
-
 use crate::domain;
 use crate::domain::Domain;
 use crate::persist::storage::DeviceCache;

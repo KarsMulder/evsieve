@@ -20,6 +20,8 @@ use crate::time::Instant;
 
 use super::fd::HasFixedFd;
 
+const ABOUT_CAPABILITIES_MSG: &'static str = "INFORMATION: Due to how the evdev protocol works, evsieve needs to declare exactly which events the virtual output devices can generate at the moment that those output devices are created. In order to do so, evsieve needs to know which events the input devices can generate. When \"persist\" or \"persist=full\" has been specified on an input device, evsieve will cache the capabilities of those input devices to disk. If that input device is not present on a later run, evsieve will load those capabilities from the disk and use that information to decide which capabilities the output devices should have. When that information has not been stored on the disk for whatever reason, evsieve is not able to function properly. Please make sure that all input devices are present the first time you run a script.";
+
 pub fn open_and_query_capabilities(pre_input_devices: Vec<PreInputDevice>)
     -> Result<(Vec<InputDevice>, Vec<Blueprint>, InputCapabilites), SystemError>
 {
@@ -38,9 +40,49 @@ pub fn open_and_query_capabilities(pre_input_devices: Vec<PreInputDevice>)
                 // Whether or failing to open an event device means that the whole operation fails depend on what
                 // the specified persistence mode.
                 match pre_device.persist_state {
+                    // The following persistence modes tell us to exit if the device is not available when the program starts.
                     PersistState::None | PersistState::Reopen | PersistState::Exit => return Err(error),
-                    PersistState::Full(device_cache) => {
-                        todo!()
+                    // Full persistence tells us to try to find the capabilities of this device cached on the hard drive.
+                    PersistState::Full(ref device_cache) => {
+                        // TODO (High Priority): Do something about this "unknown" name
+                        let unknown_name = CString::new("(unknown)").unwrap();
+
+                        match device_cache.content {
+                            // If we the capabilities of this device were properly cached, then we can just create a
+                            // blueprint based on those capabilities.
+                            CachedCapabilities::Known(ref capabilities_ref) => {
+                                let capabilities = capabilities_ref.clone();
+                                blueprints.push(Blueprint {
+                                    pre_device,
+                                    capabilities,
+                                    name: unknown_name,
+                                });
+                            },
+                            // If they are not found, then the best thing we could either exit with an error, or assume
+                            // some arbitrary capabilities and carry on. I think that the latter option has the least
+                            // chance of causing the user's system not to boot, and the name of the persistence mode is
+                            // "full" after all, so...
+                            CachedCapabilities::NonExistent => {
+                                crate::utils::warn_once(ABOUT_CAPABILITIES_MSG);
+                                eprintln!(
+                                    "Error: the input device {} is not present, and its capabilities have not been stored on the disk either. Evsieve is unable to figure out which capabilities this device has. If this device is plugged in, evsieve will try to save its capabilities in the following file: {}",
+                                    pre_device.path.display(),
+                                    device_cache.location.display(),
+                                );
+
+                                // TODO (High Priority): This will cause evsieve to whine that an output device has been created to which no events can be routed.
+                                blueprints.push(Blueprint { pre_device, capabilities: Capabilities::new(), name: unknown_name })
+                            },
+                            CachedCapabilities::Corrupted => {
+                                eprintln!(
+                                    "Error: the input device {} is not present, and its capabilities should have been stored on the disk, but evsieve is unable to interpret its file format. Maybe the content of the file have been corrupted. Evsieve will try to regenerate the file the next time the input device is seen, but in the meanwhile evsieve is unable to guess the capabilities of that input device, and thing will not work properly. The file in question is stored at: {}",
+                                    pre_device.path.display(),
+                                    device_cache.location.display(),
+                                );
+
+                                blueprints.push(Blueprint { pre_device, capabilities: Capabilities::new(), name: unknown_name })
+                            },
+                        }
                     },
                 }
             }
@@ -57,6 +99,9 @@ pub fn open_and_query_capabilities(pre_input_devices: Vec<PreInputDevice>)
     for device in &input_devices {
         // TODO: LOW-PRIORITY: Consider using an Rc instead of a clone.
         capabilities.insert(device.domain, device.capabilities.clone());
+    }
+    for blueprint in &blueprints {
+        capabilities.insert(blueprint.pre_device.domain, blueprint.capabilities.clone());
     }
 
     Ok((input_devices, blueprints, capabilities))

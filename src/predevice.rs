@@ -3,7 +3,6 @@
 use crate::persist::storage::DeviceCache;
 use crate::{domain::Domain, arguments::output::DeviceProperties};
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
 
 /// Represents whether and how the user has requested the device to be grabbed.
 /// Set through the grab flag or grab= clause on --input arguments.

@@ -9,7 +9,7 @@ use super::format::InvalidFormatError;
 /// and for updating the current state of the cache in case it mismatches with the actual capabilities.
 pub struct DeviceCache {
     /// The path to the file where we save the capabilities.
-    location: PathBuf,
+    pub location: PathBuf,
     /// What the file said the last time we read it or wrote to it.
     pub content: CachedCapabilities,
 }
