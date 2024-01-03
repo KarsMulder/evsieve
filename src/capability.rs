@@ -100,6 +100,24 @@ pub struct AbsMeta {
     pub value: i32,
 }
 
+impl AbsInfo {
+    /// Tells you whether this AbsInfo is equal to the other AbsInfo up to the current value.
+    /// You know, maybe it was a bad idea to include the value in the capabilities. But we do need to give a current
+    /// value to libevdev, and the one that originates from some input device is the one most likely to be correct...
+    /// TODO (Medium Priority): Consider using a better method to discover the initial state of the absolute axes
+    ///                         on the output devices.
+    pub fn is_equivalent_to(self, other: AbsInfo) -> bool {
+        let AbsInfo { min_value, max_value, meta } = self;
+        let AbsMeta { fuzz, flat, resolution, value: _ } = meta;
+
+        min_value == other.min_value &&
+            max_value == other.max_value &&
+            fuzz == other.meta.fuzz &&
+            flat == other.meta.flat &&
+            resolution == other.meta.resolution
+    }
+}
+
 impl From<AbsInfo> for libevdev::input_absinfo {
     fn from(abs_info: AbsInfo) -> libevdev::input_absinfo {
         libevdev::input_absinfo {
@@ -250,6 +268,13 @@ impl Capabilities {
             .collect()
     }
 
+    /// Returns the abs info as a vector of (EventCode, AbsInfo) pairs that has been sorted by event code.
+    pub fn abs_info_to_sorted_vec(&self) -> Vec<(EventCode, AbsInfo)> {
+        let mut result: Vec<(EventCode, AbsInfo)> = self.abs_info.iter().map(|(&k, &v)| (k, v)).collect();
+        result.sort_by_key(|&(code, _)| code);
+        result
+    }
+
     /// Given a device that has output capabilities `other`, can we properly write all events corrosponding
     /// to the capabilities of `self` to that device? Returns true if we can, false if there may be issues.
     ///
@@ -276,6 +301,28 @@ impl Capabilities {
         // We don't care about self.rep_info because the kernel doesn't either.
 
         true
+    }
+
+    /// Tells you whether these capabilities are equal to the other capabilities up to the current state of
+    /// the absolute axes.
+    pub fn is_equivalent_to(&self, other: &Capabilities) -> bool {
+        // This destructure happens to intentionally cause a compilation error if we add additional fields.
+        let Capabilities { codes, abs_info: _, rep_info } = self;
+        if !(codes == &other.codes && rep_info == &other.rep_info) {
+            return false;
+        }
+
+        let self_abs_as_vec = self.abs_info_to_sorted_vec();
+        let other_abs_as_vec = other.abs_info_to_sorted_vec();
+        if self_abs_as_vec.len() != other_abs_as_vec.len() {
+            return false;
+        }
+
+        self_abs_as_vec.into_iter().zip(other_abs_as_vec).all(
+            |((self_code, self_abs), (other_code, other_abs))| {
+                self_code == other_code && self_abs.is_equivalent_to(other_abs)
+            }
+        )
     }
 }
 
