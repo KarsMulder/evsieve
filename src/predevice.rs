@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+use crate::persist::storage::DeviceCache;
 use crate::{domain::Domain, arguments::output::DeviceProperties};
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 /// Represents whether and how the user has requested the device to be grabbed.
 /// Set through the grab flag or grab= clause on --input arguments.
@@ -30,20 +32,18 @@ impl GrabMode {
 }
 
 /// Represents what should happen if the device is not available.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum PersistMode {
+pub enum PersistState {
     /// Remove the device from the processing stream at runtime, or throw an error at startup time.
     None,
     /// Try to reattach the device at runtime, or throw an error at startup time.
     Reopen,
     /// Try to reattach the device at runtime. If at startup time the device is not available, use
     /// the cached capabilities of it. Cache the capabilities of this device.
-    Full,
+    Full(DeviceCache),
     /// If a device with mode exit disconnects, evsieve shall exit, even if other devices are still available.
     Exit,
 }
 
-#[derive(Clone)]
 pub struct PreInputDevice {
     /// The path to this device.
     pub path: PathBuf,
@@ -52,7 +52,7 @@ pub struct PreInputDevice {
     /// Whether and how the user has requested this InputDevice be grabbed.
     pub grab_mode: GrabMode,
     /// What should be done if the device is disconnected while running.
-    pub persist_mode: PersistMode,
+    pub persist_state: PersistState,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

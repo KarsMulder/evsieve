@@ -777,5 +777,5 @@ fn unittest_requires_range() {
     assert!(parser.parse("abs:~").unwrap().split_value().1 == Some(Range::new(None, None)));
     assert!(parser.parse("abs:1").unwrap().split_value().1 == Some(Range::new(1, 1)));
     assert!(parser.parse("abs:1~1").unwrap().split_value().1 == Some(Range::new(1, 1)));
-    
+
 }

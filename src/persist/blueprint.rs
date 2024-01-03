@@ -12,21 +12,37 @@ pub struct Blueprint {
     pub name: InputDeviceName,
 }
 
+pub enum TryOpenBlueprintResult {
+    /// Represents that the blueprint was successfully opened.
+    Success(InputDevice),
+    /// Represents that the blueprint could not be opened right now, but you may try again later.
+    NotOpened(Blueprint),
+    /// Represents an error of sufficient magnitude that you should not try opening this blueprint again.
+    Error(Blueprint, SystemError),
+}
+
 impl Blueprint {
     /// Tries to reopen the device from which this blueprint was generated.
-    /// On success, returns the device. On failure, returns Ok(None). In case of a grave
-    /// error that signals reopening should not be retried, returns Err(SystemError).
-    pub fn try_open(&self) -> Result<Option<InputDevice>, SystemError> {
+    pub fn try_open(self) -> TryOpenBlueprintResult {
         if ! self.pre_device.path.exists() {
-            return Ok(None);
+            return TryOpenBlueprintResult::NotOpened(self);
         }
-        let input_device = InputDevice::open(self.pre_device.clone())?;
+        let input_device = match InputDevice::open(self.pre_device) {
+            Ok(device) => device,
+            Err((pre_device, error)) => {
+                return TryOpenBlueprintResult::Error(Blueprint {
+                    pre_device,
+                    capabilities: self.capabilities,
+                    name: self.name,
+                }, error);
+            },
+        };
 
         // Do sanity checks.
         if input_device.name() != &self.name {
             println!(
                 "Warning: the reconnected device \"{}\" has a different name than expected. Expected name: \"{}\", new name: \"{}\".",
-                self.pre_device.path.display(),
+                input_device.path().display(),
                 self.name.to_string_lossy(),
                 input_device.name().to_string_lossy(),
             );
@@ -36,10 +52,10 @@ impl Blueprint {
         if *input_device.capabilities() != self.capabilities {
             println!(
                 "Warning: the capabilities of the reconnected device \"{}\" are different than expected.",
-                self.pre_device.path.display()
+                input_device.path().display()
             );
         }
         
-        Ok(Some(input_device))
+        TryOpenBlueprintResult::Success(input_device)
     }
 }

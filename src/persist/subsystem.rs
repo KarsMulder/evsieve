@@ -12,7 +12,7 @@ use crate::io::fd::HasFixedFd;
 use crate::io::input::InputDevice;
 use crate::io::internal_pipe;
 use crate::io::internal_pipe::{Sender, Receiver};
-use crate::persist::blueprint::Blueprint;
+use crate::persist::blueprint::{Blueprint, TryOpenBlueprintResult};
 use crate::persist::inotify::Inotify;
 use crate::persist::interface::HostInterface;
 use crate::error::{Context, RuntimeError, SystemError};
@@ -215,9 +215,9 @@ impl Daemon {
             let mut remaining_blueprints = Vec::new();
             for blueprint in self.blueprints.drain(..) {
                 match blueprint.try_open() {
-                    Ok(Some(device)) => result.opened_devices.push(device),
-                    Ok(None) => remaining_blueprints.push(blueprint),
-                    Err(error) => {
+                    TryOpenBlueprintResult::Success(device) => result.opened_devices.push(device),
+                    TryOpenBlueprintResult::NotOpened(blueprint) => remaining_blueprints.push(blueprint),
+                    TryOpenBlueprintResult::Error(blueprint, error) => {
                         error.print_err();
                         result.broken_blueprints.push(blueprint);
                     }

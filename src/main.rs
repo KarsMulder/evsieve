@@ -96,7 +96,7 @@ use control_fifo::ControlFifo;
 use crate::error::SystemError;
 use crate::event::EventCode;
 use crate::persist::subsystem::Report;
-use crate::predevice::PersistMode;
+use crate::predevice::PersistState;
 
 
 fn main() {
@@ -350,15 +350,15 @@ fn handle_broken_file(program: &mut Program, index: FileIndex) -> Action {
             }
             stream::syn(&mut program.setup);
 
-            match device.persist_mode() {
+            match device.persist_state() {
                 // Mode None: drop the device and carry on without it, if possible.
-                PersistMode::None => {},
+                PersistState::None => {},
                 // Mode Exit: quit evsieve now.
-                PersistMode::Exit => return Action::Exit,
+                PersistState::Exit => return Action::Exit,
                 // Mode Reopen: try to reopen the device if it becomes available again later.
-                PersistMode::Reopen | PersistMode::Full => {
+                PersistState::Reopen | PersistState::Full(_) => {
                     if let Some(interface) = program.persist_subsystem.require(&mut program.epoll) {
-                        interface.add_blueprint(device.to_blueprint())
+                        interface.add_blueprint(device.into_blueprint())
                             .with_context("While trying to register a disconnected device for reopening:")
                             .print_err()
                     } else {

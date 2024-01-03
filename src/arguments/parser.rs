@@ -311,10 +311,11 @@ pub fn implement(args_str: Vec<String>)
                         None => domain::resolve(path_str)?,
                     };
 
+                    let persist_state = device.persist_mode.to_state_for_device(&path)?;
                     let input_device = PreInputDevice {
                         path, domain: source_domain,
                         grab_mode: device.grab_mode,
-                        persist_mode: device.persist_mode,
+                        persist_state,
                     };
 
                     // Register this device for later creation.

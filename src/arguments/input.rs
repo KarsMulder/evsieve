@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+use std::path::Path;
+use std::sync::{Arc, Mutex};
+
 use crate::domain;
 use crate::domain::Domain;
-use crate::predevice::{GrabMode, PersistMode};
-use crate::error::ArgumentError;
+use crate::persist::storage::DeviceCache;
+use crate::predevice::{GrabMode, PersistState};
+use crate::error::{ArgumentError, SystemError};
 use crate::arguments::lib::ComplexArgGroup;
 
 /// Represents an --input argument.
@@ -12,9 +16,23 @@ pub(super) struct InputDevice {
     pub domain: Option<Domain>,
     /// All input device paths. If multiple are specified, it will read from multiple devices.
     /// At least one path must be specified.
+    /// TODO (Low Priority): Consider adding a newtype InputDevicePath for extra type safety.
 	pub paths: Vec<String>,
     pub grab_mode: GrabMode,
     pub persist_mode: PersistMode,
+}
+
+#[derive(Clone, Copy)]
+pub enum PersistMode {
+    /// Remove the device from the processing stream at runtime, or throw an error at startup time.
+    None,
+    /// Try to reattach the device at runtime, or throw an error at startup time.
+    Reopen,
+    /// Try to reattach the device at runtime. If at startup time the device is not available, use
+    /// the cached capabilities of it. Cache the capabilities of this device.
+    Full,
+    /// If a device with mode exit disconnects, evsieve shall exit, even if other devices are still available.
+    Exit,
 }
 
 impl InputDevice {
@@ -73,6 +91,19 @@ impl InputDevice {
 
         Ok(InputDevice {
             domain, grab_mode, persist_mode, paths
+        })
+    }
+}
+
+impl PersistMode {
+    pub fn to_state_for_device(self, input_device_path: &Path) -> Result<PersistState, SystemError> {
+        Ok(match self {
+            PersistMode::Exit => PersistState::Exit,
+            PersistMode::None => PersistState::None,
+            PersistMode::Reopen => PersistState::Reopen,
+            PersistMode::Full => PersistState::Full(
+                DeviceCache::load_for_input_device(input_device_path)?
+            )
         })
     }
 }

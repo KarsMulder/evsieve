@@ -12,7 +12,8 @@ use crate::event::{Event, EventType, EventValue, EventCode, Namespace};
 use crate::domain::Domain;
 use crate::capability::{AbsInfo, Capabilities, InputCapabilites, RepeatInfo};
 use crate::ecodes;
-use crate::predevice::{GrabMode, PersistMode, PreInputDevice};
+use crate::predevice::{GrabMode, PersistState, PreInputDevice};
+use crate::persist::storage::CachedCapabilities;
 use crate::error::{SystemError, Context};
 use crate::persist::blueprint::Blueprint;
 use crate::time::Instant;
@@ -26,30 +27,23 @@ pub fn open_and_query_capabilities(pre_input_devices: Vec<PreInputDevice>)
     let mut blueprints: Vec<Blueprint> = Vec::new();
     
     for pre_device in pre_input_devices {
-        let open_result = InputDevice::open(pre_device.clone())
-            .map_err(SystemError::from)
-            .with_context(format!("While opening the device \"{}\":", pre_device.path.display()));
-        
-        let open_error = match open_result {
+        match InputDevice::open(pre_device) {
             Ok(device) => {
                 input_devices.push(device);
                 continue;
-            }
-            Err(error) => error,
-        };
-
-        // If we reach this point, then the open result is guaranteed to be an error. Whether or not that
-        // means that evsieve fails to start up depends on the specified persistence mode.
-        match pre_device.persist_mode {
-            PersistMode::None | PersistMode::Reopen | PersistMode::Exit => return Err(open_error),
-            PersistMode::Full => {
-                let pre_device_path = pre_device.path.clone();
-                let blueprint = crate::persist::storage::load_blueprint(pre_device)
-                    .with_context_of(|| format!(
-                        "While trying to find the cached capabilities of the device \"{}\":", pre_device_path.display()
-                    ))?;
-                blueprints.push(blueprint);
             },
+            Err((pre_device, error)) => {
+                let error = error.with_context(format!("While opening the device \"{}\":", pre_device.path.display()));
+
+                // Whether or failing to open an event device means that the whole operation fails depend on what
+                // the specified persistence mode.
+                match pre_device.persist_state {
+                    PersistState::None | PersistState::Reopen | PersistState::Exit => return Err(error),
+                    PersistState::Full(device_cache) => {
+                        todo!()
+                    },
+                }
+            }
         }
     }
 
@@ -74,18 +68,19 @@ pub type InputDeviceName = CString;
 pub struct InputDevice {
     /// The file owns the file descriptor to the input device. Beware: InputDevice implements HasFixedFd.
     file: File,
-    path: PathBuf,
-    evdev: *mut libevdev::libevdev,
+    inner: LibevdevDevice,
 
+    /// The path to the input device that we opened.
+    path: PathBuf,
+    /// The evdev capabilities of the input device.
     capabilities: Capabilities,
 
     /// The name as reported by libevdev_get_name().
     name: InputDeviceName,
 
-    /// Whether and how the user has requested this device to be grabbed.
+    /// Whether and how the user has requested this device to be grabbed. This may be different from whether
+    /// it is actually grabbed at the present moment; that is being kept track of by `LibevdevDevice::grabbed`.
     grab_mode: GrabMode,
-    /// Whether the device is actually grabbed.
-    grabbed: bool,
 
     /// The domain, though not part of libevdev, is a handy tag we use
     /// to track which device emitted the events.
@@ -95,7 +90,17 @@ pub struct InputDevice {
     state: HashMap<EventCode, EventValue>,
 
     /// What should happen if this device disconnects.
-    persist_mode: PersistMode,
+    persist_state: PersistState,
+}
+
+/// This is a part of InputDevice that has been put in its separate structure to make working with destructors easier;
+/// only this structure needs to implement Drop, which makes it possible to move things out of InputDevice.
+pub struct LibevdevDevice {
+    /// A pointer to the native libevdev structure.
+    evdev: *mut libevdev::libevdev,
+
+    /// Whether the device is actually grabbed.
+    grabbed: bool,
 }
 
 impl InputDevice {
@@ -103,17 +108,21 @@ impl InputDevice {
     ///
     /// Does not grab the device even if grab=force is specified. You must do that manually later
     /// by calling grab_if_desired().
-    pub fn open(pre_device: PreInputDevice) -> Result<InputDevice, SystemError> {
-        let path = pre_device.path;
-        let domain = pre_device.domain;
-
+    /// 
+    /// In case of error, returns the PreInputDevice back to the caller.
+    pub fn open(pre_device: PreInputDevice) -> Result<InputDevice, (PreInputDevice, SystemError)> {
         // Open the file itself.
-        let file = OpenOptions::new()
+        let file_res = OpenOptions::new()
             .read(true)
             // O_CLOEXEC is already set by default in the std source code, but I'm providing it
             // anyway to clearly signify we _need_ that flag.
             .custom_flags(libc::O_NONBLOCK | libc::O_CLOEXEC)
-            .open(&path)?;
+            .open(&pre_device.path);
+
+        let file = match file_res {
+            Ok(file) => file,
+            Err(error) => return Err((pre_device, error.into())),
+        };
 
         // Turn the file into an evdev instance.
         let mut evdev: *mut libevdev::libevdev = std::ptr::null_mut();
@@ -121,9 +130,8 @@ impl InputDevice {
             libevdev::libevdev_new_from_fd(file.as_raw_fd(), &mut evdev)
         };
         if res < 0 {
-            return Err(SystemError::new(
-                format!("Failed to open a libevdev instance: {}.", path.to_string_lossy())
-            ));
+            let error_msg = format!("Failed to open a libevdev instance: {}.", pre_device.path.to_string_lossy());
+            return Err((pre_device, SystemError::new(error_msg)));
         }
 
         let capabilities = unsafe { get_capabilities(evdev) };
@@ -145,13 +153,18 @@ impl InputDevice {
         // representation of this device."; setting this clock id should not affect other programs.
         let res = unsafe { libevdev::libevdev_set_clock_id(evdev, libc::CLOCK_MONOTONIC) };
         if res < 0 {
-            eprintln!("Warning: failed to set the clock to CLOCK_MONOTONIC on the device opened from {}.\nThis is a non-fatal error, but any time-related operations such as the --delay argument will behave incorrectly.", path.to_string_lossy());
+            eprintln!("Warning: failed to set the clock to CLOCK_MONOTONIC on the device opened from {}.\nThis is a non-fatal error, but any time-related operations such as the --delay argument will behave incorrectly.", pre_device.path.to_string_lossy());
         }
 
         Ok(InputDevice {
-            file, path, evdev, domain, capabilities, state, name,
-            grab_mode: pre_device.grab_mode, grabbed: false,
-            persist_mode: pre_device.persist_mode,
+            file, capabilities, state, name,
+            path: pre_device.path,
+            domain: pre_device.domain,
+            grab_mode: pre_device.grab_mode,
+            persist_state: pre_device.persist_state,
+            inner: LibevdevDevice {
+                evdev, grabbed: false
+            }
         })
     }
 
@@ -170,7 +183,7 @@ impl InputDevice {
                 false => libevdev::libevdev_read_flag_LIBEVDEV_READ_FLAG_NORMAL,
             };
             let res = unsafe {
-                libevdev::libevdev_next_event(self.evdev, flags, event.as_mut_ptr())
+                libevdev::libevdev_next_event(self.inner.evdev, flags, event.as_mut_ptr())
             };
 
             const SUCCESS: i32 = libevdev::libevdev_read_status_LIBEVDEV_READ_STATUS_SUCCESS as i32;
@@ -237,7 +250,7 @@ impl InputDevice {
     /// Returns Err(SystemError) if we tried to grab the device, but failed because the OS didn't
     /// let us grab the device.
     pub fn grab_if_desired(&mut self) -> Result<(), SystemError> {
-        if self.grabbed {
+        if self.inner.grabbed {
             return Ok(());
         }
         match self.grab_mode {
@@ -253,39 +266,15 @@ impl InputDevice {
         }
     }
 
+    fn grab(&mut self) -> Result<(), SystemError> {
+        self.inner.grab().with_context_of(|| format!("While trying to grab {}:", self.path.display()))
+    }
+
     /// Returns an iterator of all EV_KEY codes that are currently pressed.
     pub fn get_pressed_keys(&self) -> impl Iterator<Item=EventCode> + '_ {
         self.state.iter()
             .filter(|(code, value)| code.ev_type().is_key() && **value > 0)
             .map(|(&code, &_value)| code)
-    }
-
-    fn grab(&mut self) -> Result<(), SystemError> {
-        let res = unsafe {
-            libevdev::libevdev_grab(self.evdev, libevdev::libevdev_grab_mode_LIBEVDEV_GRAB)
-        };
-        if res < 0 {
-            Err(SystemError::new(
-                format!("Failed to grab input device: {}", self.path.to_string_lossy()
-            )))
-        } else {
-            self.grabbed = true;
-            Ok(())
-        }
-    }
-
-    fn ungrab(&mut self) -> Result<(), SystemError> {
-        let res = unsafe {
-            libevdev::libevdev_grab(self.evdev, libevdev::libevdev_grab_mode_LIBEVDEV_GRAB)
-        };
-        if res < 0 {
-            Err(SystemError::new(
-                format!("Failed to ungrab event device: {}", self.path.to_string_lossy()
-            )))
-        } else {
-            self.grabbed = false;
-            Ok(())
-        }
     }
 
     pub fn path(&self) -> &Path {
@@ -300,21 +289,51 @@ impl InputDevice {
         &self.name
     }
 
-    pub fn persist_mode(&self) -> PersistMode {
-        self.persist_mode
+    pub fn persist_state(&self) -> &PersistState {
+        &self.persist_state
     }
 
     // Closes the device and returns a blueprint from which it can be reopened.
-    pub fn to_blueprint(self) -> Blueprint {
+    pub fn into_blueprint(self) -> Blueprint {
         Blueprint {
-            capabilities: self.capabilities.clone(),
-            name: self.name.clone(),
+            capabilities: self.capabilities,
+            name: self.name,
             pre_device: PreInputDevice {
-                path: self.path.clone(),
+                path: self.path,
                 grab_mode: self.grab_mode,
                 domain: self.domain,
-                persist_mode: self.persist_mode,
+                persist_state: self.persist_state,
             },
+        }
+    }
+}
+
+impl LibevdevDevice { 
+    fn grab(&mut self) -> Result<(), SystemError> {
+        let res = unsafe {
+            libevdev::libevdev_grab(self.evdev, libevdev::libevdev_grab_mode_LIBEVDEV_GRAB)
+        };
+        if res < 0 {
+            Err(SystemError::new(
+                format!("Failed to grab input device: received libevdev status code {res}"
+            )))
+        } else {
+            self.grabbed = true;
+            Ok(())
+        }
+    }
+
+    fn ungrab(&mut self) -> Result<(), SystemError> {
+        let res = unsafe {
+            libevdev::libevdev_grab(self.evdev, libevdev::libevdev_grab_mode_LIBEVDEV_GRAB)
+        };
+        if res < 0 {
+            Err(SystemError::new(
+                format!("Failed to ungrab input device: received libevdev status code {res}"
+            )))
+        } else {
+            self.grabbed = false;
+            Ok(())
         }
     }
 }
@@ -397,7 +416,7 @@ impl AsRawFd for InputDevice {
 }
 unsafe impl HasFixedFd for InputDevice {}
 
-impl Drop for InputDevice {
+impl Drop for LibevdevDevice {
     fn drop(&mut self) {
         if self.grabbed {
             // Even if the ungrab fails, there's nothing we can do, so we ignore a possible error.
