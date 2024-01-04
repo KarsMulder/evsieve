@@ -26,6 +26,7 @@ use std::path::PathBuf;
 
 use super::absrel::RelToAbsArg;
 use super::config::ConfigArg;
+use super::input::PersistMode;
 use super::merge::MergeArg;
 
 const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
@@ -293,9 +294,16 @@ pub fn implement(args_str: Vec<String>)
             Argument::InputDevice(device) => {
                 for path_str in &device.paths {
                     let path: PathBuf = path_str.into();
-                    let real_path = std::fs::canonicalize(path.clone()).map_err(
-                        |_| ArgumentError::new(format!("The input device \"{}\" does not exist.", path_str))
-                    )?;
+                    let real_path = match std::fs::canonicalize(&path) {
+                        Ok(real_path) => real_path,
+                        Err(_) => match device.persist_mode {
+                            PersistMode::None | PersistMode::Exit | PersistMode::Reopen => {
+                                return Err(ArgumentError::new(format!("The input device \"{}\" does not exist.", path_str)).into());
+                            },
+                            // TODO (Medium Priority): this does allow the user to open the same input device twice.
+                            PersistMode::Full => path.clone(),
+                        },
+                    };
 
                     // Opening the same device multiple times could spell trouble for certain
                     // possible future features and has little purpose, so we don't allow it.

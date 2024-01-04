@@ -20,7 +20,7 @@ use crate::time::Instant;
 
 use super::fd::HasFixedFd;
 
-const ABOUT_CAPABILITIES_MSG: &str = "INFORMATION: Due to how the evdev protocol works, evsieve needs to declare exactly which events the virtual output devices can generate at the moment that those output devices are created. In order to do so, evsieve needs to know which events the input devices can generate. When \"persist\" or \"persist=full\" has been specified on an input device, evsieve will cache the capabilities of those input devices to disk. If that input device is not present on a later run, evsieve will load those capabilities from the disk and use that information to decide which capabilities the output devices should have. When that information has not been stored on the disk for whatever reason, evsieve is not able to function properly. Please make sure that all input devices are present the first time you run a script.";
+const ABOUT_CAPABILITIES_MSG: &str = "INFORMATION: Due to how the evdev protocol works, evsieve needs to declare exactly which events the virtual output devices can generate at the moment that those output devices are created. In order to do so, evsieve needs to know which events the input devices can generate. When \"persist\" or \"persist=full\" has been specified on an input device, evsieve will cache the capabilities of those input devices on the disk. If that input device is not present on a later run, evsieve will load those capabilities from the disk and use that information to decide which capabilities the output devices should have. When the input devices are not available and their capabilities have not been stored on the disk either, evsieve is not able to function properly. Please make sure that all input devices are present the first time you run a script.";
 
 pub fn open_and_query_capabilities(pre_input_devices: Vec<PreInputDevice>)
     -> Result<(Vec<InputDevice>, Vec<Blueprint>, InputCapabilites), SystemError>
@@ -65,7 +65,7 @@ pub fn open_and_query_capabilities(pre_input_devices: Vec<PreInputDevice>)
                             CachedCapabilities::NonExistent => {
                                 crate::utils::warn_once(ABOUT_CAPABILITIES_MSG);
                                 eprintln!(
-                                    "Error: the input device {} is not present, and its capabilities have not been stored on the disk either. Evsieve is unable to figure out which capabilities this device has. If this device is plugged in, evsieve will try to save its capabilities in the following file: {}",
+                                    "Error: the input device {} is not present, and its capabilities have not been stored on the disk either. Evsieve is unable to figure out which capabilities this device has. When this device is plugged in, evsieve will try to save its capabilities in the following file: {}",
                                     pre_device.path.display(),
                                     device_cache.location.display(),
                                 );

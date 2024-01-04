@@ -72,6 +72,7 @@ impl InputDevice {
                 "reopen" => PersistMode::Reopen,
                 "none" => PersistMode::None,
                 "exit" => PersistMode::Exit,
+                "full" => PersistMode::Full,
                 _ => return Err(ArgumentError::new("Invalid persist mode specified.")),
             }
         };
