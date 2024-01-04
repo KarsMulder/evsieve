@@ -150,6 +150,13 @@ pub fn capabilities_path_for_device(device_path: &str) -> Result<PathBuf, Storag
 /// Tries to have the output resemble the input in a way that is sufficiently obvious for an observer.
 fn encode_path_for_device(device_path: &str) -> String {
     device_path
+        // It is assumed that the device path always starts with a '/' and this is currently enforced by evsieve.
+        // This mapping is not injective in case that assumption is broken, but I'm going to return a path anyway
+        // because even if I break that assumption and do not update this code, things will most likely work.
+        // TODO (Medium Priority): Think of something better to do here.
+        .strip_prefix('/')
+        .unwrap_or(device_path)
+
         .replace('\\', "\\\\")
         .replace('.', "\\.")
         .replace('/', ".")
