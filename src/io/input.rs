@@ -20,7 +20,7 @@ use crate::time::Instant;
 
 use super::fd::HasFixedFd;
 
-const ABOUT_CAPABILITIES_MSG: &'static str = "INFORMATION: Due to how the evdev protocol works, evsieve needs to declare exactly which events the virtual output devices can generate at the moment that those output devices are created. In order to do so, evsieve needs to know which events the input devices can generate. When \"persist\" or \"persist=full\" has been specified on an input device, evsieve will cache the capabilities of those input devices to disk. If that input device is not present on a later run, evsieve will load those capabilities from the disk and use that information to decide which capabilities the output devices should have. When that information has not been stored on the disk for whatever reason, evsieve is not able to function properly. Please make sure that all input devices are present the first time you run a script.";
+const ABOUT_CAPABILITIES_MSG: &str = "INFORMATION: Due to how the evdev protocol works, evsieve needs to declare exactly which events the virtual output devices can generate at the moment that those output devices are created. In order to do so, evsieve needs to know which events the input devices can generate. When \"persist\" or \"persist=full\" has been specified on an input device, evsieve will cache the capabilities of those input devices to disk. If that input device is not present on a later run, evsieve will load those capabilities from the disk and use that information to decide which capabilities the output devices should have. When that information has not been stored on the disk for whatever reason, evsieve is not able to function properly. Please make sure that all input devices are present the first time you run a script.";
 
 pub fn open_and_query_capabilities(pre_input_devices: Vec<PreInputDevice>)
     -> Result<(Vec<InputDevice>, Vec<Blueprint>, InputCapabilites), SystemError>
@@ -155,6 +155,7 @@ impl InputDevice {
     /// by calling grab_if_desired().
     /// 
     /// In case of error, returns the PreInputDevice back to the caller.
+    #[allow(clippy::result_large_err)]
     pub fn open(pre_device: PreInputDevice) -> Result<InputDevice, (PreInputDevice, SystemError)> {
         // Open the file itself.
         let file_res = OpenOptions::new()

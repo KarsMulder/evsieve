@@ -61,7 +61,7 @@ use crate::event::{EventType, EventCode};
 use crate::error::InternalError;
 
 // The magic header that every file starts with.
-const MAGIC_NUMBER: [u8; 8] = [0x45, 0x56, 0x53, 0x56, 0x41, 0xe7, 0x75, 01];
+const MAGIC_NUMBER: [u8; 8] = [0x45, 0x56, 0x53, 0x56, 0x41, 0xe7, 0x75, 0x01];
 const NUM_FILE_LEN_BYTES: usize = std::mem::size_of::<u32>();
 
 // Magic number to indentify special blocks.
@@ -80,7 +80,7 @@ impl Debug for InvalidFormatError {
 /// Serializes some capabilities as a vector of bytes. The current value of the axes is not serialized because it
 /// is desirable to always get the same value when a single file is serialized multiple times.
 pub fn encode(caps: &Capabilities) -> Result<Vec<u8>, InternalError> {
-    let body = encode_body(&caps)?;
+    let body = encode_body(caps)?;
 
     // 1. Magic number
     let mut header: Vec<u8> = Vec::new();
@@ -96,7 +96,7 @@ pub fn encode(caps: &Capabilities) -> Result<Vec<u8>, InternalError> {
     let mut result = header;
     result.extend_from_slice(&body);
     if result.len() != file_length_usize {
-        return Err(InternalError::new("Generated file length differs from expected size. This is a bug.").into());
+        return Err(InternalError::new("Generated file length differs from expected size. This is a bug."));
     }
 
     if cfg!(debug_assertions) {
@@ -236,13 +236,13 @@ fn encode_special_abs_block(buffer: &mut Vec<u8>, caps: &Capabilities) -> Result
             return Err(InternalError::new(format!(
                 "The capabilities contain the abs-type event {}, but do not contain data about its axes. This is a bug.",
                 crate::ecodes::event_name(abs_code)
-            )).into());
+            )));
         };
         if abs_info.min_value > abs_info.max_value {
             return Err(InternalError::new(format!(
                 "The absolute axes {} has a minimum value larger than its maximum value.",
                 crate::ecodes::event_name(abs_code)
-            )).into());
+            )));
         }
 
         push_i32(buffer, abs_info.min_value);

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 use std::fmt::Display;
-use std::io::{Read};
+use std::io::Read;
 use std::os::unix::io::{RawFd, AsRawFd};
 use std::ffi::CString;
 use std::path::{Path, PathBuf};

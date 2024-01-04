@@ -22,6 +22,7 @@ use std::path::PathBuf;
 use std::os::unix::io::{AsRawFd, RawFd};
 
 /// Commands that the main thread can send to this subsystem.
+#[allow(clippy::large_enum_variant)]
 pub enum Command {
     /// Requests this subsystem to try to reopen this blueprint.
     AddBlueprint(Blueprint),

@@ -3,6 +3,11 @@
 // Allowed because useless default implementations are dead lines of code.
 #![allow(clippy::new_without_default)]
 
+// Allowed because assuming that Default::default() returns any specific value seems to go against
+// the documentation, which says "Sometimes, you want to fall back to some kind of default value,
+// and don’t particularly care what it is."
+#![allow(clippy::unwrap_or_default)]
+
 // Allowed because the key "" is a canonically valid key, and comparing a key to "" is more
 // idiomatic than asking whether a key is empty.
 #![allow(clippy::comparison_to_empty)]

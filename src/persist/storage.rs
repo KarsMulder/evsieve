@@ -34,7 +34,7 @@ impl DeviceCache {
             },
         }; // TODO (High Priority): Find something more elegant than to_string_lossy()
         
-        let capabilities_data = read_capabilities(&path_of_input_device, &path_of_capabilities_file)?;
+        let capabilities_data = read_capabilities(path_of_input_device, &path_of_capabilities_file)?;
         Ok(DeviceCache {
             location: path_of_capabilities_file,
             content: capabilities_data,
