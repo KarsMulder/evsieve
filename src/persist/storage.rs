@@ -1,7 +1,7 @@
 use std::path::{PathBuf, Path};
 
 use crate::capability::Capabilities;
-use crate::error::{SystemError, Context};
+use crate::error::{SystemError, Context, RuntimeError, InternalError};
 use super::format::InvalidFormatError;
 
 /// Represents information about an input device's capabilities that has been cached on the filesystem.
@@ -40,6 +40,72 @@ impl DeviceCache {
             content: capabilities_data,
         })
     }
+
+
+    /// Tells the cache which capabilities were just read from an input device that was opened. If those capabilities
+    /// differ from what was cached, then the cache file shall be updated. Otherwise, nothing will happen.
+    /// 
+    /// All errors that happen in this function will be handled within this function.
+    pub fn update_caps(&mut self, caps: &Capabilities, device_path: &Path) {
+        // If the observed capabilities are equivalent to the cache, do nothing.
+        match &self.content {
+            CachedCapabilities::Known(known_caps) => {
+                if known_caps.is_equivalent_to(caps) {
+                    return;
+                } else {
+                    eprintln!(
+                        "Notice: the capabilities that were cached on the disk for the device \"{}\" did not match the actual capabilities of this device. The cache shall now be updated.",
+                        device_path.display()
+                    );
+                }
+            },
+            CachedCapabilities::NonExistent | CachedCapabilities::Corrupted => (),
+        }
+
+        let update_result = self.update_inner(caps).with_context_of(||
+            format!("While trying to cache the capabilities of the device \"{}\":", device_path.display())
+        );
+        match update_result {
+            Ok(()) => (),
+            Err(error) => {
+                error.print_err();
+                eprintln!("Error: failed to cache the capabilities of an input device. Full persistence will not work.");
+            }
+        }
+    }
+
+    /// Internal function used by `update()`.
+    fn update_inner(&mut self, caps: &Capabilities) -> Result<(), RuntimeError> {
+        // The cache on disk does not match. Update it. First, serialize the capabilities to something that can be written.
+        let caps_as_bytes = crate::persist::format::encode(&caps)
+            .with_context("While trying to serialize the capabilities:")?;
+
+        // Then make sure that the directory where we want to store the capabilities exists.
+        let storage_dir = self.location.parent().ok_or_else(||
+            InternalError::new("Cannot figure out the directory to which the device cache should be written. This is a bug.")
+        )?;
+        if ! storage_dir.exists() {
+            match std::fs::create_dir_all(storage_dir) {
+                Ok(()) => {
+                    eprintln!("Info: creating the directory \"{}\" to store the cached capabilities of the input devices.", storage_dir.display());
+                },
+                Err(error) => {
+                    return Err(SystemError::from(error).with_context(
+                        format!("While trying to create the directory {}:", storage_dir.display())
+                    ).into());
+                }
+            }    
+        }
+
+        // Finally, actually write the capabilities to a file.
+        std::fs::write(&self.location, caps_as_bytes)
+            .map_err(SystemError::from)
+            .with_context_of(|| format!(
+                "While trying to write to the file \"{}\":", &self.location.display()
+            ))?;
+
+        Ok(())
+    }
 }
 
 fn read_capabilities(path_of_input_device: &Path, path_of_capabilities_file: &Path) -> Result<CachedCapabilities, SystemError> {
@@ -74,7 +140,7 @@ pub enum StorageError {
 
 pub fn capabilities_path_for_device(device_path: &str) -> Result<PathBuf, StorageError> {
     let mut path = get_capabilities_path()?;
-    path.push(format!("caps:path={}", encode_path_for_device(device_path)));
+    path.push(format!("{}", encode_path_for_device(device_path)));
     Ok(path)
 }
 
@@ -92,7 +158,10 @@ fn encode_path_for_device(device_path: &str) -> String {
 /// Returns the path to the directory in which the capabilities of input devices must be cached.
 fn get_capabilities_path() -> Result<PathBuf, StorageError> {
     let mut dir = get_state_path()?;
-    dir.push("capabilities");
+    if ! dir.has_root() {
+        crate::utils::warn_once(format!("Warning: the state directory for evsieve has been defined as \"{}\", which is not an absolute path. This may have unexpected results.", dir.display()));
+    }
+    dir.push("device-cache");
     Ok(dir)
 }
 

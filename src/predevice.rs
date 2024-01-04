@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+use crate::capability::Capabilities;
 use crate::persist::storage::DeviceCache;
 use crate::{domain::Domain, arguments::output::DeviceProperties};
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 
 /// Represents whether and how the user has requested the device to be grabbed.
 /// Set through the grab flag or grab= clause on --input arguments.
@@ -41,6 +42,15 @@ pub enum PersistState {
     Full(DeviceCache),
     /// If a device with mode exit disconnects, evsieve shall exit, even if other devices are still available.
     Exit,
+}
+
+impl PersistState {
+    pub fn update_caps(&mut self, caps: &Capabilities, device_path: &Path) {
+        match self {
+            PersistState::None | PersistState::Exit | PersistState::Reopen => (),
+            PersistState::Full(cache) => cache.update_caps(caps, device_path),
+        }
+    }
 }
 
 pub struct PreInputDevice {

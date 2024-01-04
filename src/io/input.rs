@@ -202,12 +202,17 @@ impl InputDevice {
             eprintln!("Warning: failed to set the clock to CLOCK_MONOTONIC on the device opened from {}.\nThis is a non-fatal error, but any time-related operations such as the --delay argument will behave incorrectly.", pre_device.path.to_string_lossy());
         }
 
+        // Now that we know the real input capabilities of this device, update the cache on the
+        // disk if necessary.
+        let mut persist_state = pre_device.persist_state;
+        persist_state.update_caps(&capabilities, &pre_device.path);
+
         Ok(InputDevice {
             file, capabilities, state, name,
             path: pre_device.path,
             domain: pre_device.domain,
             grab_mode: pre_device.grab_mode,
-            persist_state: pre_device.persist_state,
+            persist_state,
             inner: LibevdevDevice {
                 evdev, grabbed: false
             }
