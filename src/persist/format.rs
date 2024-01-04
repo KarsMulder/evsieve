@@ -232,11 +232,12 @@ fn encode_special_abs_block(buffer: &mut Vec<u8>, caps: &Capabilities) -> Result
     push_u16(buffer, EV_ABS_BLOCK_NUMBER);
     let abs_codes = sorted_event_codes_for_type(caps, EventType::ABS);
     for abs_code in abs_codes {
-        let Some(abs_info) = caps.abs_info.get(&abs_code) else {
-            return Err(InternalError::new(format!(
+        let abs_info = match caps.abs_info.get(&abs_code) {
+            Some(info) => info,
+            None => return Err(InternalError::new(format!(
                 "The capabilities contain the abs-type event {}, but do not contain data about its axes. This is a bug.",
                 crate::ecodes::event_name(abs_code)
-            )));
+            ))),
         };
         if abs_info.min_value > abs_info.max_value {
             return Err(InternalError::new(format!(

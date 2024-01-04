@@ -191,9 +191,10 @@ fn run() -> Result<(), RuntimeError> {
 
     // If we were given any blueprints, we must launch the persitence subsystem right now and declare
     // that we want those blueprints to be opened.
-    if !blueprints.is_empty() {
-        let Some(interface) = persist_subsystem.require(&mut epoll) else {
-            return Err(SystemError::new("Failed to launch the persistence subsystem, which is required to open the input devices flagged with \"persist\".").into());
+    if ! blueprints.is_empty() {
+        let interface = match persist_subsystem.require(&mut epoll) {
+            Some(interface) => interface,
+            None => return Err(SystemError::new("Failed to launch the persistence subsystem, which is required to open the input devices flagged with \"persist\".").into()),
         };
         for blueprint in blueprints {
             interface.add_blueprint(blueprint)
