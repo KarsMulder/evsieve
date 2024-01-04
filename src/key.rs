@@ -774,8 +774,7 @@ fn unittest_intersection() {
 fn unittest_requires_range() {
     let parser = KeyParser::default_filter();
     assert!(parser.parse("abs:x").unwrap().split_value().1.is_none());
-    assert!(parser.parse("abs:~").unwrap().split_value().1 == Some(Range::new(None, None)));
-    assert!(parser.parse("abs:1").unwrap().split_value().1 == Some(Range::new(1, 1)));
-    assert!(parser.parse("abs:1~1").unwrap().split_value().1 == Some(Range::new(1, 1)));
-
+    assert!(parser.parse("abs:x:~").unwrap().split_value().1 == Some(Range::new(None, None)));
+    assert!(parser.parse("abs:x:1").unwrap().split_value().1 == Some(Range::new(1, 1)));
+    assert!(parser.parse("abs:x:1~1").unwrap().split_value().1 == Some(Range::new(1, 1)));
 }
