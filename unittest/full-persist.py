@@ -184,6 +184,34 @@ assert(read_events(evsieve_output) == [
 stop_evsieve()
 test_device_alpha.close()
 
+# Let's see if evsieve is able to recover from corrupted data in the persistence files.
+# Note: evsieve does not "guarantee" any particular file structure other than that all of them
+#       lie in $EVSIEVE_STATE_DIR. Some of following asserts are just to make sure that this
+#       unittest works properly.
+start_evsieve(test_device_alpha.path)
+assert(has_matching_capabilities(test_device_alpha))
+stop_evsieve()
+
+EVSIEVE_DEVICE_CACHE_DIR = f"{EVSIEVE_STATE_DIR}/device-cache"
+assert(os.path.isdir(EVSIEVE_DEVICE_CACHE_DIR))
+device_cache_files = os.listdir(EVSIEVE_DEVICE_CACHE_DIR)
+assert(len(device_cache_files) == 1)
+device_cache_path = os.path.join(EVSIEVE_DEVICE_CACHE_DIR, device_cache_files[0])
+
+with open(device_cache_path, "r+b") as file:
+    file.write(b"corrupted")
+
+start_evsieve(test_device_alpha.path)
+assert(not has_matching_capabilities(test_device_alpha))  # Should mismatch because the cache was corrupted.
+test_device_alpha.open()                                  # Tell evsieve again what the capabilities are.
+time.sleep(0.1)
+test_device_alpha.close()
+stop_evsieve()
+
+start_evsieve(test_device_alpha.path)
+assert(has_matching_capabilities(test_device_alpha))      # Evsieve should've rebuilt the cache by now.
+stop_evsieve()
+
 # Now let's start working with a second device on another path and make sure evsieve can keep these
 # two devices separate from each other.
 test_device_gamma = VirtualInputDevice(TEST_DEVICE_PATH_IN_2, {e.EV_KEY: [e.KEY_Q]})
