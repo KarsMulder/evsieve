@@ -12,7 +12,7 @@
 //
 // # Magic number
 // The file should start with the following eight bytes as magic number:
-//      45 56 53 56 41 e7 75 01
+//      45 56 53 56 41 e7 75 00
 // The first four bytes are "EVSV" in ASCII, the next three bytes were taken from a random number generator, and the
 // last byte represents the version number of this file format.
 //
@@ -61,7 +61,7 @@ use crate::event::{EventType, EventCode};
 use crate::error::InternalError;
 
 // The magic header that every file starts with.
-const MAGIC_NUMBER: [u8; 8] = [0x45, 0x56, 0x53, 0x56, 0x41, 0xe7, 0x75, 0x01];
+const MAGIC_NUMBER: [u8; 8] = [0x45, 0x56, 0x53, 0x56, 0x41, 0xe7, 0x75, 0x00];
 const NUM_FILE_LEN_BYTES: usize = std::mem::size_of::<u32>();
 
 // Magic number to indentify special blocks.
