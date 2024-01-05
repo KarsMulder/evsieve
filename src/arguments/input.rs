@@ -36,7 +36,7 @@ pub enum PersistMode {
 impl InputDevice {
 	pub fn parse(args: Vec<String>) -> Result<InputDevice, ArgumentError> {
         let arg_group = ComplexArgGroup::parse(args,
-            &["grab"],
+            &["grab", "persist"],
             &["domain", "grab", "persist"],
             true,
             false,
@@ -66,7 +66,7 @@ impl InputDevice {
             }
         };
 
-        let persist_mode = match arg_group.get_unique_clause("persist")? {
+        let persist_mode = match arg_group.get_unique_clause_or_default_if_flag("persist", "full")? {
             None => PersistMode::None,
             Some(value) => match value.as_str() {
                 "reopen" => PersistMode::Reopen,
