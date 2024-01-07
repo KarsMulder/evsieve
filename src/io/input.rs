@@ -44,9 +44,6 @@ pub fn open_and_query_capabilities(pre_input_devices: Vec<PreInputDevice>)
                     PersistState::None | PersistState::Reopen | PersistState::Exit => return Err(error),
                     // Full persistence tells us to try to find the capabilities of this device cached on the hard drive.
                     PersistState::Full(ref device_cache) => {
-                        // TODO (High Priority): Do something about this "unknown" name
-                        let unknown_name = CString::new("(unknown)").unwrap();
-
                         match device_cache.content {
                             // If we the capabilities of this device were properly cached, then we can just create a
                             // blueprint based on those capabilities.
@@ -55,7 +52,7 @@ pub fn open_and_query_capabilities(pre_input_devices: Vec<PreInputDevice>)
                                 blueprints.push(Blueprint {
                                     pre_device,
                                     capabilities,
-                                    name: unknown_name,
+                                    name: None,
                                 });
                             },
                             // If they are not found, then the best thing we could either exit with an error, or assume
@@ -70,8 +67,7 @@ pub fn open_and_query_capabilities(pre_input_devices: Vec<PreInputDevice>)
                                     device_cache.location.display(),
                                 );
 
-                                // TODO (High Priority): This will cause evsieve to whine that an output device has been created to which no events can be routed.
-                                blueprints.push(Blueprint { pre_device, capabilities: Capabilities::new(), name: unknown_name })
+                                blueprints.push(Blueprint { pre_device, capabilities: Capabilities::new(), name: None })
                             },
                             CachedCapabilities::Corrupted => {
                                 eprintln!(
@@ -80,7 +76,7 @@ pub fn open_and_query_capabilities(pre_input_devices: Vec<PreInputDevice>)
                                     device_cache.location.display(),
                                 );
 
-                                blueprints.push(Blueprint { pre_device, capabilities: Capabilities::new(), name: unknown_name })
+                                blueprints.push(Blueprint { pre_device, capabilities: Capabilities::new(), name: None })
                             },
                         }
                     },
@@ -348,7 +344,7 @@ impl InputDevice {
     pub fn into_blueprint(self) -> Blueprint {
         Blueprint {
             capabilities: self.capabilities,
-            name: self.name,
+            name: Some(self.name),
             pre_device: PreInputDevice {
                 path: self.path,
                 grab_mode: self.grab_mode,

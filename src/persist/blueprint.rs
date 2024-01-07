@@ -9,7 +9,10 @@ use crate::error::SystemError;
 pub struct Blueprint {
     pub pre_device: PreInputDevice,
     pub capabilities: Capabilities,
-    pub name: InputDeviceName,
+    /// The name that the input device is expected to have. None is unknown. It is not considered an error
+    /// if the input device ends up having a different name than specified here, it is just cause to issue
+    /// a warning to help find problematic setups.
+    pub name: Option<InputDeviceName>,
 }
 
 pub enum TryOpenBlueprintResult {
@@ -39,13 +42,15 @@ impl Blueprint {
         };
 
         // Do sanity checks.
-        if input_device.name() != &self.name {
-            println!(
-                "Warning: the reconnected device \"{}\" has a different name than expected. Expected name: \"{}\", new name: \"{}\".",
-                input_device.path().display(),
-                self.name.to_string_lossy(),
-                input_device.name().to_string_lossy(),
-            );
+        if let Some(name) = self.name {
+            if input_device.name() != &name {
+                println!(
+                    "Warning: the reconnected device \"{}\" has a different name than expected. Expected name: \"{}\", new name: \"{}\".",
+                    input_device.path().display(),
+                    name.to_string_lossy(),
+                    input_device.name().to_string_lossy(),
+                );
+            }
         }
 
         // TODO: LOW-PRIORITY this may print warnings on capabilities differing only in value.
