@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use crate::error::ArgumentError;
+use crate::error::{ArgumentError, InternalError, RuntimeError};
+use crate::range::Range;
 use crate::utils;
 use crate::state::{State, ToggleIndex};
 use crate::stream::hook::{Effect, Trigger, EventDispatcher};
@@ -32,19 +33,24 @@ pub(super) struct HookArg {
     pub toggle_action: HookToggleAction,
     pub period: Option<Duration>,
     pub sequential: bool,
-    /// Specified by the send-key clause. Whenever this hook is triggered, a kEY_DOWN
-    /// of the following keys is sent, and a KEY_UP is sent when this hook is released.
-    pub send_keys: Vec<Key>,
+    /// Specified by the send-key and send-event clauses.
+    pub event_dispatcher: EventDispatcherArg,
+
     /// Specified by the breaks-on clause. Whenever an event matches one of the following
     /// keys but not one of its keys_and_str, all trackers invalidate.
     pub breaks_on: Vec<Key>,
 }
 
+/// I'm undecided on the name of the send-event, so I'm creating a constant for it to make sure I don't forget
+/// a reference if I later change it.
+const SEND_EVENT_CLAUSE: &str = "send-event";
+const SEND_KEY_CLAUSE: &str = "send-key";
+
 impl HookArg {
-	pub fn parse(args: Vec<String>) -> Result<HookArg, ArgumentError> {
+	pub fn parse(args: Vec<String>) -> Result<HookArg, RuntimeError> {
         let arg_group = ComplexArgGroup::parse(args,
             &["toggle", "sequential"],
-            &["exec-shell", "toggle", "period", "send-key", "breaks-on"],
+            &["exec-shell", "toggle", "period", SEND_KEY_CLAUSE, SEND_EVENT_CLAUSE, "breaks-on"],
             false,
             true,
         )?;
@@ -60,27 +66,32 @@ impl HookArg {
             Some(value) => Some(crate::arguments::delay::parse_period_value(&value)?),
         };
 
-        let send_keys = KeyParser {
-            allow_transitions: false,
-            allow_values: false,
-            allow_ranges: false,
-            allow_types: false,
-            default_value: "",
-            allow_relative_values: false,
-            type_whitelist: Some(vec![EventType::KEY]),
-            namespace: Namespace::User,
-        }.parse_all(&arg_group.get_clauses("send-key"))?;
+        // Parse the send-key and send-event clauses.
+        let mut event_dispatcher = EventDispatcherArg::new();
+        for (name, value) in arg_group.clauses() {
+            match name {
+                SEND_KEY_CLAUSE => {
+                    let key = parse_send_key_clause(value)?;
+                    event_dispatcher.add_send_key(key);
+                },
+                SEND_EVENT_CLAUSE => {
+                    let key = parse_send_event_clause(value)?;
+                    event_dispatcher.add_send_event(key);
+                },
+                _ => (),
+            }
+        };
 
         let breaks_on = KeyParser::default_filter()
             .parse_all(&arg_group.get_clauses("breaks-on"))?;
 
         if arg_group.keys.is_empty() {
-            Err(ArgumentError::new("A --hook argument requires at least one key."))
+            Err(ArgumentError::new("A --hook argument requires at least one key.").into())
         } else {
             Ok(HookArg {
                 keys_and_str,
                 exec_shell: arg_group.get_clauses("exec-shell"),
-                toggle_action, period, sequential, send_keys, breaks_on
+                toggle_action, period, sequential, event_dispatcher, breaks_on
             })
         }
     }
@@ -89,10 +100,93 @@ impl HookArg {
         let keys: Vec<Key> = self.keys_and_str.iter().map(|(key, _)| key.clone()).collect();
         Trigger::new(keys, self.breaks_on.clone(), self.period, self.sequential)
     }
+}
 
-    pub fn compile_event_dispatcher(&self) -> EventDispatcher {
-        EventDispatcher::from_send_keys(self.send_keys.clone())
+#[derive(Clone)]
+pub struct EventDispatcherArg {
+    /// These events need to be sent when the hook activates in the order specified.
+    pub on_press: Vec<Key>,
+    /// These events need to be sent when the hook activates *in the order specified*. Events that should be
+    /// sent in reverse order such as from send-key will be put into this vector in reverse order.
+    pub on_release: Vec<Key>,
+}
+
+impl EventDispatcherArg {
+    fn new() -> Self {
+        EventDispatcherArg {
+            on_press: Vec::new(),
+            on_release: Vec::new(),
+        }
     }
+
+    fn add_send_key(&mut self, key: Key) {
+        let mut on_press_key = key.clone();
+        on_press_key.set_value(Range::new(1, 1));
+        let mut on_release_key = key;
+        on_release_key.set_value(Range::new(0, 0));
+
+        self.on_press.push(on_press_key);
+        self.on_release.insert(0, on_release_key);
+    }
+
+    fn add_send_event(&mut self, key: Key) {
+        self.on_press.push(key);
+    }
+
+    pub fn compile(self) -> EventDispatcher {
+        EventDispatcher::new(self.on_press, self.on_release)
+    }
+
+    /// Returns an iterator over all events that this hook might send.
+    pub fn sendable_events(&self) -> impl Iterator<Item=&Key> {
+        let EventDispatcherArg { on_press, on_release } = self;
+        on_press.iter().chain(on_release)
+    }
+}
+
+fn parse_send_key_clause(key: &str) -> Result<Key, RuntimeError> {
+    KeyParser {
+        allow_transitions: false,
+        allow_values: false,
+        allow_ranges: false,
+        allow_types: false,
+        default_value: "",
+        allow_relative_values: false,
+        type_whitelist: Some(vec![EventType::KEY]),
+        namespace: Namespace::User,
+    }.parse(key).map_err(Into::into)
+}
+
+fn parse_send_event_clause(key: &str) -> Result<Key, RuntimeError> {
+    // You know, I'm starting to think that this whole KeyParser thing needs a change in its interface.
+    // After adding so many options to it, it still doesn't have an option to declare "requires event"
+    // value, and adding yet another option for that would break some of its other interfaces.
+    //
+    // As workaround, we just check locally whether this key has an event value.
+    let event = KeyParser {
+        allow_transitions: false,
+        allow_values: true,
+        allow_ranges: false,
+        allow_types: false,
+        default_value: "",
+        allow_relative_values: false,
+        type_whitelist: None,
+        namespace: Namespace::User,
+    }.parse(key)?;
+
+    let (code, value) = event.clone().split_value();
+    let code = match code.requires_event_code() {
+        Some(code) => code,
+        None => return Err(InternalError::new("Parsing failed: no event code was found where one should exist according to an earlier check. This is a bug.").into())
+    };
+    if value.is_none() {
+        return Err(ArgumentError::new(format!(
+            "All events sent by the {SEND_EVENT_CLAUSE} clause must have their event value specified, e.g. \"{}:1\"",
+            crate::ecodes::event_name(code)
+        )).into());
+    }
+
+    Ok(event)
 }
 
 /// Represents how a single toggle clause on a hook should modify some toggle.

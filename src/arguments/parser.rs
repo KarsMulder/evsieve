@@ -369,7 +369,7 @@ pub fn implement(args_str: Vec<String>)
             Argument::HookArg(hook_arg) => {
                 let mut hook = Hook::new(
                     hook_arg.compile_trigger(),
-                    hook_arg.compile_event_dispatcher(),
+                    hook_arg.event_dispatcher.compile(),
                 );
 
                 for exec_shell in hook_arg.exec_shell {

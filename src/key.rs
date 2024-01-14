@@ -92,6 +92,12 @@ impl Key {
         result
     }
 
+    /// Makes this key require a certain particular value.
+    pub fn set_value(&mut self, value: Range) {
+        self.pop_value();
+        self.properties.push(KeyProperty::Value(value));
+    }
+
     fn add_property(&mut self, property: KeyProperty) {
         self.properties.push(property);
     }
@@ -105,6 +111,25 @@ impl Key {
                 KeyProperty::Type(ev_type) => return Some(*ev_type),
                 KeyProperty::VirtualType(v_type) => return Some(v_type.ev_type()),
                 KeyProperty::Domain(_)
+                | KeyProperty::Namespace(_)
+                | KeyProperty::Value(_)
+                | KeyProperty::PreviousValue(_)
+                | KeyProperty::AffineFactor(_)
+                => (),
+            }
+        }
+        None
+    }
+
+    /// Returns Some(EventType) if this Key will only ever accept events of a certain code.
+    /// If it may accept different types of events, returns None.
+    pub fn requires_event_code(&self) -> Option<EventCode> {
+        for property in &self.properties {
+            match property {
+                KeyProperty::Code(code) => return Some(*code),
+                KeyProperty::Type(_)
+                | KeyProperty::VirtualType(_)
+                | KeyProperty::Domain(_)
                 | KeyProperty::Namespace(_)
                 | KeyProperty::Value(_)
                 | KeyProperty::PreviousValue(_)

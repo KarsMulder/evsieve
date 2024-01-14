@@ -385,16 +385,19 @@ impl Hook {
 /// Implemented separately from the hook because it is possible we want to remove this
 /// functionality from the --hook itself and move it to a --withhold instead.
 pub struct EventDispatcher {
-    /// Keys that shall be sent on press and release.
-    send_keys: Vec<Key>,
+    /// Events that shall be sent on press in the order specified.
+    on_press: Vec<Key>,
+    /// Events that shall be sent on release *in the order specified*. If you want them
+    /// in another order, like reverse order, then reverse them before you put them here.
+    on_release: Vec<Key>,
     /// The last event that activated the corresponding Hook/Trigger.
     activating_event: Option<Event>,
 }
 
 impl EventDispatcher {
-    pub fn from_send_keys(send_keys: Vec<Key>) -> EventDispatcher {
+    pub fn new(on_press: Vec<Key>, on_release: Vec<Key>) -> EventDispatcher {
         EventDispatcher {
-            send_keys,
+            on_press, on_release,
             activating_event: None
         }
     }
@@ -405,10 +408,8 @@ impl EventDispatcher {
             TriggerResponse::Activates => {
                 events_out.push(event);
                 self.activating_event = Some(event);
-                for key in &self.send_keys {
-                    let mut additional_event = key.merge(event);
-                    additional_event.value = 1;
-                    events_out.push(additional_event);
+                for key in &self.on_press {
+                    events_out.push(key.merge(event));
                 };
             },
             TriggerResponse::Releases => {
@@ -419,10 +420,8 @@ impl EventDispatcher {
                         event
                     }
                 };
-                for key in self.send_keys.iter().rev() {
-                    let mut additional_event = key.merge(activating_event);
-                    additional_event.value = 0;
-                    events_out.push(additional_event);
+                for key in &self.on_release {
+                    events_out.push(key.merge(activating_event));
                 }
                 events_out.push(event);
             },
@@ -450,12 +449,10 @@ impl EventDispatcher {
                 Some(CapMatch::No) | None => continue,
             };
 
-            additional_caps.extend(self.send_keys.iter().map(
-                |key| {
-                    let mut new_cap = key.merge_cap(*cap_in);
-                    new_cap.value_range = Range::new(Some(0), Some(1));
-                    new_cap
-                }
+            let EventDispatcher { on_press, on_release, activating_event: _ } = self;
+            let additional_events = on_press.iter().chain(on_release);
+            additional_caps.extend(additional_events.map(
+                |key| key.merge_cap(*cap_in)
             ));
         }
 

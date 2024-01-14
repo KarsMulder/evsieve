@@ -137,13 +137,17 @@ impl ComplexArgGroup {
     }
 
     pub fn get_clauses(&self, name: &str) -> Vec<String> {
-        self.clauses.iter().cloned().filter_map(|(clause_name, value)| {
+        self.clauses.iter().filter_map(|(clause_name, value)| {
             if name == clause_name {
-                Some(value)
+                Some(value.clone())
             } else {
                 None
             }
         }).collect()
+    }
+
+    pub fn clauses(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.clauses.iter().map(|x| (x.0.as_str(), x.1.as_str()))
     }
 
     /// Get a clause of which at most one may exist.

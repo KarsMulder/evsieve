@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use crate::event::{EventType};
+use crate::event::EventType;
 use crate::error::ArgumentError;
 use crate::arguments::lib::ComplexArgGroup;
 use crate::arguments::hook::HookArg;
@@ -41,15 +41,17 @@ impl WithholdArg {
         }
 
         // Determine all keys that can be send from --hook send-key.
-        let sendable_keys: Vec<&Key> = hooks.iter().flat_map(|hook| &hook.send_keys).collect();
+        let sendable_events: Vec<&Key> = hooks.iter().flat_map(|hook|
+            hook.event_dispatcher.sendable_events()
+        ).collect();
 
         // Verify that the constraints on the preceding hooks are upheld.
         for hook_arg in hooks.iter() {
             for (key, key_str) in &hook_arg.keys_and_str {
                 // Make sure no hook can match on a key that can be sent from the same set.
-                if sendable_keys.iter().any(|send_key| send_key.intersects_with(key)) {
+                if sendable_events.iter().any(|send_key| send_key.intersects_with(key)) {
                     return Err(ArgumentError::new(format!(
-                        "It is not possible to use --withhold on a set of hooks where any of the hooks has an input key that matches any event that can be dispatched from any of the send-key= clauses. The key \"{}\" violates this constraint.", key_str
+                        "It is not possible to use --withhold on a set of hooks where any of the hooks has an input key that matches any event that can be dispatched by any of the hooks through means such as \"send-key=...\" or \"send-event=...\". The key \"{}\" violates this constraint.", key_str
                     )));
                 }
 
