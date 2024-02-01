@@ -105,6 +105,9 @@ fn start_worker(comm_in: Receiver<Command>, comm_out: &mut Sender<Report>) -> Re
                 Command::Shutdown => return Ok(()),
                 Command::AddBlueprint(blueprint) => match &mut epoll[daemon_index] {
                     Pollable::Daemon(daemon) => {
+                        if cfg!(feature = "debug-persistence") {
+                            println!("Registering new device to reopen in the future: {}", blueprint.pre_device.path.to_string_lossy());
+                        }
                         daemon.add_blueprint(blueprint)?;
                         // Immediately try to open all blueprints after adding one, otherwise it is
                         // possible to fail to notice an blueprint becoming available if the associated
@@ -127,8 +130,19 @@ fn poll(epoll: &mut Epoll<Pollable>, daemon_index: FileIndex) -> Result<(Vec<Com
 
     // If the feature debug-persistence has been enabled, then we will try to reopen all blueprints
     // periodically even if we were not notified they are ready.
+    //
+    // I feel like this code could use a serious refactor, but there is a good chance that it will soon be
+    // `git revert`ed after it served its purpose, so it will do for now.
     let timeout = if cfg!(feature = "debug-persistence") {
-        5_000
+        let daemon = match &mut epoll[daemon_index] {
+            Pollable::Command(_) => panic!("Internal invariant violated: daemon_index does not point to a Daemon"),
+            Pollable::Daemon(daemon) => daemon,
+        };
+        if daemon.blueprints.is_empty() {
+            crate::io::epoll::INDEFINITE_TIMEOUT
+        } else {
+            5_000
+        }
     } else {
         crate::io::epoll::INDEFINITE_TIMEOUT
     };
@@ -146,10 +160,16 @@ fn poll(epoll: &mut Epoll<Pollable>, daemon_index: FileIndex) -> Result<(Vec<Com
                         Message::Broken(_index) => return Err(SystemError::new("Persistence daemon broken.").into()),
                         Message::Ready(index) | Message::Hup(index) => match &mut epoll[index] {
                             Pollable::Daemon(daemon) => {
+                                if cfg!(feature = "debug-persistence") {
+                                    println!("Received ready report from inotify. Checking persistent devices...");
+                                }
                                 daemon.poll()?;
                                 try_open_and_report(daemon, &mut reports)?
                             },
                             Pollable::Command(receiver) => {
+                                if cfg!(feature = "debug-persistence") {
+                                    println!("Persistence subsystem received command from main thread.");
+                                }
                                 match receiver.recv() {
                                     Ok(command) => commands.push(command),
                                     Err(error) => return Err(error.into()),
@@ -160,6 +180,9 @@ fn poll(epoll: &mut Epoll<Pollable>, daemon_index: FileIndex) -> Result<(Vec<Com
                 }
             } else {
                 // A timeout happened while polling.
+                if cfg!(feature = "debug-persistence") {
+                    println!("No report from inotify received. Commencing periodic check of persistent devices...");
+                }
                 let daemon = match &mut epoll[daemon_index] {
                     Pollable::Command(_) => panic!("Internal invariant violated: daemon_index does not point to a Daemon"),
                     Pollable::Daemon(daemon) => daemon,
@@ -297,9 +320,11 @@ impl Daemon {
             let paths_already_watched: HashSet<&String> = self.inotify.watched_paths().collect();
 
             if cfg!(feature = "debug-persistence") {
-                let mut debug_str: String = paths_to_watch_hashset.iter().copied().cloned().collect::<Vec<_>>().join(", ");
+                let mut paths_vec: Vec<String> = paths_to_watch_hashset.iter().copied().cloned().collect();
+                paths_vec.sort();
+                let mut debug_str = paths_vec.join(", ");
                 if debug_str.is_empty() {
-                    debug_str = "(empty)".to_owned();
+                    debug_str = "(none)".to_owned();
                 }
                 println!("Directories to monitor: {}", debug_str);
             }

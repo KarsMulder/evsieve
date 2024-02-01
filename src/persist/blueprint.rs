@@ -28,6 +28,9 @@ impl Blueprint {
     /// Tries to reopen the device from which this blueprint was generated.
     pub fn try_open(self) -> TryOpenBlueprintResult {
         if ! self.pre_device.path.exists() {
+            if cfg!(feature = "debug-persistence") {
+                println!("The path {} does not exist.", self.pre_device.path.to_string_lossy());
+            }
             return TryOpenBlueprintResult::NotOpened(self);
         }
         let input_device = match InputDevice::open(self.pre_device) {
