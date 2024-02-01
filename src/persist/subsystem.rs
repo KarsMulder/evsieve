@@ -16,7 +16,7 @@ use crate::persist::blueprint::{Blueprint, TryOpenBlueprintResult};
 use crate::persist::inotify::Inotify;
 use crate::persist::interface::HostInterface;
 use crate::error::{Context, RuntimeError, SystemError};
-use crate::io::epoll::{Epoll, Message};
+use crate::io::epoll::{Epoll, FileIndex, Message};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::os::unix::io::{AsRawFd, RawFd};
@@ -93,9 +93,13 @@ fn start_worker(comm_in: Receiver<Command>, comm_out: &mut Sender<Report>) -> Re
     let mut epoll = Epoll::new()?;
     let daemon_index = epoll.add_file(Pollable::Daemon(daemon))?;
     epoll.add_file(Pollable::Command(comm_in))?;
+
+    if cfg!(feature = "debug-persistence") {
+        println!("Persistence subsystem launched.");
+    }
     
     loop {
-        let (commands, mut reports) = poll(&mut epoll)?;
+        let (commands, mut reports) = poll(&mut epoll, daemon_index)?;
         for command in commands {
             match command {
                 Command::Shutdown => return Ok(()),
@@ -117,30 +121,50 @@ fn start_worker(comm_in: Receiver<Command>, comm_out: &mut Sender<Report>) -> Re
     }
 }
 
-fn poll(epoll: &mut Epoll<Pollable>) -> Result<(Vec<Command>, Vec<Report>), RuntimeError> {
+fn poll(epoll: &mut Epoll<Pollable>, daemon_index: FileIndex) -> Result<(Vec<Command>, Vec<Report>), RuntimeError> {
     let mut commands: Vec<Command> = Vec::new();
     let mut reports: Vec<Report> = Vec::new();
 
-    match epoll.poll(crate::io::epoll::INDEFINITE_TIMEOUT) {
+    // If the feature debug-persistence has been enabled, then we will try to reopen all blueprints
+    // periodically even if we were not notified they are ready.
+    let timeout = if cfg!(feature = "debug-persistence") {
+        5_000
+    } else {
+        crate::io::epoll::INDEFINITE_TIMEOUT
+    };
+
+    match epoll.poll(timeout) {
         Err(error) => {
             error.with_context("While the persistence subsystem was polling for events:").print_err();
             commands.push(Command::Shutdown);
         },
-        Ok(messages) => for message in messages {
-            match message {
-                Message::Broken(_index) => return Err(SystemError::new("Persistence daemon broken.").into()),
-                Message::Ready(index) | Message::Hup(index) => match &mut epoll[index] {
-                    Pollable::Daemon(daemon) => {
-                        daemon.poll()?;
-                        try_open_and_report(daemon, &mut reports)?
-                    },
-                    Pollable::Command(receiver) => {
-                        match receiver.recv() {
-                            Ok(command) => commands.push(command),
-                            Err(error) => return Err(error.into()),
+        Ok(messages) => {
+            let messages: Vec<Message> = messages.collect();
+            if ! messages.is_empty() {
+                for message in messages {
+                    match message {
+                        Message::Broken(_index) => return Err(SystemError::new("Persistence daemon broken.").into()),
+                        Message::Ready(index) | Message::Hup(index) => match &mut epoll[index] {
+                            Pollable::Daemon(daemon) => {
+                                daemon.poll()?;
+                                try_open_and_report(daemon, &mut reports)?
+                            },
+                            Pollable::Command(receiver) => {
+                                match receiver.recv() {
+                                    Ok(command) => commands.push(command),
+                                    Err(error) => return Err(error.into()),
+                                }
+                            }
                         }
                     }
                 }
+            } else {
+                // A timeout happened while polling.
+                let daemon = match &mut epoll[daemon_index] {
+                    Pollable::Command(_) => panic!("Internal invariant violated: daemon_index does not point to a Daemon"),
+                    Pollable::Daemon(daemon) => daemon,
+                };
+                try_open_and_report(daemon, &mut reports)?
             }
         }
     }
@@ -215,7 +239,19 @@ impl Daemon {
             // Try to open the devices.
             let mut remaining_blueprints = Vec::new();
             for blueprint in self.blueprints.drain(..) {
-                match blueprint.try_open() {
+                let blueprint_path = blueprint.pre_device.path.clone();
+                let try_open_result = blueprint.try_open();
+
+                if cfg!(feature = "debug-persistence") {
+                    let result_as_str = match try_open_result {
+                        TryOpenBlueprintResult::Success(_) => "success",
+                        TryOpenBlueprintResult::NotOpened(_) => "not opened",
+                        TryOpenBlueprintResult::Error(_, _) => "severe error",
+                    };
+                    println!("Attempted to open the device at {}. Outcome: {}", blueprint_path.to_string_lossy(), result_as_str);
+                }
+
+                match try_open_result {
                     TryOpenBlueprintResult::Success(device) => result.opened_devices.push(device),
                     TryOpenBlueprintResult::NotOpened(blueprint) => remaining_blueprints.push(blueprint),
                     TryOpenBlueprintResult::Error(blueprint, error) => {
@@ -226,10 +262,20 @@ impl Daemon {
             }
             self.blueprints = remaining_blueprints;
             
+            let update_watch_result = self.update_watches();
+            if cfg!(feature = "debug-persistence") {
+                let result_as_str = match update_watch_result {
+                    Ok(false) => "unchanged",
+                    Ok(true) => "changed",
+                    Err(_) => "severe error"
+                };
+                println!("Directory monitor status: {}", result_as_str);
+            }
+
             // Just in case the relevant paths change between now and when we actually watch them
             // thanks to a race-condition, we do this within a loop until the paths are identical
             // for two iterations.
-            match self.update_watches() {
+            match update_watch_result {
                 Ok(false) => return result, // The paths are identical.
                 Ok(true) => (),             // The paths changed, we should re-scan.
                 Err(error) => {             // Something went seriously wrong.
@@ -249,6 +295,14 @@ impl Daemon {
         let paths_to_watch: Vec<String> = self.get_paths_to_watch();
             let paths_to_watch_hashset: HashSet<&String> = paths_to_watch.iter().collect();
             let paths_already_watched: HashSet<&String> = self.inotify.watched_paths().collect();
+
+            if cfg!(feature = "debug-persistence") {
+                let mut debug_str: String = paths_to_watch_hashset.iter().copied().cloned().collect::<Vec<_>>().join(", ");
+                if debug_str.is_empty() {
+                    debug_str = "(empty)".to_owned();
+                }
+                println!("Directories to monitor: {}", debug_str);
+            }
 
             if paths_to_watch_hashset == paths_already_watched {
                 Ok(false)
