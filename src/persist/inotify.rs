@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use crate::error::{SystemError, InternalError, RuntimeError};
+use crate::error::{Context, RuntimeError, SystemError};
+use crate::utils::NonCopy;
 use std::collections::HashMap;
 use std::os::unix::io::{AsRawFd, RawFd};
 
+type WatchId = NonCopy<i32>;
 
 pub struct Inotify {
     fd: RawFd,
     /// Maps a watch id to a list of all paths that are watched by that id.
-    watches: HashMap<i32, Vec<String>>,
+    watches: HashMap<NonCopy<i32>, Vec<String>>,
 }
 
 impl Inotify {
@@ -37,40 +39,31 @@ impl Inotify {
             return Err(SystemError::os_with_context(format!(
                 "While trying to add \"{}\" to an inotify instance:", path)))
         }
+        let watch = WatchId::new(watch);
+
         self.watches.entry(watch).or_default().push(path);
         Ok(())
     }
 
-    pub fn remove_watch(&mut self, path: String) -> Result<(), RuntimeError> {
+    pub fn remove_watch(&mut self, path: String) {
         // Pre-cache the watch ids so we don't have to borrow self.watches during the loop.
-        let watch_ids: Vec<i32> = self.watches.keys().cloned().collect();
-        for watch_id in watch_ids {
-            let paths = match self.watches.get_mut(&watch_id) {
-                Some(paths) => paths,
-                None => return Err(InternalError::new("A watch was unexpectedly removed from an Inotify.").into()),
-            };
-            if paths.contains(&path) {
-                paths.retain(|item| item != &path);
-                if paths.is_empty() {
-                    self.remove_watch_by_id(watch_id)?;
-                }
+        for (_id, paths) in self.watches.iter_mut() {
+            paths.retain(|item| item != &path);
+        }
+
+        // This could be done nicely with the experimental `HashMap::extract_if` function.
+        // But it's not stable yet, so it'll have to happen the ugly way.
+        let mut retained_watches = HashMap::new();
+        for (watch_id, paths) in self.watches.drain() {
+            if ! paths.is_empty() {
+                retained_watches.insert(watch_id, paths);
+            } else {
+                unlisten_watch_by_id(self.fd, watch_id)
+                    .with_context_of(|| format!("While informing the inotify instance to stop watching the folder {}:", path))
+                    .print_err();
             }
         }
-
-        Ok(())
-    }
-
-    fn remove_watch_by_id(&mut self, watch_id: i32) -> Result<(), SystemError> {
-        // The error cases should be: self.fd is not valid, watch is not valid.
-        // In either case, it is fine that watch is removed from self.watches in case of error.
-        let res = unsafe { libc::inotify_rm_watch(self.fd, watch_id) };
-        self.watches.remove(&watch_id);
-
-        if res < 0 {
-            Err(std::io::Error::last_os_error().into())
-        } else {
-            Ok(())
-        }
+        self.watches = retained_watches;
     }
 
     pub fn watched_paths(&self) -> impl Iterator<Item=&String> {
@@ -83,7 +76,7 @@ impl Inotify {
             .filter(|&path| !paths.contains(path))
             .cloned().collect();
         for path in paths_to_remove {
-            self.remove_watch(path)?;
+            self.remove_watch(path);
         }
 
         let watched_paths: Vec<&String> = self.watched_paths().collect();
@@ -123,5 +116,24 @@ impl Drop for Inotify {
     fn drop(&mut self) {
         // Ignore any errors because we can't do anything about them.
         unsafe { libc::close(self.fd); }
+    }
+}
+
+/// Tells the file descriptor to stop listening to a watch with a certain id.
+/// 
+/// IMPORTANT: this function does NOT remove watch_id from `Inotify::watches`; that is the caller's job!
+/// (WatchId being NonCopy gives some protection against accidentally calling it without having
+/// removed it from self.watches, as well as the suggestiveness that this function does not accept
+/// `self` as argument. Just don't try to dance around the protection.)
+fn unlisten_watch_by_id(inotify_fd: RawFd, watch_id: WatchId) -> Result<(), SystemError> {
+    // The error cases should be: self.fd is not valid, watch is not valid.
+    // In either case, it is fine that watch is removed from self.watches in case of error.
+    // self.watches.remove(&watch_id);
+    let res = unsafe { libc::inotify_rm_watch(inotify_fd, watch_id.consume()) };
+
+    if res < 0 {
+        Err(std::io::Error::last_os_error().into())
+    } else {
+        Ok(())
     }
 }

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+use std::fmt::Display;
 use std::sync::Mutex;
 use std::ffi::CStr;
 use libc::c_char;
@@ -54,5 +55,32 @@ pub fn parse_number(string: &str) -> Option<f64> {
         } else {
             None
         }
+    }
+}
+
+/// A structure that intentionally cannot be copied or whose contents cannot be inspected without
+/// consuming it. This guards against some accidental programming errors like closing a file descriptor
+/// twice: if the i32 that represents the file descriptor is guarded by this NonCopy struct, then you
+/// need to own it in order to get its inner value, and you'd have to jump through hoops to somehow
+/// manage to consume that value twice.
+#[derive(PartialEq, Eq, Hash)]
+pub struct NonCopy<T>(T);
+
+impl<T> NonCopy<T> {
+    pub fn new(value: T) -> Self {
+        Self(value)
+    }
+    pub fn consume(self) -> T {
+        self.0
+    }
+}
+impl<T> NonCopy<T> where T: PartialEq {
+    pub fn contains(&self, other: &T) -> bool {
+        &self.0 == other
+    }
+}
+impl<T> std::fmt::Display for NonCopy<T> where T: Display {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
