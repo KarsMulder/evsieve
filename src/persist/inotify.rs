@@ -20,14 +20,6 @@ impl Inotify {
         Ok(Inotify { fd, watches: HashMap::new() })
     }
 
-    /// Returns an inotify that watches all interesting input directories.
-    pub fn for_input_dirs() -> Result<Inotify, SystemError> {
-        let mut inotify = Inotify::new()?;
-        inotify.add_watch("/dev/input".into())?;
-        inotify.add_watch("/dev/input/by-id".into())?;
-        Ok(inotify)
-    }
-
     pub fn add_watch(&mut self, path: String) -> Result<(), SystemError> {
         let cstr = match std::ffi::CString::new(path.clone()) {
             Ok(value) => value,
