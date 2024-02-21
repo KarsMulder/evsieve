@@ -7,6 +7,7 @@ pub mod map;
 pub mod delay;
 pub mod merge;
 pub mod absrel;
+pub mod scale;
 
 use std::collections::HashMap;
 
@@ -14,6 +15,7 @@ use self::absrel::RelToAbs;
 use self::map::{Map, Toggle};
 use self::hook::Hook;
 use self::print::EventPrinter;
+use self::scale::Scale;
 use self::withhold::Withhold;
 use self::merge::Merge;
 
@@ -53,6 +55,7 @@ pub enum StreamEntry {
     Toggle(Toggle),
     Print(EventPrinter),
     Merge(Merge),
+    Scale(Scale),
     Withhold(Withhold),
     RelToAbs(RelToAbs),
     Delay(self::delay::Delay),
@@ -239,6 +242,11 @@ fn run_events(events_in: Vec<Event>, events_out: &mut Vec<Event>, stream: &mut [
                 events.clear();
                 std::mem::swap(&mut events, &mut buffer);
             },
+            StreamEntry::Scale(scale) => {
+                scale.apply_to_all(&events, &mut buffer);
+                events.clear();
+                std::mem::swap(&mut events, &mut buffer);
+            },
             StreamEntry::Delay(delay) => {
                 delay.apply_to_all(&events, &mut buffer, loopback);
                 events.clear();
@@ -278,6 +286,7 @@ fn run_wakeup(token: crate::loopback::Token, events_out: &mut Vec<Event>, stream
                 withhold.wakeup(&token, &mut events);
             },
             StreamEntry::Print(_) => {},
+            StreamEntry::Scale(_) => {},
             StreamEntry::RelToAbs(_) => {},
         }
 
@@ -310,6 +319,11 @@ pub fn run_caps(stream: &[StreamEntry], capabilities: Vec<Capability>) -> Vec<Ca
             StreamEntry::Merge(_) => (),
             StreamEntry::Hook(hook) => {
                 hook.apply_to_all_caps(&caps, &mut buffer);
+                caps.clear();
+                std::mem::swap(&mut caps, &mut buffer);
+            },
+            StreamEntry::Scale(scale) => {
+                scale.apply_to_all_caps(&caps, &mut buffer);
                 caps.clear();
                 std::mem::swap(&mut caps, &mut buffer);
             },

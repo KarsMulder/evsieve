@@ -28,6 +28,7 @@ use super::absrel::RelToAbsArg;
 use super::config::ConfigArg;
 use super::input::PersistMode;
 use super::merge::MergeArg;
+use super::scale::ScaleArg;
 
 const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 
@@ -72,6 +73,7 @@ enum Argument {
     PrintArg(PrintArg),
     MergeArg(MergeArg),
     DelayArg(DelayArg),
+    ScaleArg(ScaleArg),
     WithholdArg(WithholdArg),
     RelToAbsArg(RelToAbsArg),
     ControlFifoArg(ControlFifoArg),
@@ -102,6 +104,7 @@ impl Argument {
             "--print" => Ok(Argument::PrintArg(PrintArg::parse(args)?)),
             "--merge" => Ok(Argument::MergeArg(MergeArg::parse(args)?)),
             "--delay" => Ok(Argument::DelayArg(DelayArg::parse(args)?)),
+            "--scale" => Ok(Argument::ScaleArg(ScaleArg::parse(args)?)),
             "--withhold" => Ok(Argument::WithholdArg(WithholdArg::parse(args)?)),
             "--rel-to-abs" => Ok(Argument::RelToAbsArg(RelToAbsArg::parse(args)?)),
             "--control-fifo" => {
@@ -406,6 +409,9 @@ pub fn implement(args_str: Vec<String>)
             },
             Argument::DelayArg(delay_arg) => {
                 stream.push(StreamEntry::Delay(delay_arg.compile()));
+            },
+            Argument::ScaleArg(scale_arg) => {
+                stream.push(StreamEntry::Scale(scale_arg.compile()));
             },
             Argument::ControlFifoArg(control_fifo) => {
                 control_fifo_paths.extend(control_fifo.paths);

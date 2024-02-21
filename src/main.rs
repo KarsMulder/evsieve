@@ -75,6 +75,7 @@ pub mod arguments {
     pub mod control_fifo;
     pub mod test;
     pub mod config;
+    pub mod scale;
 }
 
 pub mod bindings {
