@@ -1584,6 +1584,82 @@ def unittest_rel_to_abs():
         },
     )
 
+def unittest_scale():
+    run_unittest(
+        ["--input", "/dev/input/by-id/unittest-scale-in", "grab=force",
+        "--scale", "rel:x", "rel:y", "factor=0.25",
+        "--output", "create-link=/dev/input/by-id/unittest-scale-out"],
+        {
+            "/dev/input/by-id/unittest-scale-in": [
+                (e.EV_REL, e.REL_Z, 1),
+                (e.EV_REL, e.REL_X, 10), # Send 2, residual 0.5
+                (e.EV_REL, e.REL_X, 10), # Send 3, residual 0
+
+                (e.EV_REL, e.REL_Z, 2),
+                (e.EV_REL, e.REL_Y, 1),  # Y residual 0.25
+                (e.EV_REL, e.REL_X, 6),  # Send 1, residual 0.5
+                (e.EV_REL, e.REL_Z, 3),
+                (e.EV_REL, e.REL_Y, 1),  # Y residual 0.5
+                (e.EV_REL, e.REL_X, -3), # Send -1, residual 0.75
+                (e.EV_REL, e.REL_Z, 4),
+                (e.EV_REL, e.REL_Y, 1),  # Y residual 0.75
+                (e.EV_REL, e.REL_X, 1),  # Send 1, residual 0
+                (e.EV_REL, e.REL_Z, 5),
+                (e.EV_REL, e.REL_Y, 1),  # Send 1, Y residual 0
+                (e.EV_REL, e.REL_X, 1),  # Send 0, residual 0.25 (dropped)
+                (e.EV_REL, e.REL_Z, 6),
+                (e.EV_REL, e.REL_X, -10),# Send -3, residual 0.75
+                (e.EV_REL, e.REL_Z, 7),
+                (e.EV_REL, e.REL_X, 1),  # Send 1, residual 0
+            ],
+        },
+        {
+            "/dev/input/by-id/unittest-scale-out": [
+                (e.EV_REL, e.REL_Z, 1),
+                (e.EV_REL, e.REL_X, 2),
+                (e.EV_REL, e.REL_X, 3),
+
+                (e.EV_REL, e.REL_Z, 2),
+                (e.EV_REL, e.REL_X, 1),  # Send 1, residual 0.5
+                (e.EV_REL, e.REL_Z, 3),
+                (e.EV_REL, e.REL_X, -1), # Send -1, residual 0.75
+                (e.EV_REL, e.REL_Z, 4),
+                (e.EV_REL, e.REL_X, 1),  # Send 1, residual 0
+                (e.EV_REL, e.REL_Z, 5),
+                (e.EV_REL, e.REL_Y, 1),  # Send 1, Y residual 0
+                (e.EV_REL, e.REL_Z, 6),
+                (e.EV_REL, e.REL_X, -3), # Send -2, residual 0.75
+                (e.EV_REL, e.REL_Z, 7),
+                (e.EV_REL, e.REL_X, 1),  # Send 1, residual 0
+            ],
+        },
+    )
+
+def unittest_scale_2():
+    run_unittest(
+        ["--input", "/dev/input/by-id/unittest-scale-2-in", "grab=force",
+        "--scale", "factor=2",
+        "--output", "create-link=/dev/input/by-id/unittest-scale-2-out"],
+        {
+            "/dev/input/by-id/unittest-scale-2-in": [
+                (e.EV_REL, e.REL_X, 1),
+                (e.EV_REL, e.REL_Y, 3),
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_A, 2),
+                (e.EV_KEY, e.KEY_A, 0),
+            ],
+        },
+        {
+            "/dev/input/by-id/unittest-scale-2-out": [
+                (e.EV_REL, e.REL_X, 2),
+                (e.EV_REL, e.REL_Y, 6),
+                (e.EV_KEY, e.KEY_A, 1),
+                (e.EV_KEY, e.KEY_A, 2),
+                (e.EV_KEY, e.KEY_A, 0),
+            ],
+        },
+    )
+
 unittest_mirror()
 unittest_syn()
 unittest_capslock()
@@ -1611,3 +1687,5 @@ unittest_withhold_period()
 unittest_withhold_sequential()
 unittest_withhold_sequential_2()
 unittest_rel_to_abs()
+unittest_scale()
+unittest_scale_2()

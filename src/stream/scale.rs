@@ -26,7 +26,7 @@ impl Scale {
             residuals: HashMap::new(),
         }
     }
-    
+
     fn apply(&mut self, mut event: Event, output_events: &mut Vec<Event>) {
         if ! self.input_keys.iter().any(|key| key.matches(&event)) {
             return output_events.push(event);
@@ -35,12 +35,11 @@ impl Scale {
         // TODO (High Priority): The following approach is only sensible for EV_REL-type events.
         // Figure out what we want to do for EV_ABS-type events.
         let residual = self.residuals.entry(event.channel()).or_insert(0.0);
-        let desired_value = event.value as f64 * self.factor + *residual;
+        let desired_value = (event.value as f64) * self.factor + (*residual);
         let value_f64 = desired_value.floor();
 
         event.value = value_f64 as i32;
         *residual = desired_value - value_f64;
-
         output_events.push(event);
     }
 
