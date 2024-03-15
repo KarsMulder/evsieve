@@ -337,14 +337,14 @@ pub struct Capability {
 
 impl Capability {
     /// Returns a copy of self with an universal value range, and the original range.
-    fn split_value(mut self) -> (Capability, Range) {
+    pub fn split_value(mut self) -> (Capability, Range) {
         let value = self.value_range;
         self.value_range = Range::new(None, None);
         (self, value)
     }
 
     /// Returns a copy of self with the given value range.
-    fn with_value(mut self, range: Range) -> Capability {
+    pub fn with_value(mut self, range: Range) -> Capability {
         self.value_range = range;
         self
     }

@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use crate::capability::Capability;
 use crate::event::{Channel, Event, EventType};
 use crate::key::Key;
+use crate::range::Range;
 
 pub struct Scale {
     input_keys: Vec<Key>,
@@ -42,9 +43,7 @@ impl Scale {
                 event.value = value_f64 as i32;
             },
             EventType::ABS => {
-                let desired_value = (event.value as f64) * self.factor;
-                let value_f64 = desired_value.round();
-                event.value = value_f64 as i32;
+                event.value = map_abs_value(event.value, self.factor);
             },
             _ => {
                 // The --scale argument is not meant to deal with events of types other than
@@ -63,9 +62,41 @@ impl Scale {
         }
     }
 
-    pub fn apply_to_all_caps(&self, caps: &[Capability], output_caps: &mut Vec<Capability>) {
-        // TODO (Critical Priority): Fix capabilities. Just because EV_REL tends to be unbounded
-        // doesn't mean that we don't have to track their range.
-        output_caps.extend(caps);
+    fn apply_to_cap(&self, cap: &Capability, output_caps: &mut Vec<Capability>) {
+        match cap.code.ev_type() {
+            EventType::ABS => {
+                let bound_1 = cap.value_range.min.mul_f64_round(self.factor, round_abs_value);
+                let bound_2 = cap.value_range.max.mul_f64_round(self.factor, round_abs_value);
+                let range = Range::spanned_between(bound_1, bound_2);
+                output_caps.push(cap.with_value(range));
+            },
+            EventType::REL => {
+                let (max, min);
+                if self.factor < 0.0 {
+                    max = cap.value_range.min.mul_f64_round(self.factor, f64::ceil);
+                    min = cap.value_range.max.mul_f64_round(self.factor, f64::floor);
+                } else {
+                    max = cap.value_range.max.mul_f64_round(self.factor, f64::ceil);
+                    min = cap.value_range.min.mul_f64_round(self.factor, f64::floor);
+                }
+                let range = Range::spanned_between(max, min);
+                output_caps.push(cap.with_value(range));
+            },
+            _ => output_caps.push(*cap),
+        }
     }
+
+    pub fn apply_to_all_caps(&self, caps: &[Capability], output_caps: &mut Vec<Capability>) {
+        for cap in caps {
+            self.apply_to_cap(cap, output_caps);
+        }
+    }
+}
+
+/// The rounding mode that is used for abs-type events.
+fn round_abs_value(value: f64) -> f64 {
+    value.round()
+}
+fn map_abs_value(value: i32, factor: f64) -> i32 {
+    round_abs_value((value as f64) * factor) as i32
 }
