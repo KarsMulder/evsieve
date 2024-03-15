@@ -16,6 +16,10 @@ pub struct Scale {
     /// map, then we want to send rel:x:1.6, but we can only send integer values, so instead we send
     /// rel:x:1 and add 0.6 to the residual. The residual will be added to the value of the same event on
     /// the same channel.
+    /// 
+    /// The residuals only apply to rel-type events, because it doesn't make sense to apply them to abs-type
+    /// events: if abs:x:1 gets sent multiple times, then we clearly want each of them to map to the same
+    /// value each time.
     residuals: HashMap<Channel, f64>,
 }
 
@@ -71,6 +75,9 @@ impl Scale {
                 output_caps.push(cap.with_value(range));
             },
             EventType::REL => {
+                // Depending on the value of the residual, (factor*value) can always be rounded
+                // either up or downwards. This means that the upper bound of the range must be
+                // rounded up, and the lower bound must be rounded down.
                 let (max, min);
                 if self.factor < 0.0 {
                     max = cap.value_range.min.mul_f64_round(self.factor, f64::ceil);
