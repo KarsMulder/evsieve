@@ -26,13 +26,15 @@ impl ScaleArg {
 
         // Parse the keys.
         let keys_str = if arg_group.keys.is_empty() {
-            vec!["rel".to_owned()]
+            vec!["abs".to_owned(), "rel".to_owned()]
         } else {
             arg_group.keys.clone()
         };
 
         let mut parser = KeyParser::default_filter();
-        parser.type_whitelist = Some(vec![EventType::REL]);
+        // TODO (High Priority): consider what to do about the type whitelist not banning blanket
+        // keys like "".
+        parser.type_whitelist = Some(vec![EventType::REL, EventType::ABS]);
         let input_keys = parser.parse_all(&keys_str)?;
 
         let factor_str = arg_group.require_unique_clause("factor")?;

@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use crate::capability::Capability;
-use crate::event::{Channel, Event};
+use crate::event::{Channel, Event, EventType};
 use crate::key::Key;
 
 pub struct Scale {
@@ -32,14 +32,27 @@ impl Scale {
             return output_events.push(event);
         }
 
-        // TODO (High Priority): The following approach is only sensible for EV_REL-type events.
-        // Figure out what we want to do for EV_ABS-type events.
-        let residual = self.residuals.entry(event.channel()).or_insert(0.0);
-        let desired_value = (event.value as f64) * self.factor + (*residual);
-        let value_f64 = desired_value.floor();
+        match event.ev_type() {
+            EventType::REL => {
+                let residual = self.residuals.entry(event.channel()).or_insert(0.0);
+                let desired_value = (event.value as f64) * self.factor + (*residual);
+                let value_f64 = desired_value.floor();
+        
+                *residual = desired_value - value_f64;
+                event.value = value_f64 as i32;
+            },
+            EventType::ABS => {
+                let desired_value = (event.value as f64) * self.factor;
+                let value_f64 = desired_value.round();
+                event.value = value_f64 as i32;
+            },
+            _ => {
+                // The --scale argument is not meant to deal with events of types other than
+                // rel and abs, but we might reach this point anyway due to having "" as key.
+                // All events of type other than rel or abs shall be passed on verbatim.
+            }
+        }
 
-        event.value = value_f64 as i32;
-        *residual = desired_value - value_f64;
         output_events.push(event);
     }
 
