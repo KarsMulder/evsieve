@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use crate::error::{ArgumentError};
+use crate::error::ArgumentError;
 use crate::arguments::lib::ComplexArgGroup;
 
 /// Represents a --map or --copy argument.

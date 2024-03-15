@@ -51,6 +51,8 @@ impl Scale {
     }
 
     pub fn apply_to_all_caps(&self, caps: &[Capability], output_caps: &mut Vec<Capability>) {
+        // TODO (Critical Priority): Fix capabilities. Just because EV_REL tends to be unbounded
+        // doesn't mean that we don't have to track their range.
         output_caps.extend(caps);
     }
 }

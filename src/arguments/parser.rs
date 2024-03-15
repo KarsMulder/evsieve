@@ -45,6 +45,7 @@ fn get_usage_msg() -> String {
                [--rel-to-abs REL_KEY ABS_KEY [speed=FACTOR]]...
                [--merge [EVENTS...]]...
                [--scale [EVENTS...] factor=FACTOR]...
+               [--config PATH...]...
                [--print [EVENTS...] [format=default|direct]]...
                [--delay [EVENTS...] period=SECONDS]...
                [--output [EVENTS...] [create-link=PATH] [name=NAME] [device-id=VENDOR:PRODUCT] [bus=BUS] [version=VERSION] [repeat[=MODE]]]...".to_owned();
@@ -52,12 +53,7 @@ fn get_usage_msg() -> String {
     if cfg!(feature = "control-fifo") {
         result += "
                [--control-fifo PATH...]..."
-    }
-    if cfg!(feature = "config") {
-        result += "
-               [--config PATH...]..."
-    }
-                    
+    }              
 
     result
 }
@@ -124,11 +120,7 @@ impl MetaArgument {
     fn parse(args: Vec<String>) -> Result<MetaArgument, RuntimeError> {
         match args[0].as_str() {
             "--config" => {
-                if cfg!(feature = "config") {
-                    Ok(MetaArgument::ConfigArg(ConfigArg::parse(args)?))
-                } else {
-                    Err(ArgumentError::new("The --config argument is not stabilized yet. This version of evsieve was compiled without support for --config.").into())
-                }
+                Ok(MetaArgument::ConfigArg(ConfigArg::parse(args)?))
             },
             _ => Argument::parse(args).map(MetaArgument::Common),
         }
