@@ -71,6 +71,22 @@ fn test_argument_validity() {
     require_err(["--hook", "key:a", "key:b:1", "--withhold", "key"]);
     require_ok( ["--hook", "key:a", "key:b:1", "--withhold", "key:a"]);
     require_ok( ["--hook", "key:a", "key:b:1", "--withhold", "btn"]);
+
+    // Test --scale
+    require_err(["--scale"]);
+    require_err(["--scale", "rel"]);
+    require_ok( ["--scale", "factor=2"]);
+    require_ok( ["--scale", "factor=0.1234"]);
+    require_ok( ["--scale", "factor=-3.14"]);
+    require_err(["--scale", "factor=-3.14", "factor=-3.14"]);
+
+    require_ok( ["--scale", "rel", "factor=1"]);
+    require_ok( ["--scale", "abs", "factor=1"]);
+    require_ok( ["--scale", "rel", "abs", "factor=1"]);
+    require_ok( ["--scale", "", "factor=1"]);
+    require_ok( ["--scale", "@foo", "factor=1"]);
+    require_err(["--scale", "key", "factor=1"]);
+
 }
 
 fn require_ok(args: impl IntoIterator<Item=impl Into<String>>) {

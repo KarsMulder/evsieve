@@ -1611,6 +1611,8 @@ def unittest_scale():
                 (e.EV_REL, e.REL_X, -10),# Send -3, residual 0.75
                 (e.EV_REL, e.REL_Z, 7),
                 (e.EV_REL, e.REL_X, 1),  # Send 1, residual 0
+
+                (e.EV_ABS, e.ABS_X, 4),
             ],
         },
         {
@@ -1631,6 +1633,8 @@ def unittest_scale():
                 (e.EV_REL, e.REL_X, -3), # Send -2, residual 0.75
                 (e.EV_REL, e.REL_Z, 7),
                 (e.EV_REL, e.REL_X, 1),  # Send 1, residual 0
+
+                (e.EV_ABS, e.ABS_X, 4),
             ],
         },
     )
@@ -1647,6 +1651,9 @@ def unittest_scale_2():
                 (e.EV_KEY, e.KEY_A, 1),
                 (e.EV_KEY, e.KEY_A, 2),
                 (e.EV_KEY, e.KEY_A, 0),
+
+                (e.EV_ABS, e.ABS_X, 4),
+                (e.EV_ABS, e.ABS_X, -3),
             ],
         },
         {
@@ -1656,6 +1663,9 @@ def unittest_scale_2():
                 (e.EV_KEY, e.KEY_A, 1),
                 (e.EV_KEY, e.KEY_A, 2),
                 (e.EV_KEY, e.KEY_A, 0),
+
+                (e.EV_ABS, e.ABS_X, 8),
+                (e.EV_ABS, e.ABS_X, -6),
             ],
         },
     )
