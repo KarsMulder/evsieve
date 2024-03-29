@@ -37,6 +37,3 @@ systemd = []
 control-fifo = []
 # If enabled, evsieve will partially autogenerate EV_MSC events sent to output devices.
 auto-scan = []
-
-# Intended for a particular user to debug a particular issue.
-debug-persistence = []

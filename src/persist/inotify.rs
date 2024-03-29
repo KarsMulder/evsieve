@@ -40,15 +40,8 @@ impl Inotify {
                 "While trying to add \"{}\" to an inotify instance:", path)))
         }
         let watch = WatchId::new(watch);
-        if cfg!(feature = "debug-persistence") {
-            println!("Adding watch to \"{path}\". It has been assigned the id of {watch}. Under that ID, the following paths were already registered: {:?}", self.watches.get(&watch));
-        }
 
         self.watches.entry(watch).or_default().push(path);
-
-        if cfg!(feature = "debug-persistence") {
-            println!("There are watches registered under the following IDs: {}", format_list_of_active_ids(&self.watches));
-        }
         Ok(())
     }
 
@@ -58,10 +51,6 @@ impl Inotify {
             paths.retain(|item| item != &path);
         }
 
-        if cfg!(feature = "debug-persistence") {
-            println!("Removing watch to \"{path}\".");
-        }
-
         // This could be done nicely with the experimental `HashMap::extract_if` function.
         // But it's not stable yet, so it'll have to happen the ugly way.
         let mut retained_watches = HashMap::new();
@@ -69,20 +58,12 @@ impl Inotify {
             if ! paths.is_empty() {
                 retained_watches.insert(watch_id, paths);
             } else {
-                if cfg!(feature = "debug-persistence") {
-                    println!("Removing the watch with the id {}.", &watch_id);
-                }
-
                 unlisten_watch_by_id(self.fd, watch_id)
                     .with_context_of(|| format!("While informing the inotify instance to stop watching the folder {}:", path))
                     .print_err();
             }
         }
         self.watches = retained_watches;
-
-        if cfg!(feature = "debug-persistence") {
-            println!("The watches with the following IDs were retained: {}", format_list_of_active_ids(&self.watches));
-        }
     }
 
     pub fn watched_paths(&self) -> impl Iterator<Item=&String> {
@@ -155,12 +136,4 @@ fn unlisten_watch_by_id(inotify_fd: RawFd, watch_id: WatchId) -> Result<(), Syst
     } else {
         Ok(())
     }
-}
-
-fn format_list_of_active_ids<T>(watches: &HashMap<WatchId, T>) -> String {
-    let mut ids = watches.keys().map(|k| k.to_string()).collect::<Vec<_>>().join(", ");
-    if ids.is_empty() {
-        ids = "(none)".to_owned();
-    }
-    ids
 }
