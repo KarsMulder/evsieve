@@ -533,7 +533,6 @@ fn key_str_to_parts(key_str: &str) -> Result<KeyParts, ArgumentError> {
     }
 
     // Make sure there is nothing after the last colon, such as in key:a:1:2.
-    // TODO: TEST THIS
     if parts_iter.peek().is_some() {
         let superfluous_part = parts_iter.collect::<Vec<_>>().join(":");
         return Err(ArgumentError::new(format!(
