@@ -308,14 +308,6 @@ fn handle_ready_file(program: &mut Program, index: FileIndex) -> Result<Action, 
             let siginfo = fd.read_raw()?;
             let signal_no = siginfo.ssi_signo as i32;
             if TERMINATION_SIGNALS.contains(&signal_no) {
-                // TODO (Medium Priority): this message only shows up for debugging purposes and should be removed
-                // before the next version is released.
-                match signal_no {
-                    libc::SIGTERM => println!("Received SIGTERM signal."),
-                    libc::SIGINT => println!("Received SIGINT signal."),
-                    libc::SIGHUP => println!("Received SIGHUP signal."),
-                    _ => println!("Received signal {}.", signal_no),
-                };
                 Ok(Action::Exit)
             } else {
                 // Ignore other signals, including SIGPIPE.
@@ -369,9 +361,6 @@ fn handle_broken_file(program: &mut Program, index: FileIndex) -> Action {
                 PersistState::None => {},
                 // Mode Exit: quit evsieve now.
                 PersistState::Exit => {
-                    // TODO (Medium Priority): this message only shows up for debugging purposes and should be removed
-                    // before the next version is released.
-                    println!("A device marked with persist=exit has disappeared. Quitting evsieve now.");
                     return Action::Exit;
                 },
                 // Mode Reopen: try to reopen the device if it becomes available again later.
