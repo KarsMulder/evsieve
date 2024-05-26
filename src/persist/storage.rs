@@ -1,3 +1,4 @@
+use std::os::unix::ffi::OsStrExt;
 use std::path::{PathBuf, Path};
 
 use crate::capability::Capabilities;
@@ -26,13 +27,13 @@ pub enum CachedCapabilities {
 
 impl DeviceCache {
     pub fn load_for_input_device(path_of_input_device: &Path) -> Result<DeviceCache, SystemError> {
-        let path_of_capabilities_file = match capabilities_path_for_device(&path_of_input_device.to_string_lossy()) {
+        let path_of_capabilities_file = match capabilities_path_for_device(&path_of_input_device) {
             Ok(path) => path,
             Err(StorageError::CouldNotFindStateDirectory) => {
                 // TODO (Medium Priority): Should this error message be specified somewhere else?
                 return Err(SystemError::new("The environment variables do not give evsieve enough information to figure out where it is supposed to store its data. Please ensure that at least one of the following environment variables is defined: EVSIEVE_STATE_DIR, XDG_STATE_HOME, or HOME."))
             },
-        }; // TODO (High Priority): Find something more elegant than to_string_lossy()
+        };
         
         let capabilities_data = read_capabilities(path_of_input_device, &path_of_capabilities_file)?;
         Ok(DeviceCache {
@@ -138,7 +139,7 @@ pub enum StorageError {
     CouldNotFindStateDirectory,
 }
 
-pub fn capabilities_path_for_device(device_path: &str) -> Result<PathBuf, StorageError> {
+pub fn capabilities_path_for_device(device_path: &Path) -> Result<PathBuf, StorageError> {
     let mut path = get_capabilities_path()?;
     path.push(format!("{}", encode_path_for_device(device_path)));
     Ok(path)
@@ -148,18 +149,25 @@ pub fn capabilities_path_for_device(device_path: &str) -> Result<PathBuf, Storag
 /// 1. The output does not contain the character '/'.
 /// 2. The mapping is deterministic and injective.
 /// Tries to have the output resemble the input in a way that is sufficiently obvious for an observer.
-fn encode_path_for_device(device_path: &str) -> String {
-    device_path
-        // It is assumed that the device path always starts with a '/' and this is currently enforced by evsieve.
-        // This mapping is not injective in case that assumption is broken, but I'm going to return a path anyway
-        // because even if I break that assumption and do not update this code, things will most likely work.
-        // TODO (Medium Priority): Think of something better to do here.
-        .strip_prefix('/')
-        .unwrap_or(device_path)
-
-        .replace('\\', "\\\\")
-        .replace('.', "\\.")
-        .replace('/', ".")
+fn encode_path_for_device(device_path: &Path) -> String {
+    if let Some(path_str) = device_path.to_str() {
+        path_str
+            // It is assumed that the device path always starts with a '/' and this is currently enforced by evsieve.
+            // This mapping is not injective in case that assumption is broken, but I'm going to return a path anyway
+            // because even if I break that assumption and do not update this code, things will most likely work.
+            // TODO (Medium Priority): Think of something better to do here.
+            .trim_start_matches('/')
+            .replace('\\', "\\\\")
+            .replace('.', "\\.")
+            .replace('/', ".")
+    } else {
+        // If the path is not valid UTF-8, I'm just going to dump the bytes of the path as-is, because this is a stupid
+        // usecase that doesn't deserve any better level of support. Currently Rust's std doesn't even allow non-UTF-8
+        // paths to be passed as argument.
+        device_path.as_os_str().as_bytes().into_iter()
+            .map(|byte| format!("\\b{:02X}", byte))
+            .collect::<Vec<String>>().join("")
+    }
 }
 
 /// Returns the path to the directory in which the capabilities of input devices must be cached.
@@ -216,4 +224,19 @@ fn get_state_path() -> Result<PathBuf, StorageError> {
 fn is_running_as_root() -> bool {
     let euid = unsafe { libc::geteuid() };
     euid == 0
+}
+
+#[test]
+fn test_encode_path_for_device() {
+    let bytes = [b'/', b'f', b'o', b'o'];
+    let path = Path::new(std::ffi::OsStr::from_bytes(&bytes));
+    assert_eq!(encode_path_for_device(path), "foo");
+
+    let bytes = [1, 192, 20];
+    let path = Path::new(std::ffi::OsStr::from_bytes(&bytes));
+    assert_eq!(encode_path_for_device(path), "\\b01\\bC0\\b14");
+
+    assert_eq!(encode_path_for_device(Path::new("/foo/bar/baz")), "foo.bar.baz");
+    assert_eq!(encode_path_for_device(Path::new("/foo/bar.baz")), "foo.bar\\.baz");
+    assert_eq!(encode_path_for_device(Path::new("/foo/bar\\.baz")), "foo.bar\\\\\\.baz");
 }
