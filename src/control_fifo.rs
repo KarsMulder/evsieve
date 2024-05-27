@@ -15,9 +15,8 @@ pub struct ControlFifo {
 }
 
 impl ControlFifo {
-    // TODO: FEATURE(control-fifo) Reuse existing Fifo's on the filesystem.
     pub fn create(path: String) -> Result<ControlFifo, SystemError> {
-        let source = Box::new(Fifo::create(&path)?);
+        let source = Box::new(Fifo::open_or_create(&path)?);
         Ok(ControlFifo { path, source })
     }
 
