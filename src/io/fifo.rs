@@ -227,13 +227,14 @@ fn try_open_fifo(path: &str) -> TryOpenFifoResult {
         return TryOpenFifoResult::NonFifoFileEncountered;
     }
 
+    // TODO (feature control-fifo): The presence of a control FIFO should keep evsieve from exiting by inactivity.
     // Check if the FIFO is owned by root or the user evsieve is running as.
-    let my_uid = unsafe { libc::getuid() };
+    let my_uid = unsafe { libc::geteuid() };
     let is_running_as_root = my_uid == 0;
-    if stat.st_uid != 0 || stat.st_uid != my_uid {
+    if stat.st_uid != 0 && stat.st_uid != my_uid {
         print_security_warning();
         if is_running_as_root {
-            return TryOpenFifoResult::Err(SystemError::new("This FIFO is is owned not owned by root."));
+            return TryOpenFifoResult::Err(SystemError::new("This FIFO is not owned by root."));
         } else {
             return TryOpenFifoResult::Err(SystemError::new("This FIFO is owned by neither root nor the user that evsieve is running as."));
         }
@@ -241,9 +242,11 @@ fn try_open_fifo(path: &str) -> TryOpenFifoResult {
 
     // Check if the permissions on the FIFO are acceptable.
     if stat.st_mode & (libc::S_IXUSR | libc::S_IXGRP | libc::S_IXOTH) != 0 {
+        print_security_warning();
         return TryOpenFifoResult::Err(SystemError::new("This FIFO is marked as executable in its permission bits."));
     }
     if stat.st_mode & (libc::S_IROTH | libc::S_IWOTH) != 0 {
+        print_security_warning();
         return TryOpenFifoResult::Err(SystemError::new("This FIFO is read- or writable by others. This is a security hole."));
     }
 
@@ -251,7 +254,7 @@ fn try_open_fifo(path: &str) -> TryOpenFifoResult {
 }
 
 fn print_security_warning() {
-    crate::utils::warn_once("INFO: although the current capabilities of the control FIFO are quite limited, they may be expanded into the future. Any user who obtains write access to the control FIFO should be presumed to be capable of assuming complete control over the evsieve process, and be capable of arbitrary code execution under the account that evsieve is running as. Since evsieve is usually running as root, that means that anyone who obtains write access to the control FIFO has effectively root access. Under most circumstances, the control FIFO should only be writable by root. To avoid accidental foot-shooting, evsieve makes some basic sanity checks on the permissions of the control FIFO. These checks are:\n\n    1. The FIFO must be owned by either root, or the user that evsieve is running as;\n    2. The permissions on the FIFO must not exceet 660, i.e. not executable by anyone, and not read- or writable by others.\n\nYou are recommended to assign more restrictive permissions to the FIFO to avoid future security holes.");
+    crate::utils::warn_once("INFO: although the current capabilities of the control FIFO are quite limited, they may be expanded into the future. Any user who obtains write access to the control FIFO should be assumed to be capable of assuming complete control over the evsieve process, and therefore be capable of arbitrary code execution under the account that evsieve is running as. Since evsieve is usually running as root, that means that anyone who obtains write access to the control FIFO has effectively root access. Under most circumstances, the control FIFO should only be writable by root. To avoid accidental foot-shooting, evsieve makes some basic sanity checks on the permissions of the control FIFO. These checks are:\n\n    1. The FIFO must be owned by either root, or the user that evsieve is running as;\n    2. The permissions on the FIFO must not exceed 660, i.e. not executable by anyone, and not read- or writable by others.\n\nYou are recommended to assign more restrictive permissions to the FIFO to avoid future security holes.\n");
 }
 
 impl LineRead for Fifo {
