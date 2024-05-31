@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+use crate::data::hid_usage::UsageNames;
 use crate::key::Key;
-use crate::event::{Event, EventType};
+use crate::event::{Event, EventCode, EventType, EventValue};
 use crate::ecodes;
 use crate::domain;
 
@@ -37,6 +38,19 @@ impl EventPrinter {
     }
 }
 
+/// Given the value of a msc:scan event, tries to interpret the value according to the USB HID usage tables.
+fn format_hidinfo(value: EventValue) -> String {
+    let info = crate::data::hid_usage::get_usage_from_scancode(value);
+
+    let usage_names = match info.names {
+        UsageNames::Unknown => "".to_owned(),
+        UsageNames::PageKnown { page_name } => format!("; {}", page_name),
+        UsageNames::Known { page_name, usage_name } => format!("; {} / {}", page_name, usage_name),
+    };
+
+    format!("(HID usage page 0x{:02x} id 0x{:02x}{})", info.page_id, info.usage_id, usage_names)
+}
+
 pub fn print_event_detailed(event: Event) -> String {
     let name = ecodes::event_name(event.code);
     let value_str = match event.ev_type() {
@@ -48,13 +62,16 @@ pub fn print_event_detailed(event: Event) -> String {
         },
         _ => format!("{}", event.value),
     };
-    let name_and_value = format!("Event:  type:code = {:<13}  value = {}", name, value_str);
+    let mut result = format!("Event:  type:code = {:<13}  value = {}", name, value_str);
 
     if let Some(domain_name) = domain::try_reverse_resolve(event.domain) {
-        format!("{:<53}  domain = {}", name_and_value, domain_name)
-    } else {
-        name_and_value
+        result = format!("{:<53}  domain = {}", result, domain_name);
     }
+    if event.code == EventCode::MSC_SCAN {
+        result = format!("{:<80}  {}", result, format_hidinfo(event.value));
+    }
+
+    result
 }
 
 pub fn print_event_direct(event: Event) -> String {

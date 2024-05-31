@@ -83,6 +83,11 @@ pub mod bindings {
     pub mod libevdev;
 }
 
+pub mod data {
+    pub mod hid_usage;
+    pub mod hid_usage_tables;
+}
+
 #[macro_use]
 extern crate lazy_static;
 

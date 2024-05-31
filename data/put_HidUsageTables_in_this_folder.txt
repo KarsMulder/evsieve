@@ -1,0 +1,46 @@
+In case you want to regenerate the the table of HID usage codes embedded in this application, you need to obtain
+a copy of the file "HidUsageTables.json", put it in this folder, and then run the script generate_hid_tables.py.
+The file "HidUsageTables.json" has been made available by the USB Implementers Forum under the following license:
+
+    Copyright © 1996-2020, USB Implementers Forum
+    All rights reserved.
+
+    INTELLECTUAL PROPERTY DISCLAIMER
+
+    THIS SPECIFICATION IS PROVIDED “AS IS” WITH NO WARRANTIES WHATSOEVER INCLUDING ANY
+    WARRANTY OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, OR ANY WARRANTY
+    OTHERWISE ARISING OUT OF ANY PROPOSAL, SPECIFICATION, OR SAMPLE.
+
+    TO THE MAXIMUM EXTENT OF USB IMPLEMENTERS FORUM’S RIGHTS, USB IMPLEMENTERS FORUM
+    HEREBY GRANTS A LICENSE UNDER COPYRIGHT TO REPRODUCE THIS SPECIFICATION FOR
+    INTERNAL USE ONLY (E.G., ONLY WITHIN THE COMPANY OR ORGANIZATION THAT PROPERLY
+    DOWNLOADED OR OTHERWISE OBTAINED THE SPECIFICATION FROM USB IMPLEMENTERS FORUM,
+    OR FOR AN INDIVIDUAL, ONLY FOR USE BY THAT INDIVIDUAL). THIS SPECIFICATION MAY NOT BE
+    REPUBLISHED EXTERNALLY OR OTHERWISE TO THE PUBLIC.
+
+    IT IS CONTEMPLATED THAT MANY IMPLEMENTATIONS OF THIS SPECIFICATION (E.G., IN A PRODUCT)
+    DO NOT REQUIRE A LICENSE TO USE THIS SPECIFICATION UNDER COPYRIGHT. FOR CLARITY,
+    HOWEVER, TO THE MAXIMUM EXTENT OF USB IMPLEMENTERS FORUM’S RIGHTS, USB
+    IMPLEMENTERS FORUM HEREBY GRANTS A LICENSE UNDER COPYRIGHT TO USE THIS SPECIFICATION
+    AS REASONABLY NECESSARY TO IMPLEMENT THIS SPECIFICATION (E.G., IN A PRODUCT).
+    NO OTHER LICENSE, EXPRESS OR IMPLIED, BY ESTOPPEL OR OTHERWISE, TO ANY PATENT OR
+    OTHER INTELLECTUAL PROPERTY RIGHTS IS GRANTED OR INTENDED HEREBY.
+
+    USB IMPLEMENTERS FORUM AND THE AUTHORS OF THIS SPECIFICATION DISCLAIM ALL LIABILITY,
+    INCLUDING LIABILITY FOR INFRINGEMENT OF PROPRIETARY RIGHTS, RELATING TO
+    IMPLEMENTATION OF INFORMATION IN THIS SPECIFICATION. AUTHORS OF THIS SPECIFICATION ALSO
+    DO NOT WARRANT OR REPRESENT THAT SUCH IMPLEMENTATION(S) WILL NOT INFRINGE SUCH
+    RIGHTS.
+
+    All product names are trademarks, registered trademarks, or service marks of their respective owners.
+    Please send comments via electronic mail to hidcomments‘at’usb.org, us the @ sign for ‘at’
+
+So, in short, while it shouldn't be a problem to use the data in it, it is unclear whether the file HidUsageTables.json
+is allowed to be redistributed verbatim. Therefore, it has not been checked into this git repository. To obtain a copy
+of it, visit https://usb.org/document-library/hid-usage-tables-15, download from that page download "hut1_5.pdf",
+open it with your favourite PDF reader, then extract the attachment called "HidUsageTables.json" and put it in this
+folder with the same name "HidUsageTables.json".
+
+At the time of writing, the SHA-256 hash of the file HidUsageTables.json version 1.5 should be:
+    127ebe3c81a8c82f5541a833200de562558add95c423363dc0e9a795bb70b418
+    
