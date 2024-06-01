@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 use crate::event::EventValue;
-use crate::data::hid_usage_tables::HID_PAGES;
-
 pub struct HidPage {
     pub id: u16,
-    pub name: &'static str,
-    pub usages: &'static [HidUsage],
+    pub name: String,
+    pub usages: Vec<HidUsage>,
 }
 
 pub struct HidUsage {
     pub id: u16,
-    pub name: &'static str,
+    pub name: String,
 }
 
 /// Returned from `get_usage_from_scancode()`.
@@ -30,6 +28,10 @@ pub enum UsageNames {
     Known { page_name: &'static str, usage_name: &'static str },
 }
 
+lazy_static! {
+    pub static ref HID_PAGES: Vec<HidPage> = super::hid_usage_parser::load_tables_and_print_error().unwrap_or_default();
+}
+
 /// Assumes that a scancode is composed of a HID usage page and a HID usage value as defined by the
 /// USB specification. Tries to look up the names of the usage page and usage value.
 pub fn get_usage_from_scancode(scancode: EventValue) -> UsageInfo {
@@ -42,10 +44,10 @@ pub fn get_usage_from_scancode(scancode: EventValue) -> UsageInfo {
         Ok(page_idx) => {
             let page = &HID_PAGES[page_idx];
             match page.usages.binary_search_by_key(&usage_id, |usage| usage.id) {
-                Err(_) => UsageInfo { page_id, usage_id, names: UsageNames::PageKnown { page_name: page.name } },
+                Err(_) => UsageInfo { page_id, usage_id, names: UsageNames::PageKnown { page_name: &page.name } },
                 Ok(usage_idx) => {
                     let usage = &page.usages[usage_idx];
-                    UsageInfo { page_id, usage_id, names: UsageNames::Known { page_name: page.name, usage_name: usage.name} }
+                    UsageInfo { page_id, usage_id, names: UsageNames::Known { page_name: &page.name, usage_name: &usage.name} }
                 }
             }
         }

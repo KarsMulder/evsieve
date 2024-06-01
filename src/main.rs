@@ -85,7 +85,7 @@ pub mod bindings {
 
 pub mod data {
     pub mod hid_usage;
-    pub mod hid_usage_tables;
+    pub mod hid_usage_parser;
 }
 
 #[macro_use]
