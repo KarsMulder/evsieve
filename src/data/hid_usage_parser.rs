@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader};
 
