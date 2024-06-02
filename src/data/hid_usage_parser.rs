@@ -32,7 +32,7 @@ pub fn load_tables_and_print_error() -> Option<Vec<HidPage>> {
             None
         },
         LoadTablesResult::Empty { path } => {
-            eprintln!("Evsieve tried to read the USB HID usage descriptions from {}, but didn't find any. Either the HID descriptions are not contained in that file, or the file has an unexpected file format. Please file a bug report at https://github.com/KarsMulder/evsieve/issues and mention which distribution you use.", path);
+            eprintln!("Evsieve tried to read the USB HID usage descriptions from {}, but didn't find any usage descriptions in that file. Either the HID descriptions are not contained in that file, or the file has an unexpected file format. Please file a bug report at https://github.com/KarsMulder/evsieve/issues and mention which distribution you use.", path);
             None
         },        
     }
