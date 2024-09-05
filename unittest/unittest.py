@@ -92,16 +92,40 @@ def run_unittest(
                 pass
 
         # Check whether the output devices have the expected events.
-        for (events, (_, expected_events)) in zip(output_events, output_devices):
+        success = True
+        report_msg = ""
+        column_format_str = " {:<30}| {}\n"
+
+        for (events, (output_device, expected_events)) in zip(output_events, output_devices):
+            report_msg += f"For the device {output_device.path}:\n"
+            report_msg += column_format_str.format("Expected", "Received") + 60 * "-" + "\n"
+
             for event in events:
-                expected_event = expected_events.pop(0)
                 event = (event.type, event.code, event.value)
-                if event != expected_event:
-                    expected_event_format = f"({e.EV[expected_event[0]]}, {e.bytype[expected_event[0]][expected_event[1]]}, {expected_event[2]})"
-                    event_format = f"({e.EV[event[0]]}, {e.bytype[event[0]][event[1]]}, {event[2]})"
-                    raise Exception(f"Unit test failed. Expected event {expected_event_format}, encountered {event_format}")
+
+                if expected_events:
+                    expected_event = expected_events.pop(0)
+
+                    report_msg += column_format_str.format(
+                        format_event(expected_event), format_event(event)
+                    )
+
+                    if event != expected_event:
+                        success = False
+                else:
+                    report_msg += column_format_str.format(
+                        "(none)", format_event(event)
+                    )
+                    success = False
+
             if len(expected_events) > 0:
-                raise Exception(f"Unit test failed. Expected events {expected_events}, but the output device closed.")
+                success = False
+                for missing_event in expected_events:
+                    report_msg += column_format_str.format(format_event(missing_event), "(missing)")
+        
+        if not success:
+            print(report_msg)
+            raise Exception(f"Unit test failed.")
 
     finally:
         # Clean up.
@@ -119,6 +143,11 @@ def run_unittest(
             if output != expected_output:
                 raise Exception(f"Unittest failed. Expected the following output:\n{expected_output}\nGot:\n{output}")
 
+
+def format_event(event: Tuple[int, int, int]) -> str:
+    "Formats a (type, code, value) event in a human-readable way."
+
+    return f"({e.EV[event[0]]}, {e.bytype[event[0]][event[1]]}, {event[2]})"
 
 def unittest_mirror():
     run_unittest(
@@ -1319,26 +1348,26 @@ def unittest_withhold_3():
 def unittest_withhold_period():
     run_unittest(
         ["--input", "/dev/input/by-id/unittest-withhold-period-in", "grab=force",
-        "--hook", "key:a", "key:b", "send-key=key:x", "period=0.004",
-        "--hook", "key:a", "key:c", "key:d", "send-key=key:w", "period=0.005",
+        "--hook", "key:a", "key:b", "send-key=key:x", "period=0.04",
+        "--hook", "key:a", "key:c", "key:d", "send-key=key:w", "period=0.05",
         "--withhold",
         "--output", "create-link=/dev/input/by-id/unittest-withhold-period-out"],
         {
             "/dev/input/by-id/unittest-withhold-period-in": [
                 (e.EV_KEY, e.KEY_A, 1),
-                Delay(0.002),
+                Delay(0.02),
                 (e.EV_KEY, e.KEY_Z, 1),
                 (e.EV_KEY, e.KEY_Z, 0),
                 (e.EV_KEY, e.KEY_A, 0),
 
                 (e.EV_KEY, e.KEY_A, 1),
-                Delay(0.005),
+                Delay(0.05),
                 (e.EV_KEY, e.KEY_Z, 1),
                 (e.EV_KEY, e.KEY_Z, 0),
                 (e.EV_KEY, e.KEY_A, 0),
 
                 (e.EV_KEY, e.KEY_A, 1),
-                Delay(0.002),
+                Delay(0.02),
                 (e.EV_KEY, e.KEY_B, 1),
                 (e.EV_KEY, e.KEY_Y, 1),
                 (e.EV_KEY, e.KEY_Y, 0),
@@ -1346,7 +1375,7 @@ def unittest_withhold_period():
                 (e.EV_KEY, e.KEY_B, 0),
 
                 (e.EV_KEY, e.KEY_A, 1),
-                Delay(0.005),
+                Delay(0.05),
                 (e.EV_KEY, e.KEY_B, 1),
                 (e.EV_KEY, e.KEY_Z, 1),
                 (e.EV_KEY, e.KEY_Z, 0),
@@ -1355,27 +1384,27 @@ def unittest_withhold_period():
 
                 (e.EV_KEY, e.KEY_C, 1),
                 (e.EV_KEY, e.KEY_D, 1),
-                Delay(0.002),
+                Delay(0.02),
                 (e.EV_KEY, e.KEY_C, 0),
                 (e.EV_KEY, e.KEY_Z, 1),
                 (e.EV_KEY, e.KEY_A, 1),
-                Delay(0.001),
+                Delay(0.01),
                 (e.EV_KEY, e.KEY_C, 1),
-                Delay(0.003),
+                Delay(0.03),
                 (e.EV_KEY, e.KEY_Z, 0),
                 (e.EV_KEY, e.KEY_C, 0),
                 (e.EV_KEY, e.KEY_D, 0),
                 (e.EV_KEY, e.KEY_A, 0),
 
                 (e.EV_KEY, e.KEY_C, 1),
-                Delay(0.003),
+                Delay(0.03),
                 (e.EV_KEY, e.KEY_D, 1),
-                Delay(0.003),
+                Delay(0.03),
                 (e.EV_KEY, e.KEY_Y, 1),
                 (e.EV_KEY, e.KEY_Y, 0),
                 (e.EV_KEY, e.KEY_C, 0),
                 (e.EV_KEY, e.KEY_A, 1),
-                Delay(0.001),
+                Delay(0.01),
                 (e.EV_KEY, e.KEY_C, 1),
                 (e.EV_KEY, e.KEY_C, 0),
                 (e.EV_KEY, e.KEY_D, 0),
@@ -1670,6 +1699,36 @@ def unittest_scale_2():
         },
     )
 
+def unittest_withhold_repeat():
+    # This unittest originates from issue #46 (https://github.com/KarsMulder/evsieve/issues/46)
+    num_repeats = 3
+    run_unittest(
+        [
+            "--input", "/dev/input/by-id/unittest-withhold-repeat-in", "grab", "domain=k1",
+            "--hook", "key:leftmeta", "key:m", "sequential", "breaks-on=key::1", "send-key=key:leftctrl", "send-key=key:o", "exec-shell=echo something",
+            "--withhold",
+            "--output", "@k1", "create-link=/dev/input/by-id/unittest-withhold-repeat-out"],
+        {
+            "/dev/input/by-id/unittest-withhold-repeat-in": [
+                (e.EV_KEY, e.KEY_LEFTMETA, 1),
+            ] + num_repeats * [
+                (e.EV_KEY, e.KEY_M, 1),
+                (e.EV_KEY, e.KEY_M, 0),
+            ] + [
+                (e.EV_KEY, e.KEY_LEFTMETA, 0),
+            ],
+        },
+        {
+            "/dev/input/by-id/unittest-withhold-repeat-out": num_repeats * [
+                (e.EV_KEY, e.KEY_LEFTCTRL, 1),
+                (e.EV_KEY, e.KEY_O, 1),
+                (e.EV_KEY, e.KEY_O, 0),
+                (e.EV_KEY, e.KEY_LEFTCTRL, 0),
+            ],
+        },
+        expected_output = num_repeats * "something\n"
+    )
+
 unittest_mirror()
 unittest_syn()
 unittest_capslock()
@@ -1699,3 +1758,4 @@ unittest_withhold_sequential_2()
 unittest_rel_to_abs()
 unittest_scale()
 unittest_scale_2()
+unittest_withhold_repeat()
