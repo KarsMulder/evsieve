@@ -8,6 +8,7 @@ pub mod delay;
 pub mod merge;
 pub mod absrel;
 pub mod scale;
+pub mod sink;
 
 use std::collections::HashMap;
 

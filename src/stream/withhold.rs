@@ -3,7 +3,10 @@
 use crate::event::{Event, Channel};
 use crate::key::Key;
 use crate::loopback::{LoopbackHandle, Token};
+use crate::state::State;
 use crate::stream::hook::{Trigger, TriggerResponse};
+
+use super::hook::Hook;
 
 /// Represents a --withhold argument.
 pub struct Withhold {
@@ -14,6 +17,18 @@ pub struct Withhold {
     keys: Vec<Key>,
 
     channel_state: Vec<(Channel, ChannelState)>,
+}
+
+/// Represents a group of one or more --hook arguments followed up by a single --withhold argument.
+pub struct HookGroup {
+    hooks: Vec<Hook>,
+    withhold: Withhold,
+}
+
+impl HookGroup {
+    pub fn apply_to_all(&mut self, events: &[Event], events_out: &mut Vec<Event>, state: &mut State, loopback: &mut LoopbackHandle) {
+        unimplemented!();
+    }
 }
 
 impl Withhold {

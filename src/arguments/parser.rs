@@ -5,7 +5,7 @@ use crate::error::{ArgumentError, RuntimeError, Context, SystemError};
 use crate::key::Key;
 use crate::event::Namespace;
 use crate::persist::blueprint::Blueprint;
-use crate::stream::hook::Hook;
+use crate::stream::hook::{Hook, HookActuator};
 use crate::stream::map::{Map, Toggle};
 use crate::stream::withhold::Withhold;
 use crate::stream::{StreamEntry, Setup};
@@ -363,18 +363,18 @@ pub fn implement(args_str: Vec<String>)
                 }
             },
             Argument::HookArg(hook_arg) => {
-                let mut hook = Hook::new(
-                    hook_arg.compile_trigger(),
-                    hook_arg.event_dispatcher.compile(),
-                );
+                let trigger = hook_arg.compile_trigger();
+                let mut actuator = HookActuator::new(hook_arg.event_dispatcher.compile());
 
                 for exec_shell in hook_arg.exec_shell {
-                    hook.add_command("/bin/sh".to_owned(), vec!["-c".to_owned(), exec_shell]);
+                    actuator.add_command("/bin/sh".to_owned(), vec!["-c".to_owned(), exec_shell]);
                 }
 
                 for effect in hook_arg.toggle_action.implement(&state, &toggle_indices)? {
-                    hook.add_effect(effect);
+                    actuator.add_effect(effect);
                 }
+
+                let hook = Hook::new(trigger, actuator);
                 
                 stream.push(StreamEntry::Hook(hook));
             },

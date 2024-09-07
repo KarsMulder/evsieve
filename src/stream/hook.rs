@@ -12,6 +12,8 @@ use crate::capability::{Capability, CapMatch};
 use crate::time::Duration;
 use std::collections::HashSet;
 
+use super::sink::Sink;
+
 // TODO: HIGH-PRIORITY Check whether the ordering behaviour of --withhold is consistent
 // with --hook send-key.
 
@@ -286,32 +288,74 @@ impl Trigger {
     }
 }
 
+/// A hook is a tuple of a trigger that determines when the hook activates, and an activator that determines
+/// what happens when the hook activates. This tuple can itself be used as an element of the Stream (simple and
+/// high performance), or it can be embedded in a `HookGroup` which happens when this hook is followed up by
+/// a --withhold argument.
+/// 
+/// It is important that the Hook class doesn't do anything more than just behaving as a tuple of those two.
+/// This is because the `HookGroup` class may bypass the functions of this class and interact with the Trigger
+/// and HookActuator directly. Note that all members of this scruct are public.
 pub struct Hook {
+    /// The current state mutable at runtime.
+    pub trigger: Trigger,
+
+    /// The collection of all events and effects that may be caused by this hook.
+    pub actuator: HookActuator,
+}
+
+impl Hook {
+    pub fn new(trigger: Trigger, actuator: HookActuator) -> Hook {
+        Hook { trigger, actuator }
+    }
+
+    fn apply(&mut self, event: Event, events_out: &mut impl Sink, state: &mut State, loopback: &mut LoopbackHandle) {
+        // IMPORTANT: this function must NOT do anything more than just the following two lines of code!
+        //
+        // Other classes may assume that applying the hook to an event is equivalent to the following two function
+        // calls, and interact with the trigger and the actuator directly, bypassing the Hook class.
+        //
+        // If any more logic were to be added to this function, then that logic would not be executed if this
+        // hook becomes part of a `HookGroup`. Which is a bad thing.
+        let response = self.trigger.apply(event, loopback);
+        self.actuator.apply_response(response, event, events_out, state);
+    }
+
+    pub fn wakeup(&mut self, token: &loopback::Token) {
+        self.trigger.wakeup(token);
+    }
+
+    pub fn apply_to_all(&mut self, events: &[Event], events_out: &mut impl Sink, state: &mut State, loopback: &mut LoopbackHandle) {
+        for event in events {
+            self.apply(*event, events_out, state, loopback);
+        }
+    }
+
+    pub fn apply_to_all_caps(&self, caps: &[Capability], caps_out: &mut Vec<Capability>) {
+        self.actuator.event_dispatcher.apply_to_all_caps(&self.trigger, caps, caps_out);
+    }
+}
+
+pub struct HookActuator {
     /// Effects that shall be triggered if this hook activates, i.e. all keys are held down simultaneously.
     effects: Vec<Effect>,
     /// Effects that shall be released after one of the keys has been released after activating.
     release_effects: Vec<Effect>,
 
-    /// The current state mutable at runtime.
-    trigger: Trigger,
-
     /// The substructure responsible for generating additinal events for the send-key clause.
     event_dispatcher: EventDispatcher,
 }
 
-impl Hook {
-    pub fn new(trigger: Trigger, event_dispatcher: EventDispatcher) -> Hook {
-        Hook {
-            trigger,
+impl HookActuator {
+    pub fn new(event_dispatcher: EventDispatcher) -> HookActuator {
+        HookActuator {
             effects: Vec::new(),
             release_effects: Vec::new(),
             event_dispatcher,
         }
     }
 
-    fn apply(&mut self, event: Event, events_out: &mut Vec<Event>, state: &mut State, loopback: &mut LoopbackHandle) {
-        let response = self.trigger.apply(event, loopback);
-
+    pub fn apply_response(&mut self, response: TriggerResponse, event: Event, events_out: &mut impl Sink, state: &mut State) {
         self.event_dispatcher.map_event(event, response, events_out);
 
         match response {
@@ -323,31 +367,6 @@ impl Hook {
             },
             TriggerResponse::Interacts | TriggerResponse::None => (),
         }
-    }
-
-    pub fn apply_to_all(
-        &mut self,
-        events: &[Event],
-        events_out: &mut Vec<Event>,
-        state: &mut State,
-        loopback: &mut LoopbackHandle,
-    ) {
-        for event in events {
-            self.apply(*event, events_out, state, loopback);
-        }
-    }
-
-    pub fn apply_to_all_caps(
-        &self,
-        caps: &[Capability],
-        caps_out: &mut Vec<Capability>,
-    ) {
-        caps_out.extend(caps);
-        self.event_dispatcher.generate_additional_caps(&self.trigger, caps, caps_out);
-    }
-
-    pub fn wakeup(&mut self, token: &loopback::Token) {
-        self.trigger.wakeup(token);
     }
 
     /// Runs all effects that should be ran when this hook triggers.
@@ -403,13 +422,13 @@ impl EventDispatcher {
     }
 
     /// Similar in purpose to apply().
-    fn map_event(&mut self, event: Event, trigger_response: TriggerResponse, events_out: &mut Vec<Event>) {
+    fn map_event(&mut self, event: Event, trigger_response: TriggerResponse, events_out: &mut impl Sink) {
         match trigger_response {
             TriggerResponse::Activates => {
-                events_out.push(event);
+                events_out.push_retained_event(event);
                 self.activating_event = Some(event);
                 for key in &self.on_press {
-                    events_out.push(key.merge(event));
+                    events_out.push_created_event(key.merge(event));
                 };
             },
             TriggerResponse::Releases => {
@@ -421,14 +440,21 @@ impl EventDispatcher {
                     }
                 };
                 for key in &self.on_release {
-                    events_out.push(key.merge(activating_event));
+                    events_out.push_created_event(key.merge(activating_event));
                 }
-                events_out.push(event);
+                events_out.push_retained_event(event);
             },
             TriggerResponse::Interacts | TriggerResponse::None => {
-                events_out.push(event);
+                events_out.push_retained_event(event);
             },
         }
+    }
+
+    /// Like generate_additional_caps(), but also copies the input caps to the output.
+    /// Needt to know which trigger is associated with this actuator to properly guess the caps.
+    pub fn apply_to_all_caps(&self, trigger: &Trigger, caps: &[Capability], caps_out: &mut Vec<Capability>) {
+        caps_out.extend(caps);
+        self.generate_additional_caps(trigger, caps, caps_out);
     }
 
     /// Computes additional capabilities that can be generated by the send_keys and writes them
