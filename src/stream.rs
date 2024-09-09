@@ -12,12 +12,13 @@ pub mod sink;
 
 use std::collections::HashMap;
 
+use withhold::HookGroup;
+
 use self::absrel::RelToAbs;
 use self::map::{Map, Toggle};
 use self::hook::Hook;
 use self::print::EventPrinter;
 use self::scale::Scale;
-use self::withhold::Withhold;
 use self::merge::Merge;
 
 use crate::io::input::InputDevice;
@@ -53,11 +54,11 @@ use crate::time::Instant;
 pub enum StreamEntry {
     Map(Map),
     Hook(Hook),
+    HookGroup(HookGroup),
     Toggle(Toggle),
     Print(EventPrinter),
     Merge(Merge),
     Scale(Scale),
-    Withhold(Withhold),
     RelToAbs(RelToAbs),
     Delay(self::delay::Delay),
 }
@@ -243,6 +244,11 @@ fn run_events(events_in: Vec<Event>, events_out: &mut Vec<Event>, stream: &mut [
                 events.clear();
                 std::mem::swap(&mut events, &mut buffer);
             },
+            StreamEntry::HookGroup(hook_group) => {
+                hook_group.apply_to_all(&events, &mut buffer, state, loopback);
+                events.clear();
+                std::mem::swap(&mut events, &mut buffer);
+            },
             StreamEntry::Scale(scale) => {
                 scale.apply_to_all(&events, &mut buffer);
                 events.clear();
@@ -250,11 +256,6 @@ fn run_events(events_in: Vec<Event>, events_out: &mut Vec<Event>, stream: &mut [
             },
             StreamEntry::Delay(delay) => {
                 delay.apply_to_all(&events, &mut buffer, loopback);
-                events.clear();
-                std::mem::swap(&mut events, &mut buffer);
-            },
-            StreamEntry::Withhold(withhold) => {
-                withhold.apply_to_all(&events, &mut buffer, loopback);
                 events.clear();
                 std::mem::swap(&mut events, &mut buffer);
             },
@@ -280,11 +281,11 @@ fn run_wakeup(token: crate::loopback::Token, events_out: &mut Vec<Event>, stream
             StreamEntry::Hook(hook) => {
                 hook.wakeup(&token);
             },
+            StreamEntry::HookGroup(hook_group) => {
+                hook_group.wakeup(&token, &mut events);
+            },
             StreamEntry::Delay(delay) => {
                 delay.wakeup(&token, &mut events);
-            },
-            StreamEntry::Withhold(withhold) => {
-                withhold.wakeup(&token, &mut events);
             },
             StreamEntry::Print(_) => {},
             StreamEntry::Scale(_) => {},
@@ -323,6 +324,11 @@ pub fn run_caps(stream: &[StreamEntry], capabilities: Vec<Capability>) -> Vec<Ca
                 caps.clear();
                 std::mem::swap(&mut caps, &mut buffer);
             },
+            StreamEntry::HookGroup(hook_group) => {
+                hook_group.apply_to_all_caps(&caps, &mut buffer);
+                caps.clear();
+                std::mem::swap(&mut caps, &mut buffer);
+            },
             StreamEntry::Scale(scale) => {
                 scale.apply_to_all_caps(&caps, &mut buffer);
                 caps.clear();
@@ -335,7 +341,6 @@ pub fn run_caps(stream: &[StreamEntry], capabilities: Vec<Capability>) -> Vec<Ca
             },
             StreamEntry::Print(_) => (),
             StreamEntry::Delay(_) => (),
-            StreamEntry::Withhold(_) => (),
         }
 
         // Merge capabilities that differ only in value together when possible.

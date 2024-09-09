@@ -7,7 +7,7 @@ use crate::event::Namespace;
 use crate::persist::blueprint::Blueprint;
 use crate::stream::hook::{Hook, HookActuator};
 use crate::stream::map::{Map, Toggle};
-use crate::stream::withhold::Withhold;
+use crate::stream::withhold::{HookGroup, Withhold};
 use crate::stream::{StreamEntry, Setup};
 use crate::predevice::{PreInputDevice, PreOutputDevice};
 use crate::state::{State, ToggleIndex};
@@ -379,9 +379,23 @@ pub fn implement(args_str: Vec<String>)
                 stream.push(StreamEntry::Hook(hook));
             },
             Argument::WithholdArg(withhold_arg) => {
-                stream.push(StreamEntry::Withhold(
-                    Withhold::new(withhold_arg.keys, withhold_arg.associated_triggers)
-                ));
+                // Aggregate all preceding hooks into a single hookgroup.
+                let mut preceding_hooks: Vec<Hook> = Vec::new();
+                loop {
+                    let last_arg = match stream.pop() {
+                        Some(arg) => arg,
+                        None => break,
+                    };
+                    if let StreamEntry::Hook(hook) = last_arg {
+                        preceding_hooks.insert(0, hook);
+                    } else {
+                        stream.push(last_arg);
+                        break;
+                    }
+                }
+
+                let hook_group = HookGroup::new(preceding_hooks, Withhold::new(withhold_arg.keys));
+                stream.push(StreamEntry::HookGroup(hook_group));
             },
             Argument::RelToAbsArg(rel_to_abs_arg) => {
                 stream.push(StreamEntry::RelToAbs(rel_to_abs_arg.compile()));

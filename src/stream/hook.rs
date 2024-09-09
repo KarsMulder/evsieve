@@ -309,7 +309,7 @@ impl Hook {
         Hook { trigger, actuator }
     }
 
-    fn apply(&mut self, event: Event, events_out: &mut impl Sink, state: &mut State, loopback: &mut LoopbackHandle) {
+    fn apply(&mut self, event: Event, events_out: &mut Vec<Event>, state: &mut State, loopback: &mut LoopbackHandle) {
         // IMPORTANT: this function must NOT do anything more than just the following two lines of code!
         //
         // Other classes may assume that applying the hook to an event is equivalent to the following two function
@@ -318,14 +318,14 @@ impl Hook {
         // If any more logic were to be added to this function, then that logic would not be executed if this
         // hook becomes part of a `HookGroup`. Which is a bad thing.
         let response = self.trigger.apply(event, loopback);
-        self.actuator.apply_response(response, event, events_out, state);
+        self.actuator.apply_response(response, event, (), events_out, state);
     }
 
     pub fn wakeup(&mut self, token: &loopback::Token) {
         self.trigger.wakeup(token);
     }
 
-    pub fn apply_to_all(&mut self, events: &[Event], events_out: &mut impl Sink, state: &mut State, loopback: &mut LoopbackHandle) {
+    pub fn apply_to_all(&mut self, events: &[Event], events_out: &mut Vec<Event>, state: &mut State, loopback: &mut LoopbackHandle) {
         for event in events {
             self.apply(*event, events_out, state, loopback);
         }
@@ -355,8 +355,15 @@ impl HookActuator {
         }
     }
 
-    pub fn apply_response(&mut self, response: TriggerResponse, event: Event, events_out: &mut impl Sink, state: &mut State) {
-        self.event_dispatcher.map_event(event, response, events_out);
+    pub fn apply_response<T, U>(&mut self,
+        response: TriggerResponse,
+        event: Event,
+        event_data: U,
+        events_out: &mut T,
+        state: &mut State
+    ) where T: Sink<AdditionalData=U>
+    {
+        self.event_dispatcher.map_event(event, event_data, response, events_out);
 
         match response {
             TriggerResponse::Activates => {
@@ -422,13 +429,24 @@ impl EventDispatcher {
     }
 
     /// Similar in purpose to apply().
-    fn map_event(&mut self, event: Event, trigger_response: TriggerResponse, events_out: &mut impl Sink) {
+    fn map_event<T,U>(
+        &mut self,
+        // The event that is to be mapped.
+        event: Event,
+        // Data associated with the event to be mapped. When the mapped event is passed on to the sink,
+        // this data shall be attached to the input event, and only the input event.
+        event_data: U,
+        // The response that was received when this event was given to the `Trigger`.
+        trigger_response: TriggerResponse,
+        // Where the original event and all generated events go.
+        events_out: &mut T
+    ) where T: Sink<AdditionalData = U>{
         match trigger_response {
             TriggerResponse::Activates => {
-                events_out.push_retained_event(event);
+                events_out.push_event(event, event_data);
                 self.activating_event = Some(event);
                 for key in &self.on_press {
-                    events_out.push_created_event(key.merge(event));
+                    events_out.push_new_event(key.merge(event));
                 };
             },
             TriggerResponse::Releases => {
@@ -440,12 +458,12 @@ impl EventDispatcher {
                     }
                 };
                 for key in &self.on_release {
-                    events_out.push_created_event(key.merge(activating_event));
+                    events_out.push_new_event(key.merge(activating_event));
                 }
-                events_out.push_retained_event(event);
+                events_out.push_event(event, event_data);
             },
             TriggerResponse::Interacts | TriggerResponse::None => {
-                events_out.push_retained_event(event);
+                events_out.push_event(event, event_data);
             },
         }
     }

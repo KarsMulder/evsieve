@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+use crate::capability::Capability;
 use crate::event::{Event, Channel};
 use crate::key::Key;
 use crate::loopback::{LoopbackHandle, Token};
@@ -10,13 +11,10 @@ use super::hook::Hook;
 
 /// Represents a --withhold argument.
 pub struct Withhold {
-    /// Copies of the triggers of the associated hooks.
-    triggers: Vec<Trigger>,
-
     /// Only withhold events that match one of the following keys.
     keys: Vec<Key>,
 
-    channel_state: Vec<(Channel, ChannelState)>,
+    channel_state: Vec<(WithholdChannel, ChannelState)>,
 }
 
 /// Represents a group of one or more --hook arguments followed up by a single --withhold argument.
@@ -26,52 +24,197 @@ pub struct HookGroup {
 }
 
 impl HookGroup {
-    pub fn apply_to_all(&mut self, events: &[Event], events_out: &mut Vec<Event>, state: &mut State, loopback: &mut LoopbackHandle) {
-        unimplemented!();
+    pub fn new(hooks: Vec<Hook>, withhold: Withhold) -> HookGroup {
+        HookGroup {
+            hooks,
+            withhold,
+        }
+    }
+}
+
+impl HookGroup {
+    pub fn apply_to_all(&mut self, events_in: &[Event], events_out: &mut Vec<Event>, state: &mut State, loopback: &mut LoopbackHandle) {
+        let mut events: Vec<(Event, TriggerResponseRecord)> = events_in.iter().map(|&event|
+            (event, TriggerResponseRecord::new())
+        ).collect();
+
+        let mut buffer: Vec<(Event, TriggerResponseRecord)> = Vec::new();
+
+        // Pass all events to the hooks, one hook at a time. Keep a record of how each event reacted with
+        // each trigger.
+        //
+        // It is important that the outer loop loops over hooks and the inner hook loops over events to ensure
+        // that a HookGroup functions identically to a series of Hooks within a Stream.
+        for (hook_idx, hook) in self.hooks.iter_mut().enumerate() {
+            let hook_idx = HookIdx(hook_idx);
+
+            for &(event, ref response_record) in &events {
+                let response = hook.trigger.apply(event, loopback);
+                // TODO: Unnecessary clone
+                let record_for_current_event = response_record.clone().with_response(&hook.trigger, hook_idx, event, response);
+                hook.actuator.apply_response(response, event, record_for_current_event, &mut buffer, state);
+            }
+
+            std::mem::swap(&mut events, &mut buffer);
+            buffer.clear();
+        }
+
+        // TODO: unnecessay allocation
+        let triggers: Box<[&Trigger]> = self.hooks.iter().map(|hook| &hook.trigger).collect();
+        for (event, response_record) in events {
+            self.withhold.apply(event, response_record, events_out, &triggers);
+        }
+    }
+
+    pub fn apply_to_all_caps(&self, caps_in: &[Capability], caps_out: &mut Vec<Capability>) {
+        let mut caps: Vec<Capability> = caps_in.to_vec();
+        let mut buffer: Vec<Capability> = Vec::new();
+        for hook in &self.hooks {
+            hook.apply_to_all_caps(&caps, &mut buffer);
+            std::mem::swap(&mut caps, &mut buffer);
+            buffer.clear();
+        }
+        self.withhold.apply_to_all_caps(&caps, caps_out);
+    }
+
+    pub fn wakeup(&mut self, token: &Token, events_out: &mut Vec<Event>) {
+        let mut some_tracker_expired = false;
+        let triggers = self.hooks.iter_mut().map(|hook| &mut hook.trigger);
+        for trigger in triggers {
+            if trigger.wakeup(token) {
+                some_tracker_expired = true;
+            }
+        }
+        if ! some_tracker_expired {
+            return;
+        }
+
+        // Some trackers have expired. For all events that are being withheld, check
+        // whether the respective triggers are still withholding them. Events that
+        // are no longer withheld by any trigger shall be released bach to the stream.
+        let triggers: Vec<&Trigger> = self.hooks.iter_mut().map(|hook| &hook.trigger).collect();
+        self.withhold.release_events(&triggers, events_out);
+    }
+}
+
+/// Represents an index into the vector `HookGroup::hooks`.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct HookIdx(usize);
+
+/// At most one event per WithholdChannel can be withheld at the same time.
+/// 
+/// Most of the program works based on just (event_channel) channels, but that can lead to
+/// some really confusing situations, such as:
+/// 
+///     --input $DEVICE
+///     --hook key:a key:z
+///     --hook key:b send-key=key:a
+///     --hook key:a key:x
+///     --withhold
+/// 
+/// Now imagine the following sequence of key presses: B down, A down, Z down, AZB up.
+/// At this point, a key:a event has been withheld by both the first and third hook.
+/// The first key:a event from the first hook needs to be dropped, but the key:a event
+/// from the third hook needs to be released.
+/// 
+/// To avoid such situations, we separate events not just on channel, but also based on
+/// the first hook that the event has seen. This this case, the events from the keyboard
+/// would correspond to the (key:a, 0) WithholdChannel, but events generated by the second hook
+/// would correspond to the (key:a, 2) WithholdChannel. By not letting events of different
+/// WithholdChannels interfere with each other, many situations get simplified.
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct WithholdChannel {
+    event_channel: Channel,
+    first_hook: HookIdx,
+}
+
+impl WithholdChannel {
+    /// Returns `None` if this event has not passed any hooks (e.g. events that were generated by the
+    /// last hook). Events that have not passed any hooks should of course not be withheld.
+    fn from_event_and_response_record(event: Event, response_record: &TriggerResponseRecord) -> Option<WithholdChannel> {
+        Some(WithholdChannel {
+            event_channel: event.channel(),
+            first_hook: response_record.trigger_status.first()?.0,
+        })
+    }
+}
+
+/// Represents which role a Trigger plays in a certain channel being withheld.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TriggerStatus {
+    /// This trigger is currently active on this channel. The event must be withheld until all active
+    /// triggers turn inactive.
+    Active,
+    /// This trigger is currently inactive on this channel and therefore does not block events on this channel.
+    Inactive,
+}
+
+#[derive(Clone)]
+struct TriggerResponseRecord {
+    trigger_status: Vec<(HookIdx, TriggerStatus)>,
+    activated_triggers: Vec<HookIdx>,
+    any_trigger_interacts: bool,
+}
+
+impl TriggerResponseRecord {
+    fn new() -> Self {
+        Self {
+            trigger_status: Vec::new(),
+            activated_triggers: Vec::new(),
+            any_trigger_interacts: false,
+        }
+    }
+
+    fn with_response(mut self, trigger: &Trigger, hook_idx: HookIdx, event: Event, response: TriggerResponse) -> TriggerResponseRecord {
+        match response {
+            TriggerResponse::None => {},
+            TriggerResponse::Interacts
+            | TriggerResponse::Releases => {
+                self.any_trigger_interacts = true;
+            },
+            TriggerResponse::Activates => {
+                self.activated_triggers.push(hook_idx);
+                self.any_trigger_interacts = true;
+            },
+        }
+        // TODO: MEDIUM-PRIORITY maybe this information should be returned by trigger.apply()?
+        let trigger_status = match trigger.has_active_tracker_matching_channel(event.channel()) {
+            true => TriggerStatus::Active,
+            false => TriggerStatus::Inactive,
+        };
+
+        self.trigger_status.push((hook_idx, trigger_status));
+        
+        self
+    }
+}
+
+impl Default for TriggerResponseRecord {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 impl Withhold {
-    pub fn new(keys: Vec<Key>, triggers: Vec<Trigger>) -> Withhold {
+    pub fn new(keys: Vec<Key>) -> Withhold {
         Withhold {
-            keys, triggers,
+            keys,
             channel_state: Vec::new(),
         }
     }
 
-    pub fn apply_to_all(&mut self, events: &[Event], events_out: &mut Vec<Event>, loopback: &mut LoopbackHandle) {
-        for event in events {
-            self.apply(*event, events_out, loopback);
-        }
-    }
-
-    fn apply(&mut self, event: Event, events_out: &mut Vec<Event>, loopback: &mut LoopbackHandle) {
-        // Check which triggers just activated because of this event.
-        let mut activated_triggers: Vec<&Trigger> = Vec::new();
-        let mut any_tracker_active_on_channel: bool = false;
-        let mut any_tracker_interacts: bool = false;
-        for trigger in &mut self.triggers {
-            match trigger.apply(event, loopback) {
-                TriggerResponse::None => {},
-                TriggerResponse::Interacts
-                | TriggerResponse::Releases => {
-                    any_tracker_interacts = true;
-                },
-                TriggerResponse::Activates => {
-                    activated_triggers.push(trigger);
-                    any_tracker_interacts = true;
-                },
-            }
-            // TODO: MEDIUM-PRIORITY maybe this information should be returned by trigger.apply()?
-            if trigger.has_active_tracker_matching_channel(event.channel()) {
-                any_tracker_active_on_channel = true;
-            }
-        }
-
+    fn apply(&mut self, event: Event, response_record: TriggerResponseRecord, events_out: &mut Vec<Event>, triggers: &[&Trigger]) {
         // Skip all events that did not match any preceding hook.
-        if ! any_tracker_interacts {
+        if ! response_record.any_trigger_interacts {
             return events_out.push(event);
         }
+
+        let withhold_channel = match WithholdChannel::from_event_and_response_record(event, &response_record) {
+            Some(channel) => channel,
+            // If `from_event_and_response_record` returns None, then this event didn't go past any hooks,
+            // and therefore should not be withheld.
+            None => return events_out.push(event),
+        };
 
         // If this is set to Some, then the provided event shall be added to events_out at the
         // end of the function, i.e. after all other withheld events have been released.
@@ -84,8 +227,11 @@ impl Withhold {
 
             let current_channel_state: Option<&mut ChannelState> =
                 self.channel_state.iter_mut()
-                .find(|(channel, _state)| *channel == event.channel())
+                .find(|(channel, _state)| *channel == withhold_channel)
                 .map(|(_channel, state)| state);
+
+            let any_tracker_active_on_channel = response_record.trigger_status.iter()
+                .any(|(_idx, status)| *status == TriggerStatus::Active);
 
             if any_tracker_active_on_channel {
                 // If the event value were zero, then the constraint of "no custom value declarations"
@@ -97,7 +243,7 @@ impl Withhold {
                     // Withhold the event unless an event was already being withheld.
                     match current_channel_state {
                         None => self.channel_state.push(
-                            (event.channel(), ChannelState::Withheld { withheld_event: event })
+                            (withhold_channel, ChannelState::Withheld { withheld_event: event })
                         ),
                         Some(state @ &mut ChannelState::Residual) => {
                             *state = ChannelState::Withheld { withheld_event: event }
@@ -122,7 +268,7 @@ impl Withhold {
                         },
                         Some(ChannelState::Residual) => {
                             // Drop this event and clear the residual state.
-                            self.channel_state.retain(|(channel, _)| *channel != event.channel());
+                            self.channel_state.retain(|(channel, _)| *channel != withhold_channel);
                             final_event = None;
                         }
                     }
@@ -144,47 +290,32 @@ impl Withhold {
         // to have been consumed and their states are to be set to Residual.
         for (channel, state) in &mut self.channel_state {
             if let ChannelState::Withheld { .. } = state {
-                for trigger in &activated_triggers {
-                    if trigger.has_tracker_matching_channel(*channel) {
-                        *state = ChannelState::Residual;
-                        break;
+                for &trigger_idx in &response_record.activated_triggers {
+                    if trigger_idx >= channel.first_hook {
+                        let trigger = &triggers[trigger_idx.0];
+                        if trigger.has_tracker_matching_channel(channel.event_channel) {
+                            *state = ChannelState::Residual;
+                            break;
+                        }
                     }
                 }
             }
         }
 
         // All events which are no longer withheld by any trigger shall be released.
-        self.release_events(events_out);
+        self.release_events(triggers, events_out);
 
         if let Some(event) = final_event {
             events_out.push(event);
         }
     }
 
-    pub fn wakeup(&mut self, token: &Token, events_out: &mut Vec<Event>) {
-        let mut some_tracker_expired = false;
-        for trigger in &mut self.triggers {
-            if trigger.wakeup(token) {
-                some_tracker_expired = true;
-            }
-        }
-        if ! some_tracker_expired {
-            return;
-        }
-
-        // Some trackers have expired. For all events that are being withheld, check
-        // whether the respective triggers are still withholding them. Events that
-        // are no longer withheld by any trigger shall be released bach to the stream.
-        self.release_events(events_out);
-    }
-
     /// Writes all events that are not withheld by any trigger to the output stream.
-    fn release_events(&mut self, events_out: &mut Vec<Event>) {
-        let triggers = &self.triggers;
+    fn release_events(&mut self, triggers: &[&Trigger], events_out: &mut Vec<Event>) {
         self.channel_state.retain(|(channel, state)| {
             if let ChannelState::Withheld { withheld_event } = state {
-                let is_still_withheld = triggers.iter().any(|trigger|
-                    trigger.has_active_tracker_matching_channel(*channel)
+                let is_still_withheld = triggers.iter().skip(channel.first_hook.0).any(|trigger|
+                    trigger.has_active_tracker_matching_channel(channel.event_channel)
                 );
                 if ! is_still_withheld {
                     events_out.push(*withheld_event);
@@ -194,10 +325,14 @@ impl Withhold {
             true
         });
     }
+
+    fn apply_to_all_caps(&self, caps: &[Capability], caps_out: &mut Vec<Capability>) {
+        caps_out.extend_from_slice(&caps);
+    }
 }
 
-/// For each channel, at most one event can be withheld. This withheld event is always a
-/// KEY_DOWN event. Subsequent KEY_DOWN events that arrive while an event is being withheld
+/// For each `WithholdChannel`, at most one event can be withheld. This withheld event is always
+/// a KEY_DOWN event. Subsequent KEY_DOWN events that arrive while an event is being withheld
 /// shall be dropped. The event is withheld as long as some tracker returns true for
 /// `has_active_tracker_matching_channel(event.channel())`.
 /// 

@@ -10,39 +10,48 @@ use crate::event::Event;
 /// 
 /// The Sink trait is used as a zero-cost abstraction that will function as simply a vector in
 /// the likely case that we don't care about the events' origin, but can be substituted for
-/// something that does track the events' origin when needed.
+/// something that does track additional information when needed.
 pub trait Sink {
-    fn push_created_event(&mut self, event: Event);
-    fn push_retained_event(&mut self, event: Event);
-}
+    /// Additional data associated with the incoming event. When that event gets retained,
+    /// you should call `push_event()` along with the data you received together with the
+    /// event. If you create a new event, you should use push that new event together with
+    /// data from the `new_data()` function.
+    type AdditionalData;
 
-pub enum EventCause {
-    Created,
-    Retained,
+    /// Pushes an event together with additional data. Depending on the implementation of
+    /// this Sink, the additional data may or may not be simply discarded.
+    fn push_event(&mut self, event: Event, additional_data: Self::AdditionalData);
+
+    /// Pushes a newly created event to this Sink, which has no additional data associated
+    /// with it because it is new.
+    fn push_new_event(&mut self, event: Event) {
+        self.push_event(event, Self::new_data());
+    }
+
+    /// Returns the additional data that needs to be attached to a newly created event.
+    fn new_data() -> Self::AdditionalData;
 }
 
 impl Sink for Vec<Event> {
-    fn push_created_event(&mut self, event: Event) {
+    type AdditionalData = ();
+
+    fn push_event(&mut self, event: Event, _additional_data: Self::AdditionalData) {
         self.push(event);
     }
 
-    fn push_retained_event(&mut self, event: Event) {
-        self.push(event);
+    fn new_data() -> Self::AdditionalData {
+        ()
     }
 }
 
-/// An abstract sink that calls arbitrary closures whenever it receives events.
-pub struct AbstractSink<F1: FnMut(Event), F2: FnMut(Event)> {
-    pub handle_created_event: F1,
-    pub handle_retained_event: F2,
-}
+impl<T: Default> Sink for Vec<(Event, T)> {
+    type AdditionalData = T;
 
-impl<F1: FnMut(Event), F2: FnMut(Event)> Sink for AbstractSink<F1, F2> {
-    fn push_created_event(&mut self, event: Event) {
-        (self.handle_created_event)(event);
+    fn push_event(&mut self, event: Event, additional_data: Self::AdditionalData) {
+        self.push((event, additional_data));
     }
 
-    fn push_retained_event(&mut self, event: Event) {
-        (self.handle_retained_event)(event);
+    fn new_data() -> Self::AdditionalData {
+        T::default()
     }
 }
