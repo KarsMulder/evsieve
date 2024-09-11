@@ -4,13 +4,23 @@ use crate::event::Event;
 /// to another vector of events. This is simple and really fast.
 /// 
 /// However, sometimes we need to track some additional information about the created events.
+/// Information that is only relevant during a limited context and should not be copied to
+/// other events that are generated based on maps or whatever. It would be a bad move to store
+/// that information in the events themselves.
+/// 
 /// Particularly, for --hook --withhold constructions, it is important to know which events
 /// were used to trigger the hook and which are generated as consequence of the hook being
 /// triggered.
 /// 
-/// The Sink trait is used as a zero-cost abstraction that will function as simply a vector in
-/// the likely case that we don't care about the events' origin, but can be substituted for
-/// something that does track additional information when needed.
+/// The Sink trait is used as a zero-cost abstraction that will function as simply a Vec<Event>
+/// in the case that we don't track any additional information for events, but can be substituted
+/// for something that does track additional information when needed.
+/// 
+/// When we're maybe tracking additional information, the apply() function is supposed to accept
+/// two arguments: a &mut impl Sink, and another parameter that represents the information
+/// associated with the input event. If this function puts the input event back into the event
+/// stream as-is, it should call `push_event(event, additional_data)`. If it adds a created event
+/// to the input stream, it should call `push_new_event(event)`.
 pub trait Sink {
     /// Additional data associated with the incoming event. When that event gets retained,
     /// you should call `push_event()` along with the data you received together with the
