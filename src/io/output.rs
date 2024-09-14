@@ -19,16 +19,31 @@ use crate::ecodes;
 use crate::error::{InternalError, RuntimeError, SystemError, Context};
 use crate::predevice::{PreOutputDevice, RepeatMode};
 
-pub struct OutputSystem {
+pub trait OutputSystem {
+    /// Tries to make sure that all output devices have at least the given capabilities. The output 
+    /// devices may or may not end up with more capabilities than specified.
+    ///
+    /// This may cause output devices to be destroyed and recreated.
+    fn update_caps(&mut self, new_capabilities: Vec<Capability>);
+
+    /// Writes all events to their respective output devices.
+    fn route_events(&mut self, events: &[Event]);
+
+    /// The maps may generate events without folling them up with SYN events.
+    /// This function generates all SYN events for user convenience.
+    fn synchronize(&mut self);
+}
+
+pub struct UInputSystem {
     pre_devices: Vec<PreOutputDevice>,
     devices: HashMap<Domain, OutputDevice>,
 }
 
-impl OutputSystem {
+impl UInputSystem {
     pub fn create(
             pre_devices: Vec<PreOutputDevice>,
             capabilities: Vec<Capability>
-    ) -> Result<OutputSystem, RuntimeError> {
+    ) -> Result<UInputSystem, RuntimeError> {
         // Sort the capabilities based on domain.
         let mut capability_map = capabilites_by_device(&capabilities, &pre_devices);
 
@@ -51,14 +66,16 @@ impl OutputSystem {
             devices.insert(domain, device);
         }
 
-        Ok(OutputSystem { pre_devices, devices })
+        Ok(UInputSystem { pre_devices, devices })
     }
+}
 
+impl OutputSystem for UInputSystem {
     /// Tries to make sure that all output devices have at least the given capabilities. The output 
     /// devices may or may not end up with more capabilities than specified.
     ///
     /// This may cause output devices to be destroyed and recreated.
-    pub fn update_caps(&mut self, new_capabilities: Vec<Capability>) {
+    fn update_caps(&mut self, new_capabilities: Vec<Capability>) {
         // Sort the capabilities based on domain.
         let mut capability_map = capabilites_by_device(&new_capabilities, &self.pre_devices);
 
@@ -130,7 +147,7 @@ impl OutputSystem {
     }
 
     /// Writes all events to their respective output devices.
-    pub fn route_events(&mut self, events: &[Event]) {
+    fn route_events(&mut self, events: &[Event]) {
         for &event in events {
             let device_opt = self.devices.get_mut(&event.domain);
             match device_opt {
@@ -142,7 +159,7 @@ impl OutputSystem {
 
     /// The maps may generate events without folling them up with SYN events.
     /// This function generates all SYN events for user convenience.
-    pub fn synchronize(&mut self) {
+    fn synchronize(&mut self) {
         for device in self.devices.values_mut() {
             device.syn_if_required();
         }

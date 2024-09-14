@@ -2,6 +2,7 @@
 
 use crate::domain;
 use crate::error::{ArgumentError, RuntimeError, Context, SystemError};
+use crate::io::output::UInputSystem;
 use crate::key::Key;
 use crate::event::Namespace;
 use crate::persist::blueprint::Blueprint;
@@ -440,7 +441,9 @@ pub fn implement(args_str: Vec<String>)
 
     // Compute the capabilities of the output devices.
     let (input_devices, blueprints, input_capabilities) = crate::io::input::open_and_query_capabilities(input_devices)?;
-    let setup = Setup::create(stream, output_devices, state, toggle_indices, input_capabilities)?;
+    let output_capabilities = crate::stream::determine_output_capabilities(&stream, &input_capabilities);
+    let output = Box::new(UInputSystem::create(output_devices, output_capabilities)?);
+    let setup = Setup::create(stream, output, state, toggle_indices, input_capabilities);
     Ok(Implementation { setup, input_devices, blueprints, control_fifos })
 }
 

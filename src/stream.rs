@@ -22,12 +22,10 @@ use self::scale::Scale;
 use self::merge::Merge;
 
 use crate::io::input::InputDevice;
-use crate::predevice::PreOutputDevice;
 use crate::state::{State, ToggleIndex};
 use crate::event::{Event, Namespace};
 use crate::capability::{Capability, InputCapabilites};
 use crate::io::output::OutputSystem;
-use crate::error::RuntimeError;
 use crate::loopback::{Loopback, LoopbackHandle, Delay};
 use crate::time::Instant;
 
@@ -65,7 +63,7 @@ pub enum StreamEntry {
 
 pub struct Setup {
     stream: Vec<StreamEntry>,
-    output: OutputSystem,
+    output: Box<dyn OutputSystem>,
     state: State,
     toggle_indices: HashMap<String, ToggleIndex>,
     loopback: Loopback,
@@ -81,18 +79,15 @@ pub struct Setup {
 impl Setup {
     pub fn create(
         stream: Vec<StreamEntry>,
-        pre_output: Vec<PreOutputDevice>,
+        output: Box<dyn OutputSystem>,
         state: State,
         toggle_indices: HashMap<String, ToggleIndex>,
         input_caps: InputCapabilites,
-    ) -> Result<Setup, RuntimeError> {
-        let caps_vec: Vec<Capability> = crate::capability::input_caps_to_vec(&input_caps);
-        let caps_out = run_caps(&stream, caps_vec);
-        let output = OutputSystem::create(pre_output, caps_out)?;
-        Ok(Setup {
+    ) -> Setup {
+        Setup {
             stream, output, state, toggle_indices, input_caps,
             loopback: Loopback::new(), staged_events: Vec::new(),
-        })
+        }
     }
 
     /// Call this function if the capabilities of a certain input device may have changed, e.g. because
@@ -199,6 +194,11 @@ pub fn syn(setup: &mut Setup) {
     setup.output.route_events(&setup.staged_events);
     setup.staged_events.clear();
     setup.output.synchronize();
+}
+
+pub fn determine_output_capabilities(stream: &[StreamEntry], input_caps: &InputCapabilites) -> Vec<Capability> {
+    let caps_vec: Vec<Capability> = crate::capability::input_caps_to_vec(&input_caps);
+    run_caps(&stream, caps_vec)
 }
 
 /// Starts processing the stream at a given starting point.
