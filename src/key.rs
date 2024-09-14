@@ -340,6 +340,8 @@ impl KeyProperty {
 
 /// Represents the options for how a key can be parsed in different contexts.
 pub struct KeyParser<'a> {
+    /// Which values keys shall be assumed to have if not specified. E.g. if the default value is "1", then
+    /// "key:a" will be treated as "key:a:1~". If it is the empty string, then the default is "any value".
     pub default_value: &'a str,
     /// Whether event values like the :1 in "key:a:1" are allowed.
     pub allow_values: bool,

@@ -95,17 +95,17 @@ fn test_argument_validity() {
 }
 
 fn require_ok(args: impl IntoIterator<Item=impl Into<String>>) {
-    try_implement(args).unwrap();
+    try_process(args).unwrap();
 }
 
 fn require_err(args: impl IntoIterator<Item=impl Into<String>>) {
-    assert!(try_implement(args).is_err());
+    assert!(try_process(args).is_err());
 }
 
-fn try_implement(args: impl IntoIterator<Item=impl Into<String>>) -> Result<crate::arguments::parser::Implementation, RuntimeError> {
+fn try_process(args: impl IntoIterator<Item=impl Into<String>>) -> Result<crate::arguments::parser::PreImplementation, RuntimeError> {
     let args: Vec<String> =
         args.into_iter().map(|item| item.into())
         .collect();
 
-    crate::arguments::parser::implement(args)
+    crate::arguments::parser::process(args)
 }

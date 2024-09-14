@@ -68,7 +68,7 @@ fn parse_command(line: &str) -> Result<Command, ArgumentError> {
 }
 
 impl Command {
-    pub fn execute(self, setup: &mut Setup) -> Result<(), ArgumentError> {
+    pub fn execute<T>(self, setup: &mut Setup<T>) -> Result<(), ArgumentError> {
         match self {
             Command::Toggle(action) => {
                 // TODO: FEATURE(control-fifo) More helpful error.

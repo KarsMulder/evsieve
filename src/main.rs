@@ -41,6 +41,9 @@ pub mod utils;
 #[cfg(feature = "auto-scan")]
 pub mod scancodes;
 
+#[cfg(test)]
+pub mod tests;
+
 pub mod io {
     pub mod input;
     pub mod epoll;
@@ -98,6 +101,7 @@ use error::{RuntimeError, Context};
 use io::epoll::{Epoll, FileIndex, Message};
 use io::fd::HasFixedFd;
 use io::input::InputDevice;
+use io::output::UInputSystem;
 use persist::interface::HostInterfaceState;
 use stream::Setup;
 use signal::{SigMask, SignalFd};
@@ -155,7 +159,7 @@ impl AsRawFd for Pollable {
 
 struct Program {
     epoll: Epoll<Pollable>,
-    setup: Setup,
+    setup: Setup<UInputSystem>,
     persist_subsystem: HostInterfaceState,
 }
 
@@ -184,7 +188,9 @@ fn run() -> Result<(), RuntimeError> {
     let _signal_block = unsafe { signal::SignalBlock::new(&sigmask)? };
 
     // Parse the arguments and set up the input/output devices.
-    let Implementation { setup, input_devices, blueprints, control_fifos } = arguments::parser::implement(args)?;
+    let pre_implementation = arguments::parser::process(args)?;
+    let Implementation { setup, input_devices, blueprints, control_fifos } = arguments::parser::implement(pre_implementation)?;
+
     for device in input_devices {
         epoll.add_file(Pollable::InputDevice(device))?;
     }
@@ -242,7 +248,7 @@ fn enter_main_loop(program: &mut Program) -> Result<(), RuntimeError> {
     loop {
         let timeout: i32 = match program.setup.time_until_next_wakeup() {
             loopback::Delay::Now => {
-                stream::wakeup_until(&mut program.setup, crate::time::Instant::now());
+                program.setup.wakeup_until(crate::time::Instant::now());
                 continue;
             },
             loopback::Delay::Never => crate::io::epoll::INDEFINITE_TIMEOUT,
@@ -304,8 +310,8 @@ fn handle_ready_file(program: &mut Program, index: FileIndex) -> Result<Action, 
                 format!("While polling the input device {}:", device.path().display())
             )?;
             for (time, event) in events {
-                stream::wakeup_until(&mut program.setup, time);
-                stream::run(&mut program.setup, time, event);
+                program.setup.wakeup_until(time);
+                program.setup.run(time, event);
             }
             Ok(Action::Continue)
         },
@@ -357,9 +363,9 @@ fn handle_broken_file(program: &mut Program, index: FileIndex) -> Action {
 
             for key_code in pressed_keys {
                 let release_event = device.synthesize_event(key_code, 0);
-                stream::run(&mut program.setup, now, release_event);
+                program.setup.run(now, release_event);
             }
-            stream::syn(&mut program.setup);
+            program.setup.syn();
 
             match device.persist_state() {
                 // Mode None: drop the device and carry on without it, if possible.

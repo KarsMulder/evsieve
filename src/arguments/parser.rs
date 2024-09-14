@@ -226,17 +226,26 @@ fn parse(args: Vec<String>) -> Result<Vec<Argument>, RuntimeError> {
     Ok(output)
 }
 
+pub struct PreImplementation {
+    pub stream: Vec<StreamEntry>,
+    pub input_devices: Vec<PreInputDevice>,
+    pub output_devices: Vec<PreOutputDevice>,
+    pub control_fifo_paths: Vec<String>,
+    pub state: State,
+    pub toggle_indices: HashMap<String, ToggleIndex>,
+}
+
 pub struct Implementation {
-    pub setup: Setup,
+    pub setup: Setup<UInputSystem>,
     pub input_devices: Vec<crate::io::input::InputDevice>,
     pub blueprints: Vec<Blueprint>,
     pub control_fifos: Vec<ControlFifo>,
 }
 
-/// This function does most of the work of turning the input arguments into the components of a
-/// runnable program.
-pub fn implement(args_str: Vec<String>)
-        -> Result<Implementation, RuntimeError>
+/// This function does all of the work of turning the input arguments into the components of a
+/// runnable program, except for the operations that require I/O.
+pub fn process(args_str: Vec<String>)
+        -> Result<PreImplementation, RuntimeError>
 {
     let mut args: Vec<Argument> = parse(args_str)?;
     let mut input_devices: Vec<PreInputDevice> = Vec::new();
@@ -435,6 +444,13 @@ pub fn implement(args_str: Vec<String>)
         return Err(ArgumentError::new("A control fifo was specified twice at the same location.".to_owned()).into());
     }
 
+    Ok(PreImplementation { stream, input_devices, output_devices, control_fifo_paths, state, toggle_indices })
+}
+
+/// This does the I/O that is necessary after the `process()` call.
+pub fn implement(pre_implementation: PreImplementation) -> Result<Implementation, RuntimeError> {
+    let PreImplementation { stream, input_devices, output_devices, control_fifo_paths, state, toggle_indices } = pre_implementation;
+
     let control_fifos: Vec<ControlFifo> = control_fifo_paths.into_iter()
         .map(ControlFifo::create)
         .collect::<Result<Vec<ControlFifo>, SystemError>>()?;
@@ -442,7 +458,7 @@ pub fn implement(args_str: Vec<String>)
     // Compute the capabilities of the output devices.
     let (input_devices, blueprints, input_capabilities) = crate::io::input::open_and_query_capabilities(input_devices)?;
     let output_capabilities = crate::stream::determine_output_capabilities(&stream, &input_capabilities);
-    let output = Box::new(UInputSystem::create(output_devices, output_capabilities)?);
+    let output = UInputSystem::create(output_devices, output_capabilities)?;
     let setup = Setup::create(stream, output, state, toggle_indices, input_capabilities);
     Ok(Implementation { setup, input_devices, blueprints, control_fifos })
 }
