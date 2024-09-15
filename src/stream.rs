@@ -23,7 +23,7 @@ use self::merge::Merge;
 
 use crate::io::input::InputDevice;
 use crate::state::{State, ToggleIndex};
-use crate::event::{Event, Namespace};
+use crate::event::Event;
 use crate::capability::{Capability, InputCapabilites};
 use crate::io::output::OutputSystem;
 use crate::loopback::{Loopback, LoopbackHandle, Delay};
@@ -268,9 +268,7 @@ fn run_events(events_in: Vec<Event>, events_out: &mut Vec<Event>, stream: &mut [
         }
     }
 
-    events_out.extend(
-        events.into_iter().filter(|event| event.namespace == Namespace::Output)
-    );
+    events_out.extend(events);
 }
 
 fn run_wakeup(token: crate::loopback::Token, events_out: &mut Vec<Event>, stream: &mut [StreamEntry], state: &mut State, loopback: &mut LoopbackHandle) {
@@ -354,5 +352,5 @@ pub fn run_caps(stream: &[StreamEntry], capabilities: Vec<Capability>) -> Vec<Ca
         }
     }
 
-    caps.into_iter().filter(|cap| cap.namespace == Namespace::Output).collect()
+    caps
 }

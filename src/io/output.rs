@@ -17,6 +17,7 @@ use crate::event::Event;
 use crate::domain::Domain;
 use crate::ecodes;
 use crate::error::{InternalError, RuntimeError, SystemError, Context};
+use crate::event::Namespace;
 use crate::predevice::{PreOutputDevice, RepeatMode};
 
 pub trait OutputSystem {
@@ -149,6 +150,10 @@ impl OutputSystem for UInputSystem {
     /// Writes all events to their respective output devices.
     fn route_events(&mut self, events: &[Event]) {
         for &event in events {
+            if event.namespace != Namespace::Output {
+                continue;
+            }
+
             let device_opt = self.devices.get_mut(&event.domain);
             match device_opt {
                 Some(device) => device.write_event(event),
@@ -425,6 +430,10 @@ fn capabilites_by_device(capabilities: &[Capability], pre_devices: &[PreOutputDe
 {
     let mut capability_map: HashMap<Domain, Capabilities> = HashMap::new();
     for capability in capabilities.iter().copied() {
+        if capability.namespace != Namespace::Output {
+            continue;
+        }
+
         let domain_capabilities = capability_map.entry(capability.domain).or_insert_with(Capabilities::new);
         domain_capabilities.add_capability(capability);
     }

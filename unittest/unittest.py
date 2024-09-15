@@ -317,6 +317,7 @@ def unittest_domain():
     run_unittest(
         ["--input", "/dev/input/by-id/unittest-domain-in", "domain=in", "grab=force",
         "--map", "key:a", "key:a@out-1",
+        "--map", "key:c", "@drop",
         "--map", "@in", "@out-1", "@out-2",
         "--output", "@out-1", "create-link=/dev/input/by-id/unittest-domain-out-1",
         "--output", "@out-2", "create-link=/dev/input/by-id/unittest-domain-out-2"],
@@ -324,8 +325,11 @@ def unittest_domain():
             "/dev/input/by-id/unittest-domain-in": [
                 (e.EV_KEY, e.KEY_A, 1),
                 (e.EV_KEY, e.KEY_B, 1),
+                (e.EV_KEY, e.KEY_C, 1),
                 (e.EV_KEY, e.KEY_B, 0),
                 (e.EV_KEY, e.KEY_A, 0),
+                (e.EV_KEY, e.KEY_C, 0),
+                
             ],
         },
         {
