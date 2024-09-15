@@ -3,6 +3,7 @@ use crate::event::{Event, EventCode, EventType, Namespace};
 use crate::io::output::OutputSystem;
 use crate::key::KeyParser;
 use crate::stream::Setup;
+use std::fmt::Write;
 
 /// A replacement for the UInputSystem that does not actually write any events to any event devices,
 /// but instead keeps track of all events it received.
@@ -63,6 +64,12 @@ fn run_stream<T: OutputSystem>(setup: &mut Setup<T>, events_in: Vec<Event>) {
     }
 }
 
+struct EventPairResult<'a> {
+    expected: Option<&'a str>,
+    received: Option<Event>,
+    matches: bool,
+}
+
 /// For convenience we pass the arguments, input events and output events are all passed as a single string that will
 /// be split by whitespace. No --input or --output argument needs to be present.
 /// 
@@ -78,15 +85,49 @@ pub fn run_test(args: &str, events_in: &str, events_out: &str) {
     let keys_out_str = to_vec(events_out);
     let key_out_parser = KeyParser::default_filter();
     let events_out = process_events(args, events_in);
+    let mut result: Vec<EventPairResult> = Vec::new();
 
-    if keys_out_str.len() != events_out.len() {
-        panic!("Wrong amount of events generated. Expected {} events, received {} events.", keys_out_str.len(), events_out.len());
+    for i in 0 .. usize::max(events_out.len(), keys_out_str.len()) {
+        let event = events_out.get(i);
+        let key_str = keys_out_str.get(i);
+        let key = key_str.map(|x| key_out_parser.parse(x).expect("Malformed output event"));
+        let matches = match (event, key) {
+            (Some(event), Some(key)) => key.matches(event),
+            _ => false,
+        };
+
+        result.push(EventPairResult {
+            expected: key_str.map(String::as_str),
+            received: event.copied(),
+            matches
+        });
     }
 
-    for (event, key_str) in events_out.into_iter().zip(keys_out_str) {
-        let key = key_out_parser.parse(&key_str).expect("Malformed output event.");
-        if ! key.matches(&event) {
-            panic!("Received unexpected event: {} instead of {key_str}", event);
-        }
+    if ! result.iter().all(|x| x.matches) {
+        let report = create_report(&result);
+        panic!("{}", report);
     }
+}
+
+fn create_report(results: &[EventPairResult]) -> String {
+    let mut report = String::new();
+    writeln!(report, " {:<20}| {}", "Expected", "Received").unwrap();
+    writeln!(report, "{}", "-".repeat(50)).unwrap();
+    for res in results {
+        let expected = match res.expected {
+            Some(key) => key.to_string(),
+            None => "(none)".to_string(),
+        };
+        let received = match res.received {
+            Some(event) => event.to_string(),
+            None => "(none)".to_string(),
+        };
+        let status_indicator = match res.matches {
+            true => "",
+            false => "[!]",
+        };
+        
+        writeln!(report, " {:<20}| {:<20} {}", expected, received, status_indicator).unwrap();
+    }
+    report
 }
