@@ -267,6 +267,59 @@ fn test_withhold_sending_keys_for_later_hooks_2() {
 }
 
 #[test]
+fn test_withhold_breaks_on() {
+    run_test(
+        // Arguments
+        "
+        --hook btn:left  send-key=key:d
+        --hook btn:right
+        --hook key:a key:b sequential breaks-on=key::1 send-key=key:c
+        --hook key:e send-key=key:f
+        --withhold
+        ",
+        // Input
+        "
+        key:a:1 rel:x:1 key:a:0
+        key:b:1 rel:x:2 key:b:0
+        key:c:1 rel:x:3 key:c:0
+        key:e:1 rel:x:4 key:e:0
+        btn:left:1  rel:x:5 btn:left:0
+        btn:right:1 rel:x:6 btn:right:0
+
+        key:a:1 key:x:1 key:a:0 key:x:0
+        key:a:1 btn:c:1 key:a:0 btn:c:0
+        key:b:1 key:x:1 key:b:0 key:x:0
+        key:b:1 btn:c:1 key:b:0 btn:c:0
+        
+        key:a:1 btn:left:1 key:a:0 btn:left:0
+        key:a:1 btn:left:1 key:b:1 key:a:0 btn:left:0 key:b:0
+        key:a:1 btn:right:1 key:a:0 btn:right:0
+        key:a:1 btn:right:1 key:b:1 key:a:0 btn:right:0 key:b:0
+        
+        ",
+        // Output
+        "
+        rel:x:1 key:a:1 key:a:0
+        key:b:1 rel:x:2 key:b:0
+        key:c:1 rel:x:3 key:c:0
+        key:f:1 rel:x:4 key:f:0
+        key:d:1 rel:x:5 key:d:0
+        rel:x:6
+
+        key:a:1 key:x:1 key:a:0 key:x:0
+        btn:c:1 key:a:1 key:a:0 btn:c:0
+        key:b:1 key:x:1 key:b:0 key:x:0
+        key:b:1 btn:c:1 key:b:0 btn:c:0
+
+        key:a:1 key:d:1 key:a:0 key:d:0
+        key:a:1 key:d:1 key:b:1 key:a:0 key:d:0 key:b:0
+        key:a:1 key:a:0
+        key:c:1 key:c:0
+        "
+    )
+}
+
+#[test]
 fn test_withhold_for_channelless_hooks() {
     // The supposed outcome may look unintuitive, but it is the correct one because a tracker
     // of a hook is documented to deactivate when an event with a value not in the range 1~
