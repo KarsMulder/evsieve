@@ -104,7 +104,7 @@ fn test_withhold_with_breaks_on() {
     run_test(
         // Arguments
         "
-        --hook key:a key:b key:c breaks-on=key:q
+        --hook key:a key:b key:c breaks-on=key:q:1 send-key=key:w
         --withhold
         ",
         // Input
@@ -123,6 +123,7 @@ fn test_withhold_with_breaks_on() {
         "
         key:a:1 key:a:0 key:c:1 key:c:0
         key:c:1 key:c:0 key:a:1 key:a:0
+        key:w:1 key:w:0
 
         key:z:1 key:a:1 key:a:0 key:c:1 key:c:0 key:z:0
         key:a:1 key:c:1 key:q:1 key:a:0 key:c:0 key:q:0
