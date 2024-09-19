@@ -9,6 +9,7 @@ use std::i32;
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub struct Interval {
     /// The values min and max are inclusive bounds.
+    /// Always be VERY careful with + and - around these numbers. Those operations can easily overflow!
     pub min: i32,
     pub max: i32,
 }
@@ -142,6 +143,126 @@ impl Interval {
     }
 }
 
+/// Represents a subset of the interval [i32::MIN, i32::MAX].
+/// Of course any such set could be represented using 2^28 bytes of memory, but for efficiency,
+/// we represent such sets as unions of contiguous intervals, e.g. [-5, -2] U [7, 12] U [18, i32::MAX].
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct Set {
+    /// Invariants to be upheld:
+    /// 1. All intervals are disjoint.
+    /// 2. The intervals should be ordered, i.e. if i>j then `intervals[i].max < intervals[j].min``
+    intervals: Vec<Interval>,
+}
+
+impl From<Interval> for Set {
+    fn from(value: Interval) -> Self {
+        Self {
+            intervals: vec![value],
+        }
+    }
+}
+
+impl Set {
+    pub fn intersect(&self, other: &Set) -> Set {
+        let mut intervals_out = Vec::new();
+        let pair_iter = IntervalPairIterator::new(self.intervals.iter().copied(), other.intervals.iter().copied());
+
+        for (interval_1, interval_2) in pair_iter {
+            if let Some(intersection) = interval_1.intersect(&interval_2) {
+                intervals_out.push(intersection);
+            }
+        }
+        Set::from_unordered_intervals(intervals_out)
+    }
+
+    pub fn union(&self, other: &Set) -> Set {
+        let mut intervals_out = Vec::with_capacity(self.intervals.len() + other.intervals.len());
+        intervals_out.extend(self.intervals.iter().copied());
+        intervals_out.extend(other.intervals.iter().copied());
+        Set::from_unordered_intervals(intervals_out)
+    }
+
+    /// Returns the empty set.
+    pub fn empty() -> Set {
+        Set { intervals: Vec::new() }
+    }
+
+    /// Creates a Set from intervals that may or may not be ordered and may or may not be disjoint.
+    pub fn from_unordered_intervals(mut intervals: Vec<Interval>) -> Set {
+        // Sort the intervals.
+        intervals.sort_unstable_by_key(|interval| interval.max);
+
+        // Merge overlapping intervals together, e.g. [1, 5] U [3, 7] -> [1, 7]
+        let mut merged_intervals: Vec<Interval> = Vec::new();
+
+        for mut interval in intervals {
+            while let Some(last_interval) = merged_intervals.last() {
+                if last_interval.max >= interval.min.saturating_sub(1) {
+                    // Merge the last interval with the current interval.
+                    interval.min = std::cmp::min(interval.min, last_interval.min);
+                    merged_intervals.pop();
+                } else {
+                    break;
+                }
+            }
+            merged_intervals.push(interval);
+        }
+
+        Set { intervals: merged_intervals }
+    }
+}
+
+/// Generates pairs of intervals (interval_1, interval_2). Consecutively generated pairs will have exactly one
+/// interval different. The interval that differs will always be the one whose maximum value was the lowest.
+/// Unless the one with the lowest maximum value has reached end of iteration, then the other will change.
+/// 
+/// For example, if the first iterator yields [1,2], [3, 4] and the second iterator yields [2, 3], [5, 7] then
+/// the pair iterator will yield ([1, 2], [2, 3]), ([3, 4], [2, 3]), ([3, 4], [5, 7])
+struct IntervalPairIterator<T: Iterator<Item=Interval>> {
+    interval_iter_1: T,
+    interval_iter_2: T,
+    next_interval_1: Option<Interval>,
+    next_interval_2: Option<Interval>,
+}
+
+impl<T: Iterator<Item=Interval>>  IntervalPairIterator<T> {
+    fn new(interval_iter_1: impl IntoIterator<IntoIter = T>, interval_iter_2: impl IntoIterator<IntoIter = T>) -> Self {
+        let mut interval_iter_1 = interval_iter_1.into_iter();
+        let mut interval_iter_2 = interval_iter_2.into_iter();
+        let next_interval_1 = interval_iter_1.next();
+        let next_interval_2 = interval_iter_2.next();
+        Self { interval_iter_1, interval_iter_2, next_interval_1, next_interval_2 }
+    }
+}
+
+impl<T: Iterator<Item=Interval>> Iterator for IntervalPairIterator<T> {
+    type Item = (Interval, Interval);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let interval_1 = self.next_interval_1?;
+        let interval_2 = self.next_interval_2?;
+
+        // Figure out which of the two interval iterators we want to advance.
+        let (primary_iter, primary_next, secondary_iter, secondary_next) = if interval_1.max < interval_2.max {
+            (&mut self.interval_iter_1, &mut self.next_interval_1, &mut self.interval_iter_2, &mut self.next_interval_2)
+        } else {
+            (&mut self.interval_iter_2, &mut self.next_interval_2, &mut self.interval_iter_1, &mut self.next_interval_1)
+        };
+
+        // Advance the primary iterator unless it has reached the end of its iterations, in which case the secondary
+        // iterator must advance.
+        match primary_iter.next() {
+            Some(value) => *primary_next = Some(value),
+            None => match secondary_iter.next() {
+                Some(value) => *secondary_next = Some(value),
+                None => (*primary_next, *secondary_next) = (None, None),
+            }
+        }
+
+        Some((interval_1, interval_2))
+    }
+}
+
 /// Returns true if x and y differ by exactly one.
 fn is_adjacent(x: i32, y: i32) -> bool {
     // This function is written in a roundabout way to eliminate the possibility of integer overflow ocurring.
@@ -152,6 +273,71 @@ fn is_adjacent(x: i32, y: i32) -> bool {
     } else {
         false
     }
+}
+
+#[test]
+fn test_interval_iterator() {
+    assert_eq!(
+        IntervalPairIterator::new(
+            vec![Interval::new(1, 2), Interval::new(3, 4), Interval::new(5, 6), Interval::new(7, 8)],
+            vec![Interval::new(2, 3), Interval::new(5, 7), Interval::new(11, 13), Interval::new(17, 19), Interval::new(23, 29)],
+        ).collect::<Vec<_>>(),
+        vec![
+            (Interval::new(1, 2), Interval::new(2, 3)),
+            (Interval::new(3, 4), Interval::new(2, 3)),
+            (Interval::new(3, 4), Interval::new(5, 7)),
+            (Interval::new(5, 6), Interval::new(5, 7)),
+            (Interval::new(7, 8), Interval::new(5, 7)),
+            (Interval::new(7, 8), Interval::new(11, 13)),
+            (Interval::new(7, 8), Interval::new(17, 19)),
+            (Interval::new(7, 8), Interval::new(23, 29)),
+        ]
+    );
+}
+
+#[test]
+fn test_set() {
+    assert_eq!(
+        Set {
+            intervals: vec![Interval::new(1, 2), Interval::new(3, 4), Interval::new(5, 6), Interval::new(7, 8)],
+        }.intersect(&Set {
+            intervals: vec![Interval::new(2, 3), Interval::new(5, 7), Interval::new(11, 13), Interval::new(17, 19), Interval::new(23, 29)]
+        }).intervals,
+
+        vec![Interval::new(2, 3), Interval::new(5, 7)]
+    );
+
+    assert_eq!(
+        Set {
+            intervals: vec![Interval::new(i32::MIN, -5), Interval::new(11, 20), Interval::new(30, i32::MAX)],
+        }.intersect(&Set {
+            intervals: vec![Interval::new(i32::MIN, 40), Interval::new(50, 60), Interval::new(100, i32::MAX)]
+        }).intervals,
+
+        vec![Interval::new(i32::MIN, -5), Interval::new(11, 20), Interval::new(30, 40), Interval::new(50, 60), Interval::new(100, i32::MAX)]
+    );
+
+    assert_eq!(
+        Set {
+            intervals: vec![Interval::new(1, 2), Interval::new(3, 4), Interval::new(5, 6), Interval::new(7, 8)],
+        }.union(&Set {
+            intervals: vec![Interval::new(2, 3), Interval::new(5, 7), Interval::new(11, 13), Interval::new(17, 19), Interval::new(23, 29)]
+        }).intervals,
+
+        vec![Interval::new(1, 8), Interval::new(11, 13), Interval::new(17, 19), Interval::new(23, 29)]
+    );
+
+    assert_eq!(
+        Set {
+            intervals: vec![Interval::new(i32::MIN, -5), Interval::new(11, 20), Interval::new(30, i32::MAX)],
+        }.union(&Set {
+            intervals: vec![Interval::new(i32::MIN, 40), Interval::new(50, 60), Interval::new(100, i32::MAX)]
+        }).intervals,
+
+        vec![Interval::new(i32::MIN, i32::MAX)]
+    );
+
+    
 }
 
 #[test]
