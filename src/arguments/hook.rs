@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 use crate::error::{ArgumentError, InternalError, RuntimeError};
-use crate::range::Range;
+use crate::range::Interval;
 use crate::utils;
 use crate::state::{State, ToggleIndex};
 use crate::stream::hook::{Effect, Trigger, EventDispatcher};
@@ -121,9 +121,9 @@ impl EventDispatcherArg {
 
     fn add_send_key(&mut self, key: Key) {
         let mut on_press_key = key.clone();
-        on_press_key.set_value(Range::new(1, 1));
+        on_press_key.set_value(Interval::new(1, 1));
         let mut on_release_key = key;
-        on_release_key.set_value(Range::new(0, 0));
+        on_release_key.set_value(Interval::new(0, 0));
 
         self.on_press.push(on_press_key);
         self.on_release.insert(0, on_release_key);

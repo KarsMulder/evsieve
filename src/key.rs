@@ -7,7 +7,7 @@ use crate::event::{Event, EventType, EventCode, Channel, Namespace, VirtualEvent
 use crate::utils;
 use crate::error::ArgumentError;
 use crate::capability::{Capability, CapMatch};
-use crate::range::Range;
+use crate::range::Interval;
 use crate::ecodes;
 use crate::error::Context;
 
@@ -76,8 +76,8 @@ impl Key {
     /// from the value being matched upon.
     /// 
     /// The result is undefined if this key has multiple copies of a `Value` property.
-    pub fn pop_value(&mut self) -> Option<Range> {
-        let mut result: Option<Range> = None;
+    pub fn pop_value(&mut self) -> Option<Interval> {
+        let mut result: Option<Interval> = None;
         self.properties.retain(
             |&property| {
                 match property {
@@ -93,7 +93,7 @@ impl Key {
     }
 
     /// Makes this key require a certain particular value.
-    pub fn set_value(&mut self, value: Range) {
+    pub fn set_value(&mut self, value: Interval) {
         self.pop_value();
         self.properties.push(KeyProperty::Value(value));
     }
@@ -141,7 +141,7 @@ impl Key {
     }
 
     /// Removes the value/range requirement from this key and returns it separately if it existed.
-    pub fn split_value(mut self) -> (Key, Option<Range>) {
+    pub fn split_value(mut self) -> (Key, Option<Interval>) {
         let mut range_requirement = None;
         self.properties.retain(|property|
             match property {
@@ -217,8 +217,8 @@ enum KeyProperty {
     Code(EventCode),
     Domain(Domain),
     Namespace(Namespace),
-    Value(Range),
-    PreviousValue(Range),
+    Value(Interval),
+    PreviousValue(Interval),
     /// Only valid for filter keys.
     Type(EventType),
     /// Only valid for filter keys.
@@ -694,7 +694,7 @@ fn interpret_key(parts: KeyParts, parser: &KeyParser) -> Result<Key, ArgumentErr
 }
 
 /// Interprets a string like "1" or "0~1" or "5~" or "". Does not handle relative values.
-fn interpret_event_value(value_str: &str, parser: &KeyParser) -> Result<Range, ArgumentError> {
+fn interpret_event_value(value_str: &str, parser: &KeyParser) -> Result<Interval, ArgumentError> {
     if ! parser.allow_ranges && value_str.contains('~') {
         return Err(ArgumentError::new(format!("No ranges are allowed in the value \"{}\".", value_str)));
     }
@@ -713,7 +713,7 @@ fn interpret_event_value(value_str: &str, parser: &KeyParser) -> Result<Range, A
         }
     }
 
-    Ok(Range::new(min, max))
+    Ok(Interval::new(min, max))
 }
 
 /// Returns None for "", an integer for integer strings, and otherwise gives an error.
@@ -748,7 +748,7 @@ fn interpret_relative_value(value_str: &str) -> AffineParseResult {
             return AffineParseResult::Unparsable;
         };
         let value_as_i32: i32 = value.trunc() as i32;
-        AffineParseResult::IsConstant(KeyProperty::Value(Range::new(value_as_i32, value_as_i32)))
+        AffineParseResult::IsConstant(KeyProperty::Value(Interval::new(value_as_i32, value_as_i32)))
     } else {
         AffineParseResult::IsAffine(KeyProperty::AffineFactor(factor))
     }
@@ -800,7 +800,7 @@ fn unittest_intersection() {
 fn unittest_requires_range() {
     let parser = KeyParser::default_filter();
     assert!(parser.parse("abs:x").unwrap().split_value().1.is_none());
-    assert!(parser.parse("abs:x:~").unwrap().split_value().1 == Some(Range::new(None, None)));
-    assert!(parser.parse("abs:x:1").unwrap().split_value().1 == Some(Range::new(1, 1)));
-    assert!(parser.parse("abs:x:1~1").unwrap().split_value().1 == Some(Range::new(1, 1)));
+    assert!(parser.parse("abs:x:~").unwrap().split_value().1 == Some(Interval::new(None, None)));
+    assert!(parser.parse("abs:x:1").unwrap().split_value().1 == Some(Interval::new(1, 1)));
+    assert!(parser.parse("abs:x:1~1").unwrap().split_value().1 == Some(Interval::new(1, 1)));
 }

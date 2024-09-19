@@ -4,14 +4,14 @@ use crate::error::ArgumentError;
 use crate::arguments::lib::ComplexArgGroup;
 use crate::event::EventType;
 use crate::key::{Key, KeyParser};
-use crate::range::Range;
+use crate::range::Interval;
 use crate::stream::absrel::RelToAbs;
 
 /// Represents a --rel-to-abs argument.
 pub(super) struct RelToAbsArg {
     pub input_key: Key,
     pub output_key: Key,
-    pub output_range: Range,
+    pub output_range: Interval,
     pub speed: f64,
 }
 

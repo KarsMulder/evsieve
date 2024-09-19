@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 use crate::error::Context;
-use crate::range::Range;
+use crate::range::Interval;
 use crate::key::Key;
 use crate::event::{Event, Channel};
 use crate::state::State;
@@ -55,7 +55,7 @@ impl TrackerState {
 /// arguments.
 struct Tracker {
     key: Key,
-    range: Range,
+    range: Interval,
 
     /// The state is mutable at runtime. It reflects whether the key tracked by this tracker
     /// is currently pressed or not, as well as which event triggered it and when.
@@ -64,7 +64,7 @@ struct Tracker {
 
 impl Tracker {
     fn new(mut key: Key) -> Tracker {
-        let range = key.pop_value().unwrap_or_else(|| Range::new(Some(1), None));
+        let range = key.pop_value().unwrap_or_else(|| Interval::new(Some(1), None));
         Tracker {
             key,
             range,

@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use crate::{key::Key, event::{Event, Channel}, capability::{Capability, CapMatch}, range::Range};
+use crate::{key::Key, event::{Event, Channel}, capability::{Capability, CapMatch}, range::Interval};
 
 pub struct RelToAbs {
     input_key: Key,
@@ -10,7 +10,7 @@ pub struct RelToAbs {
     /// It must in particular not contain any ranges, because trying to merge a
     /// range will panic.
     output_key: Key,
-    output_range: Range,
+    output_range: Interval,
     speed: f64,
     
     // For each channel that this argument may output, keeps track of the current value it has.
@@ -18,7 +18,7 @@ pub struct RelToAbs {
 }
 
 impl RelToAbs {
-    pub fn new(input_key: Key, output_key: Key, output_range: Range, speed: f64) -> RelToAbs {
+    pub fn new(input_key: Key, output_key: Key, output_range: Interval, speed: f64) -> RelToAbs {
         RelToAbs {
             input_key, output_key, output_range, speed,
             state: HashMap::new(),

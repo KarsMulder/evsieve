@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use crate::capability::Capability;
 use crate::event::{Channel, Event, EventType};
 use crate::key::Key;
-use crate::range::Range;
+use crate::range::Interval;
 
 pub struct Scale {
     input_keys: Vec<Key>,
@@ -69,9 +69,9 @@ impl Scale {
     fn apply_to_cap(&self, cap: &Capability, output_caps: &mut Vec<Capability>) {
         match cap.code.ev_type() {
             EventType::ABS => {
-                let bound_1 = cap.value_range.min.mul_f64_round(self.factor, round_abs_value);
-                let bound_2 = cap.value_range.max.mul_f64_round(self.factor, round_abs_value);
-                let range = Range::spanned_between(bound_1, bound_2);
+                let bound_1 = mul_f64_round(cap.value_range.min, self.factor, round_abs_value);
+                let bound_2 = mul_f64_round(cap.value_range.max, self.factor, round_abs_value);
+                let range = Interval::spanned_between(bound_1, bound_2);
                 output_caps.push(cap.with_value(range));
             },
             EventType::REL => {
@@ -80,13 +80,13 @@ impl Scale {
                 // rounded up, and the lower bound must be rounded down.
                 let (max, min);
                 if self.factor < 0.0 {
-                    max = cap.value_range.min.mul_f64_round(self.factor, f64::ceil);
-                    min = cap.value_range.max.mul_f64_round(self.factor, f64::floor);
+                    max = mul_f64_round(cap.value_range.min, self.factor, f64::ceil);
+                    min = mul_f64_round(cap.value_range.max, self.factor, f64::floor);
                 } else {
-                    max = cap.value_range.max.mul_f64_round(self.factor, f64::ceil);
-                    min = cap.value_range.min.mul_f64_round(self.factor, f64::floor);
+                    max = mul_f64_round(cap.value_range.max, self.factor, f64::ceil);
+                    min = mul_f64_round(cap.value_range.min, self.factor, f64::floor);
                 }
-                let range = Range::spanned_between(max, min);
+                let range = Interval::spanned_between(max, min);
                 output_caps.push(cap.with_value(range));
             },
             _ => output_caps.push(*cap),
@@ -98,6 +98,10 @@ impl Scale {
             self.apply_to_cap(cap, output_caps);
         }
     }
+}
+
+fn mul_f64_round(value: i32, factor: f64, rounding_mode: impl Fn(f64) -> f64) -> i32 {
+    rounding_mode(value as f64 * factor) as i32
 }
 
 /// The rounding mode that is used for abs-type events.

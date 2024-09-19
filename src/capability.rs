@@ -3,7 +3,7 @@
 use std::collections::{HashMap, HashSet};
 use crate::event::{EventType, EventCode, EventValue, Namespace};
 use crate::domain::Domain;
-use crate::range::Range;
+use crate::range::Interval;
 use crate::ecodes;
 use crate::bindings::libevdev;
 
@@ -171,11 +171,11 @@ impl Capabilities {
             let abs_info = self.abs_info.get(&code);
             let (value_range, abs_meta) = match abs_info {
                 None => match code.ev_type() {
-                    EventType::KEY => (Range::new(Some(0), Some(2)), None),
-                    _ => (Range::new(None, None), None),
+                    EventType::KEY => (Interval::new(Some(0), Some(2)), None),
+                    _ => (Interval::new(None, None), None),
                 },
                 Some(info) => (
-                    Range::new(Some(info.min_value), Some(info.max_value)),
+                    Interval::new(Some(info.min_value), Some(info.max_value)),
                     Some(info.meta),
                 ),
             };
@@ -208,7 +208,7 @@ impl Capabilities {
             // that the current info is the same as that of this new capability.
             let existing_info = self.abs_info.get(&cap.code);
             let (current_range, current_meta) = match existing_info {
-                Some(info) => (Range::new(Some(info.min_value), Some(info.max_value)), info.meta),
+                Some(info) => (Interval::new(Some(info.min_value), Some(info.max_value)), info.meta),
                 None => (cap.value_range, meta),
             };
 
@@ -222,13 +222,8 @@ impl Capabilities {
                 value: new_range.bound(meta.value),
             };
 
-            // We might get an unbounded range in case we mapped some non-abs non-key event with
-            // an unknown value range.
-            if ! new_range.is_bounded() {
-                eprintln!("Warning: could not automatically derive the possible range of the absolute axis {}.", ecodes::event_name(cap.code));
-            };
-            let min_value = new_range.min.discrete_or(i32::MIN);
-            let max_value = new_range.max.discrete_or(i32::MAX);
+            let min_value = new_range.min;
+            let max_value = new_range.max;
 
             // Insert or overwrite the existing value.
             self.abs_info.insert(cap.code, AbsInfo {
@@ -331,20 +326,20 @@ pub struct Capability {
     pub code: EventCode,
     pub domain: Domain,
     pub namespace: Namespace,
-    pub value_range: Range,
+    pub value_range: Interval,
     pub abs_meta: Option<AbsMeta>,
 }
 
 impl Capability {
     /// Returns a copy of self with an universal value range, and the original range.
-    pub fn split_value(mut self) -> (Capability, Range) {
+    pub fn split_value(mut self) -> (Capability, Interval) {
         let value = self.value_range;
-        self.value_range = Range::new(None, None);
+        self.value_range = Interval::new(None, None);
         (self, value)
     }
 
     /// Returns a copy of self with the given value range.
-    pub fn with_value(mut self, range: Range) -> Capability {
+    pub fn with_value(mut self, range: Interval) -> Capability {
         self.value_range = range;
         self
     }
@@ -355,7 +350,7 @@ impl Capability {
 /// degenerate input arguments.
 pub fn aggregate_capabilities(capabilities: Vec<Capability>) -> Vec<Capability> {
     // Sort the capabilities into those which only differ by value.
-    let mut values_by_capability: HashMap<Capability, Vec<Range>> = HashMap::new();
+    let mut values_by_capability: HashMap<Capability, Vec<Interval>> = HashMap::new();
     for capability in capabilities {
         let (key, value) = capability.split_value();
         values_by_capability.entry(key).or_insert_with(Vec::new).push(value);
@@ -366,7 +361,7 @@ pub fn aggregate_capabilities(capabilities: Vec<Capability>) -> Vec<Capability> 
     for (capability, mut values) in values_by_capability {
         values.sort_by_key(|range| range.min);
         let mut values_iter = values.into_iter();
-        let mut merged_values: Vec<Range> = match values_iter.next() {
+        let mut merged_values: Vec<Interval> = match values_iter.next() {
             Some(value) => vec![value],
             None => continue,
         };

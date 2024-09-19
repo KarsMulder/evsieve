@@ -3,10 +3,12 @@
 //! This module is intended for handling affine maps, such as
 //!     --map abs:z abs:z:30-4x+d
 
+use std::i32;
+
 use crate::error::ArgumentError;
 use crate::event::Event;
 use crate::capability::Capability;
-use crate::range::{Range, ExtendedInteger};
+use crate::range::Interval;
 
 #[derive(Clone, Copy, Debug)]
 pub struct AffineFactor {
@@ -51,14 +53,14 @@ impl AffineFactor {
         ];
 
         let new_range = if IntoIterator::into_iter(possible_boundaries).any(f64::is_nan) {
-            Range::new(None, None)
+            Interval::new(None, None)
         } else {
             let lower_end = IntoIterator::into_iter(possible_boundaries).reduce(f64::min);
             let upper_end = IntoIterator::into_iter(possible_boundaries).reduce(f64::max);
     
-            Range::spanned_between(
-                to_extended_or(lower_end, ExtendedInteger::NegativeInfinity),
-                to_extended_or(upper_end, ExtendedInteger::PositiveInfinity),
+            Interval::spanned_between(
+                to_i32_or(lower_end, i32::MIN),
+                to_i32_or(upper_end, i32::MAX),
             )
         };
         
@@ -86,8 +88,8 @@ fn mul_zero(x: f64, y: f64) -> f64 {
     }
 }
 
-/// Helper function for AffineFactor::merge_cap().
-fn to_extended_or(source: Option<f64>, default: ExtendedInteger) -> ExtendedInteger {
+/// Returns the default value if the source is None or NaN. Otherwise casts the source to 32.
+fn to_i32_or(source: Option<f64>, default: i32) -> i32 {
     let source = match source {
         Some(value) => value,
         None => return default,
@@ -96,14 +98,8 @@ fn to_extended_or(source: Option<f64>, default: ExtendedInteger) -> ExtendedInte
     if source.is_nan() {
         return default;
     }
-    if source == f64::INFINITY {
-        return ExtendedInteger::PositiveInfinity;
-    }
-    if source == f64::NEG_INFINITY {
-        return ExtendedInteger::NegativeInfinity;
-    }
 
-    ExtendedInteger::Discrete(source as i32)
+    source as i32
 }
 
 struct Component {
@@ -266,32 +262,32 @@ fn unittest() {
     );
 
     assert_eq!(
-        parse_affine_factor("-d+x+1").unwrap().merge_cap(get_test_cap(Range::new(-2, 5))),
-        get_test_cap(Range::new(-8, 13)),
+        parse_affine_factor("-d+x+1").unwrap().merge_cap(get_test_cap(Interval::new(-2, 5))),
+        get_test_cap(Interval::new(-8, 13)),
     );
     assert_eq!(
-        parse_affine_factor("-d+x+1").unwrap().merge_cap(get_test_cap(Range::new(None, 5))),
-        get_test_cap(Range::new(None, None)),
+        parse_affine_factor("-d+x+1").unwrap().merge_cap(get_test_cap(Interval::new(None, 5))),
+        get_test_cap(Interval::new(None, None)),
     );
     assert_eq!(
-        parse_affine_factor("-d+x+1").unwrap().merge_cap(get_test_cap(Range::new(-2, None))),
-        get_test_cap(Range::new(None, None)),
+        parse_affine_factor("-d+x+1").unwrap().merge_cap(get_test_cap(Interval::new(-2, None))),
+        get_test_cap(Interval::new(None, None)),
     );
     assert_eq!(
-        parse_affine_factor("-x").unwrap().merge_cap(get_test_cap(Range::new(-2, 5))),
-        get_test_cap(Range::new(-5, 2)),
+        parse_affine_factor("-x").unwrap().merge_cap(get_test_cap(Interval::new(-2, 5))),
+        get_test_cap(Interval::new(-5, 2)),
     );
     assert_eq!(
-        parse_affine_factor("-x").unwrap().merge_cap(get_test_cap(Range::new(None, 7))),
-        get_test_cap(Range::new(-7, None)),
+        parse_affine_factor("-x").unwrap().merge_cap(get_test_cap(Interval::new(None, 7))),
+        get_test_cap(Interval::new(-7, None)),
     );
     assert_eq!(
-        parse_affine_factor("8").unwrap().merge_cap(get_test_cap(Range::new(-2, 5))),
-        get_test_cap(Range::new(8, 8)),
+        parse_affine_factor("8").unwrap().merge_cap(get_test_cap(Interval::new(-2, 5))),
+        get_test_cap(Interval::new(8, 8)),
     );
     assert_eq!(
-        parse_affine_factor("8").unwrap().merge_cap(get_test_cap(Range::new(None, None))),
-        get_test_cap(Range::new(8, 8)),
+        parse_affine_factor("8").unwrap().merge_cap(get_test_cap(Interval::new(None, None))),
+        get_test_cap(Interval::new(8, 8)),
     );
     
 
