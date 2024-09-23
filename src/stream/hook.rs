@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 use crate::error::Context;
-use crate::range::Interval;
+use crate::range::{Interval, Set};
 use crate::key::Key;
 use crate::event::{Event, Channel};
 use crate::state::State;
 use crate::subprocess;
 use crate::loopback;
 use crate::loopback::LoopbackHandle;
-use crate::capability::{Capability, CapMatch};
+use crate::capability::{Capability, Certainty};
 use crate::time::Duration;
 use std::collections::HashSet;
 
@@ -471,7 +471,7 @@ impl EventDispatcher {
     /// Like generate_additional_caps(), but also copies the input caps to the output.
     /// Needt to know which trigger is associated with this actuator to properly guess the caps.
     pub fn apply_to_all_caps(&self, trigger: &Trigger, caps: &[Capability], caps_out: &mut Vec<Capability>) {
-        caps_out.extend(caps);
+        caps_out.extend(caps.iter().cloned());
         self.generate_additional_caps(trigger, caps, caps_out);
     }
 
@@ -486,17 +486,27 @@ impl EventDispatcher {
         // TODO: MEDIUM-PRIORITY reduce this implementation to a special case of Map.
 
         for cap_in in caps {
-            let matches_cap = keys.iter()
-                .map(|key| key.matches_cap(cap_in)).max();
-            match matches_cap {
-                Some(CapMatch::Yes | CapMatch::Maybe) => {},
-                Some(CapMatch::No) | None => continue,
-            };
+            // Find the values of this capability that might match any of the keys associated with the hook.
+            let potentially_matching_values = keys.iter()
+                .map(|key| key.matches_cap(cap_in))
+                .fold(Set::empty(), |accumulator, (certainty, values)| {
+                    // A compile-time assertion to make sure that these are the only two kinds of certainties
+                    // that exist. Just in case I might add something like Certainty::Never later, which would
+                    // break this function.
+                    match certainty { Certainty::Always | Certainty::Maybe => () };
+
+                    accumulator.union(&values)
+                });
+            
+            if potentially_matching_values.is_empty() {
+                continue;
+            }
+            let potentially_matching_cap = cap_in.clone().with_values(potentially_matching_values);
 
             let EventDispatcher { on_press, on_release, activating_event: _ } = self;
             let additional_events = on_press.iter().chain(on_release);
             additional_caps.extend(additional_events.map(
-                |key| key.merge_cap(*cap_in)
+                |key| key.merge_cap(potentially_matching_cap.clone())
             ));
         }
 

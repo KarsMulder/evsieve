@@ -67,30 +67,34 @@ impl Scale {
     }
 
     fn apply_to_cap(&self, cap: &Capability, output_caps: &mut Vec<Capability>) {
-        match cap.code.ev_type() {
-            EventType::ABS => {
-                let bound_1 = mul_f64_round(cap.value_range.min, self.factor, round_abs_value);
-                let bound_2 = mul_f64_round(cap.value_range.max, self.factor, round_abs_value);
-                let range = Interval::spanned_between(bound_1, bound_2);
-                output_caps.push(cap.with_value(range));
-            },
-            EventType::REL => {
-                // Depending on the value of the residual, (factor*value) can always be rounded
-                // either up or downwards. This means that the upper bound of the range must be
-                // rounded up, and the lower bound must be rounded down.
-                let (max, min);
-                if self.factor < 0.0 {
-                    max = mul_f64_round(cap.value_range.min, self.factor, f64::ceil);
-                    min = mul_f64_round(cap.value_range.max, self.factor, f64::floor);
-                } else {
-                    max = mul_f64_round(cap.value_range.max, self.factor, f64::ceil);
-                    min = mul_f64_round(cap.value_range.min, self.factor, f64::floor);
-                }
-                let range = Interval::spanned_between(max, min);
-                output_caps.push(cap.with_value(range));
-            },
-            _ => output_caps.push(*cap),
-        }
+        let output_cap = cap.map_values(|set| set.map(|interval| {
+            match cap.code.ev_type() {
+                EventType::ABS => {
+                    let bound_1 = mul_f64_round(interval.min, self.factor, round_abs_value);
+                    let bound_2 = mul_f64_round(interval.max, self.factor, round_abs_value);
+                    let interval_out = Interval::spanned_between(bound_1, bound_2);
+                    Some(interval_out)
+                },
+                EventType::REL => {
+                    // Depending on the value of the residual, (factor*value) can always be rounded
+                    // either up or downwards. This means that the upper bound of the range must be
+                    // rounded up, and the lower bound must be rounded down.
+                    let (max, min);
+                    if self.factor < 0.0 {
+                        max = mul_f64_round(interval.min, self.factor, f64::ceil);
+                        min = mul_f64_round(interval.max, self.factor, f64::floor);
+                    } else {
+                        max = mul_f64_round(interval.max, self.factor, f64::ceil);
+                        min = mul_f64_round(interval.min, self.factor, f64::floor);
+                    }
+                    let interval_out = Interval::spanned_between(max, min);
+                    Some(interval_out)
+                },
+                _ => Some(interval),
+            }
+        }));
+
+        output_caps.push(output_cap);
     }
 
     pub fn apply_to_all_caps(&self, caps: &[Capability], output_caps: &mut Vec<Capability>) {

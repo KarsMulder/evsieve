@@ -352,5 +352,8 @@ pub fn run_caps(stream: &[StreamEntry], capabilities: Vec<Capability>) -> Vec<Ca
         }
     }
 
-    caps
+    // Finally aggregate the capabilities once more. Although it shouldn't be strictly necessary,
+    // this does make everything a bit more sensible and therefore might prevent unknown bugs
+    // from actually triggering.
+    crate::capability::aggregate_capabilities(caps)
 }

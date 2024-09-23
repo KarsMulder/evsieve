@@ -429,13 +429,13 @@ fn capabilites_by_device(capabilities: &[Capability], pre_devices: &[PreOutputDe
         -> HashMap<Domain, Capabilities>
 {
     let mut capability_map: HashMap<Domain, Capabilities> = HashMap::new();
-    for capability in capabilities.iter().copied() {
+    for capability in capabilities {
         if capability.namespace != Namespace::Output {
             continue;
         }
 
         let domain_capabilities = capability_map.entry(capability.domain).or_insert_with(Capabilities::new);
-        domain_capabilities.add_capability(capability);
+        domain_capabilities.add_capability(capability.clone());
     }
 
     for device in pre_devices {

@@ -2,7 +2,10 @@
 
 use std::collections::HashMap;
 
-use crate::{key::Key, event::{Event, Channel}, capability::{Capability, CapMatch}, range::Interval};
+use crate::key::Key;
+use crate::event::{Event, Channel};
+use crate::capability::{Capability, Certainty};
+use crate::range::{Interval, Set};
 
 pub struct RelToAbs {
     input_key: Key,
@@ -58,25 +61,36 @@ impl RelToAbs {
         }
     }
 
-    fn apply_to_cap(&self, cap: Capability, output_caps: &mut Vec<Capability>) {
+    fn apply_to_cap(&self, cap: &Capability, output_caps: &mut Vec<Capability>) {
         // Compute the merged cap, though we are not writing it to the output caps yet.
-        let mut merged_cap = self.output_key.merge_cap(cap);
-        merged_cap.value_range = self.output_range;
+        
 
-        match self.input_key.matches_cap(&cap) {
-            CapMatch::Yes => output_caps.push(merged_cap),
-            CapMatch::No => output_caps.push(cap),
-            CapMatch::Maybe => {
-                output_caps.push(cap);
-                output_caps.push(merged_cap);
-            }
+        let (match_certainty, matching_values) = self.input_key.matches_cap(&cap);
+        let potentially_nonmatching_values = match match_certainty {
+            Certainty::Maybe => cap.values.clone(),
+            Certainty::Always => cap.values.setminus(&matching_values),
+        };
+        let potentially_nonmatching_cap = cap.clone().with_values(potentially_nonmatching_values);
+    
+        if !matching_values.is_empty() {
+            let mut merged_cap = self.output_key.merge_cap(cap.clone());
+
+            // Important: usually merge_cap will return an empty capability if matching_values() is
+            // empty. However, since we manually overwrite values here, it is important to check that
+            // the matching values are nonempty.
+            merged_cap.values = Set::from(self.output_range);
+            output_caps.push(merged_cap)
+        }
+
+        if !potentially_nonmatching_cap.values.is_empty() {
+            output_caps.push(potentially_nonmatching_cap);
         }
     }
 
     /// Analogue of Map::apply_to_all_caps().
     pub fn apply_to_all_caps(&self, caps: &[Capability], output_caps: &mut Vec<Capability>) {
         for cap in caps {
-            self.apply_to_cap(*cap, output_caps);
+            self.apply_to_cap(cap, output_caps);
         }
     }
 }

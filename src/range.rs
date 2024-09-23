@@ -146,11 +146,11 @@ impl Interval {
 /// Represents a subset of the interval [i32::MIN, i32::MAX].
 /// Of course any such set could be represented using 2^28 bytes of memory, but for efficiency,
 /// we represent such sets as unions of contiguous intervals, e.g. [-5, -2] U [7, 12] U [18, i32::MAX].
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct Set {
     /// Invariants to be upheld:
     /// 1. All intervals are disjoint.
-    /// 2. The intervals should be ordered, i.e. if i>j then `intervals[i].max < intervals[j].min``
+    /// 2. The intervals should be ordered, i.e. if i<j then `intervals[i].max < intervals[j].min``
     intervals: Vec<Interval>,
 }
 
@@ -182,9 +182,75 @@ impl Set {
         Set::from_unordered_intervals(intervals_out)
     }
 
+    /// Returns [i32::MIN, i32::MAX] \ self.
+    pub fn complement(&self) -> Set {
+
+        let (Some(first_interval), Some(last_interval)) = (self.intervals.first(), self.intervals.last()) else {
+            // If first() and last() return None, then the intervals vector is empty, which means that this
+            // is the empty set and the complement is the universe set [i32::MIN, i32::MAX].
+            return Set {
+                intervals: vec![Interval::new(i32::MIN, i32::MAX)]
+            }
+        };
+
+        let mut result = Vec::new();
+
+        if first_interval.min > i32::MIN {
+            // first_interval.min has been checked to be greater than i32::MIN, therefore we should be able to
+            // subtract one from it.
+            result.push(Interval::new(i32::MIN, first_interval.min.checked_sub(1).unwrap()));
+        }
+        for interval_pair in self.intervals.windows(2) {
+            let [interval_a, interval_b] = interval_pair else {
+                panic!("slice::windows(2) did return a window that did not contain two elements.")
+            };
+
+            if interval_b.min > interval_a.max.saturating_add(1) {
+                result.push(Interval::new(
+                    // Adding and subtracting should be fine because if either of those additions/subtractions would overflow,
+                    // the condition interval_b.min > interval_a.max+1 couldn't be true.
+                    interval_a.max.checked_add(1).unwrap(),
+                    interval_b.min.checked_sub(1).unwrap()
+                ));
+            }
+        }
+        if last_interval.max < i32::MAX {
+            result.push(Interval::new(last_interval.max.checked_add(1).unwrap(), i32::MAX));
+        }
+
+
+        Set { intervals: result }
+    }
+
+    /// In mathematical notation, computes self \ other.
+    pub fn setminus(&self, other: &Set) -> Set {
+        self.intersect(&other.complement())
+    }
+
+    // Returns an interval that contains all values in this set.
+    // Returns None if this is the empty set.
+    pub fn spanning_interval(&self) -> Option<Interval> {
+        if let (Some(first), Some(last)) = (self.intervals.first(), self.intervals.last()) {
+            Some(Interval::new(first.min, last.max))
+        } else {
+            None
+        }
+    }
+
     /// Returns the empty set.
     pub fn empty() -> Set {
         Set { intervals: Vec::new() }
+    }
+
+    /// Tells you whether this is the empty set.
+    pub fn is_empty(&self) -> bool {
+        self.intervals.is_empty()
+    }
+
+    /// Applies a function to each interval in this set. That function may return zero or more intervals.
+    /// Returns the set that is the union of all returned intervals.
+    pub fn map<T: IntoIterator<Item=Interval>>(&self, function: impl Fn(Interval) -> T) -> Set {
+        Set::from_unordered_intervals(self.intervals.iter().copied().flat_map(function).collect())
     }
 
     /// Creates a Set from intervals that may or may not be ordered and may or may not be disjoint.

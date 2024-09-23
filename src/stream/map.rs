@@ -3,7 +3,7 @@
 use crate::key::Key;
 use crate::event::{Event, Namespace};
 use crate::domain::Domain;
-use crate::capability::{Capability, CapMatch};
+use crate::capability::{Capability, Certainty};
 use crate::error::InternalError;
 use crate::state::{State, ToggleIndex};
 
@@ -56,33 +56,35 @@ impl Map {
 
     /// An analogue for apply() but with capabilities instead of events.
     fn apply_cap(&self, cap: Capability, output_caps: &mut Vec<Capability>) {
-        let matches_cap = self.input_key.matches_cap(&cap);
+        let (match_certainty, matching_values) = self.input_key.matches_cap(&cap);
 
-        // An iterator of the caps we would add if we matched. Do not actually add them yet.
+        // The capability of the event values that might match the filter key.
+        let matchable_cap = cap.clone().with_values(matching_values);
+
+        // Create the capability with all values that might not match the filter key.
+        let potentially_nonmatching_values = cap.values.setminus(&matchable_cap.values);
+        let potentially_nonmatching_cap = match match_certainty {
+            Certainty::Maybe => cap,
+            Certainty::Always => cap.with_values(potentially_nonmatching_values),
+        };
+
+        // An iterator of the caps we would add if we matched.
         let generated_caps = self.output_keys.iter().map(
-            |key| key.merge_cap(cap)
-        );
+            |key| key.merge_cap(matchable_cap.clone())
+        ).filter(|cap| !cap.values.is_empty());
         
-        // Depending on whether or not we match, we should add the generated capabilities
-        // and preserve/remove self from the stream.
-        match matches_cap {
-            CapMatch::Yes => {
-                output_caps.extend(generated_caps);
-            },
-            CapMatch::Maybe => {
-                output_caps.push(cap);
-                output_caps.extend(generated_caps);
-            },
-            CapMatch::No => {
-                output_caps.push(cap);
-            },
+        // Add all potential capabilities to the output capabilities vector.
+        if !potentially_nonmatching_cap.values.is_empty() {
+            output_caps.push(potentially_nonmatching_cap);
         }
+        output_caps.extend(generated_caps);
     }
 
     /// Like apply_to_all(), but for capabilities.
+    /// TODO (Low Priority): consider making caps a `impl IntoIterator<Item=Capability>` and calling it with caps.drain(..)
     pub fn apply_to_all_caps(&self, caps: &[Capability], output_caps: &mut Vec<Capability>) {
-        for &cap in caps {
-            self.apply_cap(cap, output_caps);
+        for cap in caps {
+            self.apply_cap(cap.clone(), output_caps);
         }
     }
 }

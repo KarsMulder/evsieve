@@ -10,6 +10,9 @@ use crate::event::Event;
 use crate::capability::Capability;
 use crate::range::Interval;
 
+#[cfg(test)]
+use crate::range::Set;
+
 #[derive(Clone, Copy, Debug)]
 pub struct AffineFactor {
     absolute: f64,
@@ -33,39 +36,42 @@ impl AffineFactor {
         event
     }
 
-    pub fn merge_cap(&self, mut cap: Capability) -> Capability {
-        let min: f64 = cap.value_range.min.into();
-        let max: f64 = cap.value_range.max.into();
-
-        let trunc_boundaries = (
-            (mul_zero(min, self.absolute) + self.addition).trunc(),
-            (mul_zero(max, self.absolute) + self.addition).trunc(),
-        );
-
-        let relative_span = mul_zero(self.relative, max-min);
-
-        // In case the relative factor is nonzero and the range is unbounded
-        // on one end, then the following list will contain NaNs. In that case,
-        // the range of events is everything.
-        let possible_boundaries: [f64; 4] = [
-            trunc_boundaries.0 - relative_span, trunc_boundaries.0 + relative_span,
-            trunc_boundaries.1 - relative_span, trunc_boundaries.1 + relative_span,
-        ];
-
-        let new_range = if IntoIterator::into_iter(possible_boundaries).any(f64::is_nan) {
-            Interval::new(None, None)
-        } else {
-            let lower_end = IntoIterator::into_iter(possible_boundaries).reduce(f64::min);
-            let upper_end = IntoIterator::into_iter(possible_boundaries).reduce(f64::max);
+    pub fn merge_cap(&self, cap: Capability) -> Capability {
+        let new_values = cap.values.map(|interval| {
+            let min: f64 = interval.min.into();
+            let max: f64 = interval.max.into();
     
-            Interval::spanned_between(
-                to_i32_or(lower_end, i32::MIN),
-                to_i32_or(upper_end, i32::MAX),
-            )
-        };
+            let trunc_boundaries = (
+                (mul_zero(min, self.absolute) + self.addition).trunc(),
+                (mul_zero(max, self.absolute) + self.addition).trunc(),
+            );
+    
+            let relative_span = mul_zero(self.relative, max-min);
+    
+            // In case the relative factor is nonzero and the range is unbounded
+            // on one end, then the following list will contain NaNs. In that case,
+            // the range of events is everything.
+            let possible_boundaries: [f64; 4] = [
+                trunc_boundaries.0 - relative_span, trunc_boundaries.0 + relative_span,
+                trunc_boundaries.1 - relative_span, trunc_boundaries.1 + relative_span,
+            ];
+    
+            let new_interval = if IntoIterator::into_iter(possible_boundaries).any(f64::is_nan) {
+                Interval::new(None, None)
+            } else {
+                let lower_end = IntoIterator::into_iter(possible_boundaries).reduce(f64::min);
+                let upper_end = IntoIterator::into_iter(possible_boundaries).reduce(f64::max);
         
-        cap.value_range = new_range;
-        cap
+                Interval::spanned_between(
+                    to_i32_or(lower_end, i32::MIN),
+                    to_i32_or(upper_end, i32::MAX),
+                )
+            };
+
+            Some(new_interval)
+        });
+
+        cap.with_values(new_values)
     }
 
     /// Returns Some(value) if this factor can be seen as a simple constant.
@@ -230,7 +236,7 @@ fn unittest() {
         namespace: crate::event::Namespace::User,
     };
     let get_test_cap = |value_range| crate::capability::Capability {
-        domain, value_range,
+        domain, values: Set::from(value_range),
         code: crate::event::EventCode::new(crate::event::EventType::new(1), 1),
         namespace: crate::event::Namespace::User,
         abs_meta: None,

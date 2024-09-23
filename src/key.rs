@@ -6,8 +6,8 @@ use crate::domain::Domain;
 use crate::event::{Event, EventType, EventCode, Channel, Namespace, VirtualEventType};
 use crate::utils;
 use crate::error::ArgumentError;
-use crate::capability::{Capability, CapMatch};
-use crate::range::Interval;
+use crate::capability::{Certainty, Capability};
+use crate::range::{Interval, Set};
 use crate::ecodes;
 use crate::error::Context;
 
@@ -51,10 +51,24 @@ impl Key {
         self.properties.iter().all(|prop| prop.matches_channel(channel))
     }
 
-    /// Returns Yes if this key will guaranteedly match any event said Capability might emit,
-    /// returns No if it cannot possibly match any such event, and otherwise Maybe.
-    pub fn matches_cap(&self, cap: &Capability) -> CapMatch {
-        self.properties.iter().map(|prop| prop.matches_cap(cap)).min().unwrap_or(CapMatch::Yes)
+    /// Tells you which set of values might possibly match this key, along with how certain we are that
+    /// they match this key. Certainty::Always means that those values will always match this key.
+    /// Certainty::Maybe means that those values may or may not match this key, but any other values will
+    /// definitively not match this key.
+    /// 
+    /// TODO (Medium Priority): Consider making this return a Capability instead. It might seriously
+    /// reduce the amount of .clone() calls required.
+    pub fn matches_cap(&self, cap: &Capability) -> (Certainty, Set) {
+        let mut certainty = Certainty::Always;
+        let mut matching_values = cap.values.clone();
+
+        for property in &self.properties {
+            let (property_match_certainty, property_matching_values) = property.matches_cap(cap);
+            certainty = std::cmp::min(certainty, property_match_certainty);
+            matching_values = matching_values.intersect(&property_matching_values);
+        }
+
+        (certainty, matching_values)
     }
 
     pub fn merge(&self, mut event: Event) -> Event {
@@ -295,23 +309,27 @@ impl KeyProperty {
         event
     }
 
-    pub fn matches_cap(&self, cap: &Capability) -> CapMatch {
+    pub fn matches_cap(&self, cap: &Capability) -> (Certainty, Set) {
+        // Matches the whole capability if a certain condition is true, or nothing
+        // if a certain condition is false.
+        let all_or_nothing = |is_all| if is_all {
+            (Certainty::Always, cap.values.clone())
+        } else {
+            (Certainty::Always, Set::empty())
+        };
+
         match *self {
-            KeyProperty::Code(value) => (cap.code == value).into(),
-            KeyProperty::Domain(value) => (cap.domain == value).into(),
-            KeyProperty::Type(value) => (cap.code.ev_type() == value).into(),
-            KeyProperty::VirtualType(value) => (cap.code.virtual_ev_type() == value).into(),
-            KeyProperty::Namespace(value) => (cap.namespace == value).into(),
+            KeyProperty::Code(code) => all_or_nothing(cap.code == code),
+            KeyProperty::Domain(domain) => all_or_nothing(cap.domain == domain),
+            KeyProperty::Type(ev_type) => all_or_nothing(cap.code.ev_type() == ev_type),
+            KeyProperty::VirtualType(virtual_type) => all_or_nothing(cap.code.virtual_ev_type() == virtual_type),
+            KeyProperty::Namespace(namespace) => all_or_nothing(cap.namespace == namespace),
             KeyProperty::Value(range) => {
-                if cap.value_range.is_subset_of(&range) {
-                    CapMatch::Yes
-                } else if range.is_disjoint_with(&cap.value_range) {
-                    CapMatch::No
-                } else {
-                    CapMatch::Maybe
-                }
+                (Certainty::Always, Set::from(range).intersect(&cap.values))
             },
-            KeyProperty::PreviousValue(_range) => CapMatch::Maybe,
+            KeyProperty::PreviousValue(_range) => {
+                (Certainty::Maybe, cap.values.clone())
+            },
             KeyProperty::AffineFactor(_) => {
                 panic!("Internal invariant violated: cannot filter events based on relative values.");
             },
@@ -323,7 +341,9 @@ impl KeyProperty {
             KeyProperty::Code(value) => cap.code = value,
             KeyProperty::Domain(value) => cap.domain = value,
             KeyProperty::Namespace(value) => cap.namespace = value,
-            KeyProperty::Value(range) => cap.value_range = range.bound_range(&cap.value_range),
+            KeyProperty::Value(range) => cap.values = cap.values.map(
+                |cap_range| Some(range.bound_range(&cap_range))
+            ),
             KeyProperty::PreviousValue(_range) => {},
             KeyProperty::AffineFactor(factor) => cap = factor.merge_cap(cap),
             KeyProperty::Type(_) | KeyProperty::VirtualType(_) => {

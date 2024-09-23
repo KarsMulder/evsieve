@@ -3,7 +3,7 @@
 use std::collections::{HashMap, HashSet};
 use crate::event::{EventType, EventCode, EventValue, Namespace};
 use crate::domain::Domain;
-use crate::range::Interval;
+use crate::range::{Interval, Set};
 use crate::ecodes;
 use crate::bindings::libevdev;
 
@@ -24,34 +24,32 @@ pub type InputCapabilites = HashMap<Domain, Capabilities>;
 /// some test may return "Maybe" and we need to hedge our bets against both matching and
 /// not matching.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum CapMatch {
-    Yes,
-    No,
+pub enum Certainty {
+    Always,
     Maybe,
 }
-use CapMatch::{Yes, No, Maybe};
+use Certainty::{Always, Maybe};
 
-impl PartialOrd for CapMatch {
+impl PartialOrd for Certainty {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(Ord::cmp(self, other))
     }
 }
 
-impl Ord for CapMatch {
+impl Ord for Certainty {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        let self_val  = match self  {Yes => 2, Maybe => 1, No => 0};
-        let other_val = match other {Yes => 2, Maybe => 1, No => 0};
+        let self_val  = match self  {Always => 2, Maybe => 1};
+        let other_val = match other {Always => 2, Maybe => 1};
         self_val.cmp(&other_val)
     }
 }
 
-impl From<bool> for CapMatch {
-    fn from(src: bool) -> Self {
-        match src {
-            true => CapMatch::Yes,
-            false => CapMatch::No,
-        }
-    }
+#[test]
+fn test_certainty_ord() {
+    assert!(Certainty::Always > Certainty::Maybe);
+    assert!(Certainty::Maybe < Certainty::Always);
+    assert!(std::cmp::max(Certainty::Always, Certainty::Maybe) == Certainty::Always);
+    assert!(std::cmp::min(Certainty::Always, Certainty::Maybe) == Certainty::Maybe);
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -186,12 +184,15 @@ impl Capabilities {
             if code.ev_type().is_rep() {
                 None
             } else {
-                Some(Capability { code, domain, value_range, abs_meta, namespace })
+                Some(Capability { code, domain, values: Set::from(value_range), abs_meta, namespace })
             }
         }).collect()
     }
 
     pub fn add_capability(&mut self, cap: Capability) {
+        if cap.values.is_empty() {
+            return;
+        }
         self.codes.insert(cap.code);
 
         // For events of type EV_ABS, an accompanying AbsInfo is required.
@@ -207,13 +208,14 @@ impl Capabilities {
             // should merge this capability with that one. Otherwise, for code simplicity we assume
             // that the current info is the same as that of this new capability.
             let existing_info = self.abs_info.get(&cap.code);
+            let cap_range = cap.values.spanning_interval().expect("Internal error: a capability can assume a nonempty set of values, yet its spanning range is empty. This is a bug.");
             let (current_range, current_meta) = match existing_info {
                 Some(info) => (Interval::new(Some(info.min_value), Some(info.max_value)), info.meta),
-                None => (cap.value_range, meta),
+                None => (cap_range, meta),
             };
 
             // Merge the current info with this capability.
-            let new_range = current_range.merge(&cap.value_range);
+            let new_range = current_range.merge(&cap_range);
             let new_meta = AbsMeta {
                 // Merging is hard. I don't know whether min or max is most appropriate for these.
                 flat: std::cmp::min(current_meta.flat, meta.flat),
@@ -321,63 +323,68 @@ impl Capabilities {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct Capability {
     pub code: EventCode,
     pub domain: Domain,
     pub namespace: Namespace,
-    pub value_range: Interval,
+    pub values: Set,
     pub abs_meta: Option<AbsMeta>,
 }
 
 impl Capability {
     /// Returns a copy of self with an universal value range, and the original range.
-    pub fn split_value(mut self) -> (Capability, Interval) {
-        let value = self.value_range;
-        self.value_range = Interval::new(None, None);
+    pub fn split_values(mut self) -> (Capability, Set) {
+        let value = self.values;
+        self.values = Set::empty();
         (self, value)
     }
 
     /// Returns a copy of self with the given value range.
-    pub fn with_value(mut self, range: Interval) -> Capability {
-        self.value_range = range;
+    pub fn with_values(mut self, values: Set) -> Capability {
+        self.values = values;
         self
+    }
+
+    /// Returns the same capability with a different set of values.
+    pub fn map_values(&self, map: impl Fn(&Set) -> Set) -> Capability {
+        Capability {
+            code: self.code,
+            domain: self.domain,
+            namespace: self.namespace,
+            values: map(&self.values),
+            abs_meta: self.abs_meta,
+        }
     }
 }
 
 /// Tries to simplify a vec of capabilites by merging similar capabilities (those that differ
-/// only in value) together. This avoids a worst-case scenario of exponential complexity for some
-/// degenerate input arguments.
+/// only in value) together. Also dumps all empty capabilities.
 pub fn aggregate_capabilities(capabilities: Vec<Capability>) -> Vec<Capability> {
-    // Sort the capabilities into those which only differ by value.
-    let mut values_by_capability: HashMap<Capability, Vec<Interval>> = HashMap::new();
+    // Sort the capabilities into those which only differ by value. If two capabilities differ
+    // only by their values, perform a setunion on their values.
+    let mut values_by_capability: HashMap<Capability, Set> = HashMap::new();
     for capability in capabilities {
-        let (key, value) = capability.split_value();
-        values_by_capability.entry(key).or_insert_with(Vec::new).push(value);
-    }
-
-    // Try to merge the values.
-    let mut results: Vec<Capability> = Vec::new();
-    for (capability, mut values) in values_by_capability {
-        values.sort_by_key(|range| range.min);
-        let mut values_iter = values.into_iter();
-        let mut merged_values: Vec<Interval> = match values_iter.next() {
-            Some(value) => vec![value],
-            None => continue,
-        };
-        for value in values_iter {
-            let last_value = merged_values.last_mut().unwrap();
-            match value.try_union(last_value) {
-                Some(union_value) => *last_value = union_value,
-                None => merged_values.push(value),
-            }
-        }
-        for value in merged_values {
-            results.push(capability.with_value(value));
+        let (key, values) = capability.split_values();
+        let entry = values_by_capability.entry(key);
+        match entry {
+            std::collections::hash_map::Entry::Vacant(vacant_entry) => {
+                vacant_entry.insert(values);
+            },
+            std::collections::hash_map::Entry::Occupied(occupied_entry) => {
+                let recorded_values = occupied_entry.into_mut();
+                *recorded_values = recorded_values.union(&values);
+            },
         }
     }
 
-    results
+    // Turn the HashMap back into a vector.
+    let mut result: Vec<Capability> = Vec::new();
+    for (key, values) in values_by_capability {
+        result.push(key.with_values(values));
+    }
+
+    result
 }
 
 /// Given an InputCapabilites, generates a vector that contains every discrete capability that can be
