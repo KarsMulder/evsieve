@@ -25,15 +25,11 @@ impl ScaleArg {
         )?;
 
         // Parse the keys.
-        let keys_str = if arg_group.keys.is_empty() {
-            vec!["abs".to_owned(), "rel".to_owned()]
-        } else {
-            arg_group.keys.clone()
-        };
-
+        let keys_str = arg_group.get_keys_or_empty_key();
         let mut parser = KeyParser::default_filter();
-        // TODO (High Priority): consider what to do about the type whitelist not banning blanket
-        // keys like "".
+        // IMPORTANT: the blanket keys like "" are also accepted by type_whitelist. This is intentional and allows
+        // stuff like "--scale @foo factor=2" without more obnoxious stuff. --scale only applies to events of type
+        // abs or rel, even in case of blanket keys like "".
         parser.type_whitelist = Some(vec![EventType::REL, EventType::ABS]);
         let input_keys = parser.parse_all(&keys_str)?;
 
