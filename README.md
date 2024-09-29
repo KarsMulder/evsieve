@@ -979,7 +979,7 @@ Any event that may trigger one of the consecutively preceding hooks will be remo
 For example, let's say you want to intercept the combinations Ctrl+A and Ctrl+B. Consider the following script:
 
 ```
-evsieve --input /dev/input/by-id/my-keyboard \
+evsieve --input /dev/input/by-id/my-keyboard grab \
         --hook key:leftctrl key:a exec-shell="echo Pressed Ctrl+A" \
         --hook key:leftctrl key:b exec-shell="echo Pressed Ctrl+B" \
         --withhold \
@@ -996,7 +996,7 @@ This leads to the unintended side effect of making it impossible to type key com
 The following script comes much closer to the intended effect:
 
 ```
-evsieve --input /dev/input/by-id/my-keyboard \
+evsieve --input /dev/input/by-id/my-keyboard grab \
         --hook key:leftctrl key:a exec-shell="echo Pressed Ctrl+A" sequential \
         --hook key:leftctrl key:b exec-shell="echo Pressed Ctrl+B" sequential \
         --withhold key:a key:b \
@@ -1012,7 +1012,7 @@ Although it is not necessary in this case, the `--hook period=...` clause is als
 Important to note is that the `--withhold` argument applies to all consecutive preceding hooks. So in the above example, the `--withhold` argument will withold potential combinations for both the preceding hooks. However, in the following script, the `--withhold` argument will not withhold the C or D keys, because there is a non-hook argument between them and the `--withhold` argument:
 
 ```
-evsieve --input /dev/input/by-id/my-keyboard \
+evsieve --input /dev/input/by-id/my-keyboard grab \
         --hook key:leftctrl key:c exec-shell="echo Pressed Ctrl+C" sequential \
         --hook key:leftctrl key:d exec-shell="echo Pressed Ctrl+D" sequential \
         --map  key:x key:y \
