@@ -110,7 +110,40 @@ fn mul_f64_round(value: i32, factor: f64, rounding_mode: impl Fn(f64) -> f64) ->
 
 /// The rounding mode that is used for abs-type events.
 fn round_abs_value(value: f64) -> f64 {
-    value.round()
+    // A simple value.round() is unacceptable because it rounds away from zero, which could cause an unnatural
+    // move in the axis for example in --scale factor=0.5:
+    //
+    // In:  -5  -4  -3  -2  -1  0  1  2  3  4  5
+    // Out: -3  -2  -2  -1  -1  0  1  1  2  2  3
+    //
+    // Notice how the number 0 shows up a single time, whereas the other numbers show up twice.
+    // There are two common types of ranges for axes encounted in the wild: [0, (2^n)-1] and [-x, x]
+    // Ideally, we would use a rounding mode that accomodates both.
+    //
+    // In the latter case would be ideally served if the range of what maps to 0 is as big as possible.
+    // That would be trunc(), but trunc() is just as ridiculous as round(), just in the different direction.
+    //
+    // The former case, it is fine for 0 to be an edge case that is only met if the input stick touches
+    // the absolute edge of the original range. It would also be nice that if a range of [0, 127] after
+    // being halved became [0, 63] while [0, 128] becomes [0, 64] after being halved.
+    //
+    // With the above considerations in mind, I have decided the ideal rounding algorithm to be:
+    // Rounds as usual for everyithing that is not 0.5 away from an integer. If it is exactly 0.5 away
+    // from an integer, rounds down.
+
+
+    // Using == for comparison with float looks strange, but is absolutely correct here. There is only
+    // exactly one floating point value that the fractional could take that makes round() return an
+    // undesirable value. If fract() were 0.500000000001 or 0.4999999999, then round() would do what
+    // it is supposed to do.
+    //
+    // Also, negative numbers have negative `fract()`s, so this implicitly checks that `value > 0`. For
+    // negative values, .round() already rounds down anyway.
+    let mut res = value.round();
+    if value.fract() == 0.5 {
+        res -= 1.0;
+    }
+    res
 }
 fn map_abs_value(value: i32, factor: f64) -> i32 {
     round_abs_value((value as f64) * factor) as i32

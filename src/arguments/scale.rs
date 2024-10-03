@@ -10,11 +10,13 @@ use super::lib::ComplexArgGroup;
 /// Represents a --scale argument.
 pub(super) struct ScaleArg {
 	pub input_keys: Vec<Key>,
-    // TODO (High Priority): shouldn't this be a rational?
+    
+    // I have deemed it acceptable for this to be a f64 based on some reasons: (1) maps use f64 too, (2) common fractions
+    // that users want to be exact such as x0.5, x0.25 and such can be represented as float, (3) using a custom Rational
+    // type would also cause errors when a decimal number such as 0.33333333333333 gets converted to Rational.
     pub factor: f64,
 }
 
-// TODO (High Priority): figure out how (and with which rounding modes) we want --scale to apply to EV_ABS-type events.
 impl ScaleArg {
 	pub fn parse(args: Vec<String>) -> Result<ScaleArg, RuntimeError> {
         let arg_group = ComplexArgGroup::parse(args,
