@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+use std::sync::OnceLock;
+
 use crate::event::EventValue;
 pub struct HidPage {
     pub id: u16,
@@ -28,26 +30,43 @@ pub enum UsageNames {
     Known { page_name: &'static str, usage_name: &'static str },
 }
 
-lazy_static! {
-    pub static ref HID_PAGES: Vec<HidPage> = super::hid_usage_parser::load_tables_and_print_error().unwrap_or_default();
+pub enum UsagePagesState {
+    /// The user either doesn't have the necessary packages installed, or we failed to load the pages.
+    NotAvailable,
+    /// The HID usage pages were found
+    Available(Vec<HidPage>),
 }
 
-/// Assumes that a scancode is composed of a HID usage page and a HID usage value as defined by the
-/// USB specification. Tries to look up the names of the usage page and usage value.
-pub fn get_usage_from_scancode(scancode: EventValue) -> UsageInfo {
-    let scancode_u32 = scancode as u32;
-    let page_id: u16 = ((scancode_u32 & 0xffff0000) >> 16) as u16;
-    let usage_id: u16 = (scancode_u32 & 0x0000ffff) as u16;
+pub static HID_PAGES: OnceLock<UsagePagesState> = OnceLock::new();
 
-    match HID_PAGES.binary_search_by_key(&page_id, |page| page.id) {
-        Err(_) => UsageInfo { page_id, usage_id, names: UsageNames::Unknown },
-        Ok(page_idx) => {
-            let page = &HID_PAGES[page_idx];
-            match page.usages.binary_search_by_key(&usage_id, |usage| usage.id) {
-                Err(_) => UsageInfo { page_id, usage_id, names: UsageNames::PageKnown { page_name: &page.name } },
-                Ok(usage_idx) => {
-                    let usage = &page.usages[usage_idx];
-                    UsageInfo { page_id, usage_id, names: UsageNames::Known { page_name: &page.name, usage_name: &usage.name} }
+/// Declares that we may need the HID pages some time in the future, and we should already start loading them
+/// so we don't possibly hit the hard drive later, slowing down event processing.
+pub fn preload_hid_pages() {
+    HID_PAGES.get_or_init(|| super::hid_usage_parser::load_tables_and_print_error());
+}
+
+impl UsagePagesState {
+    /// Assumes that a scancode is composed of a HID usage page and a HID usage value as defined by the
+    /// USB specification. Tries to look up the names of the usage page and usage value.
+    /// 
+    /// Returns None if the usage pages have not been loaded.
+    pub fn get_usage_from_scancode(&'static self, scancode: EventValue) -> Option<UsageInfo> {
+        let scancode_u32 = scancode as u32;
+        let page_id: u16 = ((scancode_u32 & 0xffff0000) >> 16) as u16;
+        let usage_id: u16 = (scancode_u32 & 0x0000ffff) as u16;
+
+        let UsagePagesState::Available(pages) = self else { return None };
+
+        match pages.binary_search_by_key(&page_id, |page| page.id) {
+            Err(_) => Some(UsageInfo { page_id, usage_id, names: UsageNames::Unknown }),
+            Ok(page_idx) => {
+                let page = &pages[page_idx];
+                match page.usages.binary_search_by_key(&usage_id, |usage| usage.id) {
+                    Err(_) => Some(UsageInfo { page_id, usage_id, names: UsageNames::PageKnown { page_name: &page.name } }),
+                    Ok(usage_idx) => {
+                        let usage = &page.usages[usage_idx];
+                        Some(UsageInfo { page_id, usage_id, names: UsageNames::Known { page_name: &page.name, usage_name: &usage.name} })
+                    }
                 }
             }
         }

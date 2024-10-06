@@ -5,7 +5,7 @@ use std::io::{BufRead, BufReader};
 
 use crate::error::{Context, SystemError};
 
-use super::hid_usage::{HidPage, HidUsage};
+use super::hid_usage::{HidPage, HidUsage, UsagePagesState};
 
 enum LoadTablesResult {
     Ok(Vec<HidPage>),
@@ -19,21 +19,23 @@ enum LoadTablesResult {
 }
 
 // Loads the USB HID usage tables, and if it fails, prints a suitable error message to stderr.
-pub fn load_tables_and_print_error() -> Option<Vec<HidPage>> {
+pub fn load_tables_and_print_error() -> UsagePagesState {
     match load_tables() {
-        LoadTablesResult::Ok(tables) => Some(tables),
+        LoadTablesResult::Ok(tables) => UsagePagesState::Available(tables),
         LoadTablesResult::IoError { path, err } => {
             SystemError::from(err).with_context(format!("While trying to load the USB HID usage descriptions from {}:", path))
                 .print_err();
-            None
+            UsagePagesState::NotAvailable
         },
         LoadTablesResult::NotFound => {
-            eprintln!("Evsieve cannot find any tables containing USB HID usage descriptions on your system. On most Linux distributions, those tables are contained in a package called \"hwdata\". If you have already installed that package and still encounter this message, please file a bug report at and mention which distribution you use.");
-            None
+            // If no tables were found, then the user probably doesn't have the correct package installed.
+            // It is not necessary to print a warning in this case.
+            // eprintln!("Evsieve cannot find any tables containing USB HID usage descriptions on your system. On most Linux distributions, those tables are contained in a package called \"hwdata\". If you have already installed that package and still encounter this message, please file a bug report at and mention which distribution you use.");
+            UsagePagesState::NotAvailable
         },
         LoadTablesResult::Empty { path } => {
             eprintln!("Evsieve tried to read the USB HID usage descriptions from {}, but didn't find any usage descriptions in that file. Either the HID descriptions are not contained in that file, or the file has an unexpected file format. Please file a bug report at https://github.com/KarsMulder/evsieve/issues and mention which distribution you use.", path);
-            None
+            UsagePagesState::NotAvailable
         },        
     }
 }

@@ -145,6 +145,7 @@ fn round_abs_value(value: f64) -> f64 {
     }
     res
 }
+
 fn map_abs_value(value: i32, factor: f64) -> i32 {
     round_abs_value((value as f64) * factor) as i32
 }

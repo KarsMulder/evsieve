@@ -340,7 +340,11 @@ pub fn run_caps(stream: &[StreamEntry], capabilities: Vec<Capability>) -> Vec<Ca
                 caps.clear();
                 std::mem::swap(&mut caps, &mut buffer);
             },
-            StreamEntry::Print(_) => (),
+            StreamEntry::Print(print) => {
+                // A --print never changes the capabilities, but may need to load some extra
+                // data from the disk depending on which capabilities it needs to print.
+                print.observe_caps(&caps);
+            },
             StreamEntry::Delay(_) => (),
         }
 

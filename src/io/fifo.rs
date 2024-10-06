@@ -18,7 +18,12 @@ struct OwnedPath(PathBuf);
 /// Represents a path that we may or may not own. If we own it, the file at the path will be removed
 /// when this structure goes out of scope.
 enum MaybeOwnedPath {
+    // allow(unused) is enabled because otherwise the linter complains about the paths never being used,
+    // even though they are implicitly used because their destructors will be ran when MaybeOwnedPath goes
+    // out of scope.
+    #[allow(unused)]
     Owned(OwnedPath),
+    #[allow(unused)]
     NotOwned(PathBuf),
 }
 

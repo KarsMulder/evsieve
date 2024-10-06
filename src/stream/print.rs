@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+use crate::capability::Capability;
 use crate::data::hid_usage::UsageNames;
 use crate::key::Key;
 use crate::event::{Event, EventCode, EventType, EventValue};
@@ -36,19 +37,25 @@ impl EventPrinter {
             self.apply(event);
         }
     }
+
+    pub fn observe_caps(&self, caps: &[Capability]) {
+        // If this --print may need to print any event of code msc:scan, then we try to load the
+        // scancodes that may be provided by a third-party crate.
+        if caps.iter().any(|cap| cap.code == EventCode::MSC_SCAN) {
+            crate::data::hid_usage::preload_hid_pages();
+        }
+    }
 }
 
 /// Given the value of a msc:scan event, tries to interpret the value according to the USB HID usage tables.
-fn format_hidinfo(value: EventValue) -> String {
-    let info = crate::data::hid_usage::get_usage_from_scancode(value);
-
-    let usage_names = match info.names {
-        UsageNames::Unknown => "".to_owned(),
-        UsageNames::PageKnown { page_name } => format!("; {}", page_name),
-        UsageNames::Known { page_name, usage_name } => format!("; {} / {}", page_name, usage_name),
-    };
-
-    format!("(HID usage page 0x{:02x} id 0x{:02x}{})", info.page_id, info.usage_id, usage_names)
+fn format_hidinfo(value: EventValue) -> Option<String> {
+    let pages = crate::data::hid_usage::HID_PAGES.get()?;
+    let info = pages.get_usage_from_scancode(value)?;
+    if let UsageNames::Known { page_name, usage_name } = info.names {
+        Some(format!(" ({}/{})", page_name, usage_name))
+    } else {
+        None
+    }
 }
 
 pub fn print_event_detailed(event: Event) -> String {
@@ -60,15 +67,18 @@ pub fn print_event_detailed(event: Event) -> String {
             2 => "2 (repeat)".to_string(),
             _ => format!("{}", event.value),
         },
+        EventType::MSC if event.code == EventCode::MSC_SCAN => {
+            match format_hidinfo(event.value) {
+                Some(info) => format!("{}{}", event.value, info),
+                None => format!("{}", event.value),
+            }
+        },
         _ => format!("{}", event.value),
     };
     let mut result = format!("Event:  type:code = {:<13}  value = {}", name, value_str);
 
     if let Some(domain_name) = domain::try_reverse_resolve(event.domain) {
-        result = format!("{:<53}  domain = {}", result, domain_name);
-    }
-    if event.code == EventCode::MSC_SCAN {
-        result = format!("{:<80}  {}", result, format_hidinfo(event.value));
+        result = format!("{:<80}  domain = {}", result, domain_name);
     }
 
     result
