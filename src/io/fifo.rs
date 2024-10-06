@@ -232,7 +232,6 @@ fn try_open_fifo(path: &str) -> TryOpenFifoResult {
         return TryOpenFifoResult::NonFifoFileEncountered;
     }
 
-    // TODO (feature control-fifo): The presence of a control FIFO should keep evsieve from exiting by inactivity.
     // Check if the FIFO is owned by root or the user evsieve is running as.
     let my_uid = unsafe { libc::geteuid() };
     let is_running_as_root = my_uid == 0;

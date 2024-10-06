@@ -453,7 +453,7 @@ fn has_no_activity(epoll: &Epoll<Pollable>) -> bool {
         match file {
             Pollable::InputDevice(_) => return false,
             Pollable::PersistSubsystem(_) => return false,
-            Pollable::ControlFifo(_) => (),
+            Pollable::ControlFifo(_) => return false,
             Pollable::SignalFd(_) => (),
         }
     }
