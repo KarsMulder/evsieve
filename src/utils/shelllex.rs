@@ -137,15 +137,17 @@ pub fn lex(input: &str) -> Result<Vec<String>, ArgumentError> {
 
                 // TODO: Expand the following list.
                 let mapped_char = match character {
-                    'n' => '\n',
-                    't' => '\t',
+                    'n'  => '\n',
+                    'r'  => '\r',
+                    't'  => '\t',
                     '\\' => '\\',
                     '\'' => '\'',
+                    '`'  => '`',
                     '\"' => '\"',
-                    '#' => '#',
-                    '*' => '*',
-                    '?' => '?',
-                    ' ' => ' ',
+                    '#'  => '#',
+                    '*'  => '*',
+                    '?'  => '?',
+                    ' '  => ' ',
                     _ => return Err(ArgumentError::new(format!(
                         "Unknown escape sequence encountered: \\{}", character
                     ))),
