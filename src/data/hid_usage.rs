@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use std::sync::OnceLock;
-
 use crate::event::EventValue;
 pub struct HidPage {
     pub id: u16,
@@ -37,12 +35,14 @@ pub enum UsagePagesState {
     Available(Vec<HidPage>),
 }
 
-pub static HID_PAGES: OnceLock<UsagePagesState> = OnceLock::new();
+lazy_static! {
+    pub static ref HID_PAGES: UsagePagesState = super::hid_usage_parser::load_tables_and_print_error();
+}
 
 /// Declares that we may need the HID pages some time in the future, and we should already start loading them
 /// so we don't possibly hit the hard drive later, slowing down event processing.
 pub fn preload_hid_pages() {
-    HID_PAGES.get_or_init(|| super::hid_usage_parser::load_tables_and_print_error());
+    lazy_static::initialize(&HID_PAGES);
 }
 
 impl UsagePagesState {

@@ -49,7 +49,7 @@ impl EventPrinter {
 
 /// Given the value of a msc:scan event, tries to interpret the value according to the USB HID usage tables.
 fn format_hidinfo(value: EventValue) -> Option<String> {
-    let pages = crate::data::hid_usage::HID_PAGES.get()?;
+    let pages = &crate::data::hid_usage::HID_PAGES;
     let info = pages.get_usage_from_scancode(value)?;
     if let UsageNames::Known { page_name, usage_name } = info.names {
         Some(format!(" ({}/{})", page_name, usage_name))
