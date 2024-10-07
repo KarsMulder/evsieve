@@ -185,11 +185,14 @@ impl Set {
     /// Returns [i32::MIN, i32::MAX] \ self.
     pub fn complement(&self) -> Set {
 
-        let (Some(first_interval), Some(last_interval)) = (self.intervals.first(), self.intervals.last()) else {
-            // If first() and last() return None, then the intervals vector is empty, which means that this
-            // is the empty set and the complement is the universe set [i32::MIN, i32::MAX].
-            return Set {
-                intervals: vec![Interval::new(i32::MIN, i32::MAX)]
+        let (first_interval, last_interval) = match (self.intervals.first(), self.intervals.last()) {
+            (Some(first), Some(last)) => (first, last),
+            _ =>  {
+                // If first() and last() return None, then the intervals vector is empty, which means that this
+                // is the empty set and the complement is the universe set [i32::MIN, i32::MAX].
+                return Set {
+                    intervals: vec![Interval::new(i32::MIN, i32::MAX)]
+                }
             }
         };
 
@@ -201,8 +204,9 @@ impl Set {
             result.push(Interval::new(i32::MIN, first_interval.min.checked_sub(1).unwrap()));
         }
         for interval_pair in self.intervals.windows(2) {
-            let [interval_a, interval_b] = interval_pair else {
-                panic!("slice::windows(2) did return a window that did not contain two elements.")
+            let [interval_a, interval_b] = match interval_pair {
+                [a, b] => [a, b],
+                _ => panic!("slice::windows(2) did return a window that did not contain two elements."),
             };
 
             if interval_b.min > interval_a.max.saturating_add(1) {

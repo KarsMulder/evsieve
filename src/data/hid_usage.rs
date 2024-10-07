@@ -55,7 +55,10 @@ impl UsagePagesState {
         let page_id: u16 = ((scancode_u32 & 0xffff0000) >> 16) as u16;
         let usage_id: u16 = (scancode_u32 & 0x0000ffff) as u16;
 
-        let UsagePagesState::Available(pages) = self else { return None };
+        let pages = match self {
+            UsagePagesState::Available(pages) => pages,
+            UsagePagesState::NotAvailable => return None,
+        };
 
         match pages.binary_search_by_key(&page_id, |page| page.id) {
             Err(_) => Some(UsageInfo { page_id, usage_id, names: UsageNames::Unknown }),
