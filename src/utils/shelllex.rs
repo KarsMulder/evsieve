@@ -94,7 +94,7 @@ pub fn lex(input: &str) -> Result<Vec<String>, ArgumentError> {
                             QuoteMark::try_from(character).unwrap()
                         ));
                     },
-                    _ if character.is_whitespace() => {
+                    _ if character.is_ascii_whitespace() => {
                         finalize_token(&mut tokens, &mut next_token);
                     },
                     _ => {
