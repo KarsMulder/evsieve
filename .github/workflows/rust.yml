@@ -16,6 +16,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: Install dependencies
+      run: sudo apt install cargo libevdev2 libevdev-dev
     - name: Build
       run: cargo build --verbose
     - name: Run tests
