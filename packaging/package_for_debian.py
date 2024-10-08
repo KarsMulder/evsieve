@@ -4,6 +4,7 @@ import os
 import sys
 import shutil
 import subprocess as sp
+import shlex
 
 # Move the CWD to the root folder of the evsieve project.
 git_root = os.path.dirname(os.path.dirname(__file__))
@@ -34,7 +35,7 @@ package_root = os.path.join(git_root, "target", "package", "build", "deb")
 package_dest = os.path.join(git_root, "target", "package", "evsieve.deb")
 if os.path.exists(package_root):
     shutil.rmtree(package_root)
-if os.path.exist(package_dest):
+if os.path.exists(package_dest):
     os.remove(package_dest)
 os.makedirs(package_root)
 
@@ -50,7 +51,7 @@ control_src_path = os.path.join(git_root, "packaging", "debian", "control")
 os.makedirs(debian_path)
 
 
-current_architecture = "amd64" #sp.check_output(["dpkg", "--check-architecture"]).decode("utf-8").strip()
+current_architecture = sp.check_output(["dpkg", "--check-architecture"]).decode("utf-8").strip()
 evsieve_version = sp.check_output([executable_path, "--version"]).decode("utf-8").strip()
 
 ruststd_package = "libstd-rust-dev"
@@ -71,7 +72,9 @@ Built-Using: {ruststd_package} (= {ruststd_version})
 with open(control_path, "wt") as file:
     file.write(control_info)
 
-sp.run(["dpkg-deb", "--build", os.path.abspath(package_root), os.path.abspath(package_dest)])
+sp.run(["dpkg-deb", "--build", os.path.abspath(package_root), os.path.abspath(package_dest)]).check_returncode()
+print(f"A .deb package file has been generated in: {package_dest}")
+print(f"To install it, run: sudo dpkg -i {shlex.quote(package_dest)}")
 
 # TODO: Include license files in the generated package. Without the license files, it is legal
 # to build and use the package, but not to distribute it.
