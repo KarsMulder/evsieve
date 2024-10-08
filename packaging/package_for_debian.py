@@ -51,7 +51,7 @@ control_src_path = os.path.join(git_root, "packaging", "debian", "control")
 os.makedirs(debian_path)
 
 
-current_architecture = sp.check_output(["dpkg", "--check-architecture"]).decode("utf-8").strip()
+current_architecture = sp.check_output(["dpkg", "--print-architecture"]).decode("utf-8").strip()
 evsieve_version = sp.check_output([executable_path, "--version"]).decode("utf-8").strip()
 
 ruststd_package = "libstd-rust-dev"
