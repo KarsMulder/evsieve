@@ -3,6 +3,7 @@ import os
 import sys
 import subprocess as sp
 import typing
+import shutil
 
 git_root = os.path.dirname(os.path.dirname(__file__))
 

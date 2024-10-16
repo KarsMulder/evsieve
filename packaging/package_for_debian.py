@@ -25,7 +25,7 @@ if os.path.exists(package_dest):
     os.remove(package_dest)
 os.makedirs(package_root)
 
-install_evsieve(package_root)
+libpkg.install_evsieve(package_root)
 
 # Set up the necessary meta-information that .deb packages require
 debian_path = os.path.join(package_root, "DEBIAN")
