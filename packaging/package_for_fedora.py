@@ -17,8 +17,8 @@ libpkg.require_programs(["cargo", "rustc", "rpmbuild", "uname"])
 libpkg.compile_evsieve()
 
 # Set up the package structure
-rpm_root     = os.path.join(git_root, "target", "package", "rpm")
-package_root = os.path.join(git_root, "target", "package", "rpm", "SOURCES", "evsieve")
+rpm_root     = os.path.join(git_root, "target", "package", "rpmbuild")
+package_root = os.path.join(git_root, "target", "package", "rpmbuild", "SOURCES", "evsieve")
 package_dest = os.path.join(git_root, "target", "package", "evsieve.rpm")
 if os.path.exists(package_root):
     shutil.rmtree(package_root)
@@ -26,7 +26,7 @@ if os.path.exists(package_dest):
     os.remove(package_dest)
 os.makedirs(package_root)
 
-install_evsieve(package_root)
+libpkg.install_evsieve(package_root)
 
 # Set up the necessary meta-information that .deb packages require
 current_architecture = sp.check_output(["uname", "-m"]).decode("utf-8").strip()
@@ -36,10 +36,11 @@ evsieve_version = libpkg.evsieve_version()
 # ruststd_package = "libstd-rust-dev"
 # ruststd_version = sp.check_output(["dpkg-query", "--showformat=${Version}", "--show", ruststd_package]).decode("utf-8").strip()
 
-
-spec_info = f"""Name: evsieve
+program_name = "evsieve"
+release_number = 1
+spec_info = f"""Name: {program_name}
 Version: {evsieve_version}
-Release: 1
+Release: {release_number}
 Summary: A utility for mapping events from Linux event devices
 BuildArch: {current_architecture}
 Source0: %{{name}}
@@ -54,10 +55,10 @@ Evsieve (from "event sieve") is a low-level utility that can read events from Li
 %build
 
 %install
-install -D -m 755 -o root -g root %{{SOURCE0}}usr/bin/evsieve ${{RPM_BUILD_ROOT}}%{{_bindir}}/evsieve
+install -D -m 755 %{{SOURCE0}}/usr/bin/evsieve ${{RPM_BUILD_ROOT}}/%{{_bindir}}/evsieve
 
 %files
-usr/bin/evsieve
+/usr/bin/evsieve
 """
 
 spec_path = os.path.join(rpm_root, "evsieve.spec")
@@ -66,10 +67,22 @@ with open(spec_path, "wt") as file:
 
 # Compile the package
 os.chdir(rpm_root)
-sp.run(["rpmbuild", "-bb", spec_path]).check_returncode()
+sp.run(["rpmbuild", "--define", f"_topdir {os.path.realpath(rpm_root)}", "-bb", spec_path]).check_returncode()
+
+# Find the generated package
+# target/package/rpmbuild/RPMS/x86_64/evsieve-1.4.0-1.x86_64.rpm
+imputed_package_name = f"{program_name}-{evsieve_version}-{release_number}.{current_architecture}.rpm"
+imputed_package_path = os.path.join(rpm_root, "RPMS", current_architecture, imputed_package_name)
+desired_package_path = os.path.join(git_root, "target", imputed_package_name)
+if os.path.exists(imputed_package_path):
+    if os.path.exists(desired_package_path):
+        os.unlink(desired_package_path)
+    shutil.copy(imputed_package_path, desired_package_path)
+    print(f"A .rpm package has been generated in: {desired_package_path}")
+    print(f"To install it, run: sudo dnf install {shlex.quote(desired_package_path)}")
+else:
+    print(f"Error: an RPM package appears to have been generated, but not at the location we expected the package to be placed. It was expected to be at \"{imputed_package_path}\". Maybe you can find it somewhere near that place?")
+    exit(1)
 
 # TODO: Include license files in the generated package.
 
-# TODO: print the path to the created package
-# print(f"A .deb package file has been generated in: {package_dest}")
-# print(f"To install it, run: sudo dpkg -i {shlex.quote(package_dest)}")

@@ -18,7 +18,7 @@ def require_programs(required_software: typing.List[str]):
         if not has_program(program):
             missing_software.append(program)
     if missing_software:
-        print("The following programs are required to compile and build a .deb package, but were not found in the PATH:", ", ".join(missing_software), file=sys.stderr)
+        print("The following programs are required to compile and build a package, but were not found in the PATH:", ", ".join(missing_software), file=sys.stderr)
         exit(1)
 
 executable_name = "evsieve"
