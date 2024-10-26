@@ -263,20 +263,11 @@ fn print_security_warning() {
 
 impl LineRead for Fifo {
     /// Returns all lines that are ready for this Fifo.
-    /// The lines shall not end at a \n character.
+    /// The returned lines shall not end at a \n character.
     /// This function returns all lines that are available and shall not return any more lines
-    /// until the epoll says that it ise ready again.
+    /// until the epoll says that it is ready again.
     fn read_lines(&mut self) -> Result<Vec<String>, std::io::Error> {
-        let lines = self.reader.read_lines()?;
-
-        if ! self.reader.get_buffered_data().is_empty() {
-            // TODO: FEATURE(control-fifo) this blatantly assumes that the Fifo is used as command fifo.
-            // TODO: FEATURE(control-fifo) Also, this somehow does not work. Figure out why.
-            let partial_command = String::from_utf8_lossy(self.reader.get_buffered_data());
-            eprintln!("Error: received a command \"{}\" that was not terminated by a newline character. All commands must be terminated by newline characters.", partial_command);
-        }
-
-        Ok(lines)
+        self.reader.read_lines()
     }
 }
 
