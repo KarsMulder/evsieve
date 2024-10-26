@@ -35,7 +35,6 @@ const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 
 /// Returns the help message that should be printed for the --help argument.
 fn get_usage_msg() -> String {
-    let mut result =
 "Usage: evsieve [--input PATH... [domain=DOMAIN] [grab[=auto|force]] [persist=none|reopen|exit]]...
                [--map SOURCE [DEST...] [yield]]...
                [--copy SOURCE [DEST...] [yield]]...
@@ -47,16 +46,10 @@ fn get_usage_msg() -> String {
                [--merge [EVENTS...]]...
                [--scale [EVENTS...] factor=FACTOR]...
                [--config PATH...]...
+               [--control-fifo PATH...]...
                [--print [EVENTS...] [format=default|direct]]...
                [--delay [EVENTS...] period=SECONDS]...
-               [--output [EVENTS...] [create-link=PATH] [name=NAME] [device-id=VENDOR:PRODUCT] [bus=BUS] [version=VERSION] [repeat[=MODE]]]...".to_owned();
-
-    if cfg!(feature = "control-fifo") {
-        result += "
-               [--control-fifo PATH...]..."
-    }              
-
-    result
+               [--output [EVENTS...] [create-link=PATH] [name=NAME] [device-id=VENDOR:PRODUCT] [bus=BUS] [version=VERSION] [repeat[=MODE]]]...".to_owned()
 }
 
 /// Represents all arguments an user may pass to the evsieve program, except for
@@ -105,13 +98,7 @@ impl Argument {
             "--scale" => Ok(Argument::ScaleArg(ScaleArg::parse(args)?)),
             "--withhold" => Ok(Argument::WithholdArg(WithholdArg::parse(args)?)),
             "--rel-to-abs" => Ok(Argument::RelToAbsArg(RelToAbsArg::parse(args)?)),
-            "--control-fifo" => {
-                if cfg!(feature = "control-fifo") {
-                    Ok(Argument::ControlFifoArg(ControlFifoArg::parse(args)?))
-                } else {
-                    Err(ArgumentError::new("The --control-fifo argument is not stabilized yet. This version of evsieve was compiled without support for --control-fifo.").into())
-                }
-            },
+            "--control-fifo" => Ok(Argument::ControlFifoArg(ControlFifoArg::parse(args)?)),
             _ => Err(ArgumentError::new(format!("Encountered unknown argument: {}", first_arg)).into()),
         }
     }
