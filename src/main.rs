@@ -105,7 +105,7 @@ use io::output::UInputSystem;
 use persist::interface::HostInterfaceState;
 use stream::Setup;
 use signal::{SigMask, SignalFd};
-use control_fifo::ControlFifo;
+use control_fifo::{CommandInfo, ControlFifo};
 
 use crate::error::SystemError;
 use crate::event::EventCode;
@@ -330,8 +330,10 @@ fn handle_ready_file(program: &mut Program, index: FileIndex) -> Result<Action, 
                 || format!("While polling commands from {}:", fifo.path()),
             )?;
             for command in commands {
-                command.execute(&mut program.setup)
-                    .with_context("While executing a command:")
+                let CommandInfo { original_line, action } = command;
+
+                action.execute(&mut program.setup)
+                    .with_context_of(|| format!("While executing the command \"{}\":", original_line))
                     .print_err();
             }
 

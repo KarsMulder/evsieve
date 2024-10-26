@@ -23,14 +23,17 @@ impl ControlFifo {
     /// IMPORTANT: this function should never return ArgumentError, because then the fifo would
     /// get closed in case the user provides an incorrect command. Only return SystemError to
     /// signal that something is wrong with the underlying file.
-    pub fn poll(&mut self) -> Result<Vec<Command>, SystemError> {
+    pub fn poll(&mut self) -> Result<Vec<CommandInfo>, SystemError> {
         let lines = self.source.read_lines()?;
         let commands = lines.into_iter()
             .filter(|line| !line.is_empty())
             .filter_map(|line| match parse_command(&line) {
-                Ok(effect) => Some(effect),
+                Ok(effect) => Some(CommandInfo {
+                    original_line: line,
+                    action: effect
+                }),
                 Err(error) => {
-                    error.with_context(format!("While parsing the command {}:", line)).print_err();
+                    error.with_context(format!("While parsing the command \"{}\":", line)).print_err();
                     None
                 }
             }
@@ -41,6 +44,13 @@ impl ControlFifo {
     pub fn path(&self) -> &str {
         &self.path
     }
+}
+
+pub struct CommandInfo {
+    /// The literal text that was received through a control FIFO. Useful for reporting errors.
+    pub original_line: String,
+    /// The interpretation of what original_line tells us to do.
+    pub action: Command,
 }
 
 pub enum Command {
@@ -71,7 +81,6 @@ impl Command {
     pub fn execute<T>(self, setup: &mut Setup<T>) -> Result<(), ArgumentError> {
         match self {
             Command::Toggle(action) => {
-                // TODO: FEATURE(control-fifo) More helpful error.
                 let effects = action.implement(setup.state(), setup.toggle_indices())?;
                 for effect in effects {
                     effect(setup.state_mut());
