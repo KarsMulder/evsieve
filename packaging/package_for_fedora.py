@@ -19,14 +19,29 @@ libpkg.compile_evsieve()
 # Set up the package structure
 rpm_root     = os.path.join(git_root, "target", "package", "rpmbuild")
 package_root = os.path.join(git_root, "target", "package", "rpmbuild", "SOURCES", "evsieve")
+pkgbuild_root= os.path.join(git_root, "target", "package", "rpmbuild", "BUILD")
 package_dest = os.path.join(git_root, "target", "package", "evsieve.rpm")
-if os.path.exists(package_root):
-    shutil.rmtree(package_root)
+for directory in [package_root, pkgbuild_root]:
+    if os.path.exists(directory):
+        shutil.rmtree(directory)
 if os.path.exists(package_dest):
     os.remove(package_dest)
 os.makedirs(package_root)
 
 libpkg.install_evsieve(package_root)
+
+# Set up the licenses in this package structure.
+program_name = "evsieve"
+prototype_license_dir = pkgbuild_root
+os.makedirs(prototype_license_dir)
+
+for license_file in ["COPYING", "LICENSE", "licenses"]:
+    source = os.path.join(git_root, license_file)
+    dest = os.path.join(prototype_license_dir, license_file)
+    if os.path.isdir(source):
+        shutil.copytree(source, dest)
+    else:
+        shutil.copyfile(source, dest)
 
 # Set up the necessary meta-information that .deb packages require
 current_architecture = sp.check_output(["uname", "-m"]).decode("utf-8").strip()
@@ -36,7 +51,6 @@ evsieve_version = libpkg.evsieve_version()
 # ruststd_package = "libstd-rust-dev"
 # ruststd_version = sp.check_output(["dpkg-query", "--showformat=${Version}", "--show", ruststd_package]).decode("utf-8").strip()
 
-program_name = "evsieve"
 release_number = 1
 spec_info = f"""Name: {program_name}
 Version: {evsieve_version}
@@ -55,10 +69,13 @@ Evsieve (from "event sieve") is a low-level utility that can read events from Li
 %build
 
 %install
-install -D -m 755 %{{SOURCE0}}/usr/bin/evsieve ${{RPM_BUILD_ROOT}}/%{{_bindir}}/evsieve
+install -Dm 755 %{{SOURCE0}}/usr/bin/evsieve ${{RPM_BUILD_ROOT}}/%{{_bindir}}/evsieve
 
 %files
-/usr/bin/evsieve
+%{{_bindir}}/evsieve
+%license COPYING
+%license LICENSE
+%license licenses
 """
 
 spec_path = os.path.join(rpm_root, "evsieve.spec")
@@ -83,6 +100,4 @@ if os.path.exists(imputed_package_path):
 else:
     print(f"Error: an RPM package appears to have been generated, but not at the location we expected the package to be placed. It was expected to be at \"{imputed_package_path}\". Maybe you can find it somewhere near that place?")
     exit(1)
-
-# TODO: Include license files in the generated package.
 
