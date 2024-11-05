@@ -2,3 +2,4 @@
 /local
 /data/HidUsageTables.json
 .vscode
+__pycache__
