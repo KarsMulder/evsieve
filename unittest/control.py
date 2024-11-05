@@ -6,8 +6,12 @@ import evdev.ecodes as e
 import os
 import subprocess as sp
 import time
+import argparse
 
-EVSIEVE_PATH = "target/debug/evsieve"
+parser = argparse.ArgumentParser()
+parser.add_argument("--binary", help="The evsieve binary to be tested", action='store', type=str, nargs='?', default="target/debug/evsieve")
+args = parser.parse_args()
+EVSIEVE_PATH = args.binary
 
 TEST_DEVICE_PATH_IN = "/dev/input/by-id/unittest-control-in"
 TEST_DEVICE_PATH_OUT = "/dev/input/by-id/unittest-control-out"

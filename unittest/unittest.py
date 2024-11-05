@@ -8,7 +8,13 @@ import os
 import subprocess as sp
 import time
 
-EVSIEVE_PROGRAM = ["target/debug/evsieve"]
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--binary", help="The evsieve binary to be tested", action='store', type=str, nargs='?', default="target/debug/evsieve")
+args = parser.parse_args()
+EVSIEVE_PATH = args.binary
+EVSIEVE_PROGRAM = [EVSIEVE_PATH]
 
 # Pass a delay to a input list of run_unittest to signify that it should wait a bit before
 # sending the next events.
@@ -1732,6 +1738,7 @@ def unittest_withhold_repeat():
         },
         expected_output = num_repeats * "something\n"
     )
+
 
 unittest_mirror()
 unittest_syn()

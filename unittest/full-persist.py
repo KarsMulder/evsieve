@@ -8,9 +8,12 @@ import subprocess as sp
 import time
 import shutil
 import typing
+import argparse
 
-# The evsieve binary that we will test.
-EVSIEVE_PATH = "target/debug/evsieve"
+parser = argparse.ArgumentParser()
+parser.add_argument("--binary", help="The evsieve binary to be tested", action='store', type=str, nargs='?', default="target/debug/evsieve")
+args = parser.parse_args()
+EVSIEVE_PATH = args.binary
 
 # Where we intend to put links to devices we use for this test.
 TEST_DEVICE_PATH_IN_1 = "/dev/input/by-id/unittest-persist-in-1"
@@ -236,3 +239,4 @@ assert(has_matching_capabilities(test_device_alpha))
 stop_evsieve()
 start_evsieve(TEST_DEVICE_PATH_IN_2)
 assert(has_matching_capabilities(test_device_gamma))
+stop_evsieve()

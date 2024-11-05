@@ -7,8 +7,14 @@ from typing import *
 import os
 import subprocess as sp
 import time
+import argparse
 
-EVSIEVE_PROGRAM = ["target/debug/evsieve"]
+parser = argparse.ArgumentParser()
+parser.add_argument("--binary", help="The evsieve binary to be tested", action='store', type=str, nargs='?', default="target/debug/evsieve")
+args = parser.parse_args()
+EVSIEVE_PATH = args.binary
+
+EVSIEVE_PROGRAM = [EVSIEVE_PATH]
 SLEEP_TIME = 0.2
 
 sp.run(["systemctl", "reset-failed"])
