@@ -226,7 +226,8 @@ impl Set {
         Set { intervals: result }
     }
 
-    /// In mathematical notation, computes self \ other.
+    /// In mathematical notation, computes self \ other, i.e. the set that contains all elements of `self` that
+    /// are not an element of `other`.
     pub fn setminus(&self, other: &Set) -> Set {
         self.intersect(&other.complement())
     }

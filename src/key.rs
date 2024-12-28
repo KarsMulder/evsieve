@@ -367,6 +367,8 @@ pub struct KeyParser<'a> {
     pub allow_values: bool,
     pub allow_transitions: bool,
     pub allow_ranges: bool,
+    /// Whether you are allowed to specify a specific domain, like "@foo" or "key:a@bar".
+    pub allow_domains: bool,
     /// Whether keys with only a type like "key", "btn", "abs", and such without an event code, are allowed.
     /// Only ever set this to true for filter keys.
     pub allow_types: bool,
@@ -388,6 +390,7 @@ impl<'a> KeyParser<'a> {
             default_value: "",
             allow_values: true,
             allow_ranges: true,
+            allow_domains: true,
             allow_transitions: true,
             allow_types: true,
             allow_relative_values: false,
@@ -415,6 +418,7 @@ impl<'a> KeyParser<'a> {
             default_value: self.default_value,
             allow_values: self.allow_values && other.allow_values,
             allow_transitions: self.allow_transitions && other.allow_transitions,
+            allow_domains: self.allow_domains && other.allow_domains,
             allow_ranges: self.allow_ranges && other.allow_ranges,
             allow_types: self.allow_types && other.allow_types,
             allow_relative_values: self.allow_relative_values && other.allow_relative_values,
@@ -430,6 +434,7 @@ impl<'a> KeyParser<'a> {
             default_value: "",
             allow_values: true,
             allow_ranges: true,
+            allow_domains: true,
             allow_transitions: false,
             allow_types: false,
             allow_relative_values: true,
@@ -445,6 +450,7 @@ impl<'a> KeyParser<'a> {
             default_value: "",
             allow_values: false,
             allow_ranges: false,
+            allow_domains: true,
             allow_transitions: false,
             allow_types: true,
             allow_relative_values: false,
@@ -489,6 +495,7 @@ pub fn resembles_key(key_str: &str) -> bool {
             default_value: "",
             allow_values: true,
             allow_ranges: true,
+            allow_domains: true,
             allow_transitions: true,
             allow_types: true,
             allow_relative_values: true,
@@ -509,6 +516,9 @@ fn interpret_key_with_domain(key_str: &str, parser: &KeyParser) -> Result<Key, A
     let mut key = interpret_key(parts, parser)?;
 
     if let Some(domain_str) = parts.domain {
+        if ! parser.allow_domains {
+            return Err(ArgumentError::new("No domains are allowed for keys in this position."))
+        }
         let domain = domain::resolve(domain_str)?;
         key.properties.push(KeyProperty::Domain(domain));
     }

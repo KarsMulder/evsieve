@@ -24,6 +24,7 @@ impl MergeArg {
             default_value: "",
             allow_values: false,
             allow_ranges: false,
+            allow_domains: true,
             allow_transitions: false,
             allow_types: true,
             allow_relative_values: false,

@@ -337,6 +337,7 @@ pub fn process(args_str: Vec<String>)
                     domain: target_domain,
                     create_link: device.create_link,
                     repeat_mode: device.repeat_mode,
+                    capability_overrides: device.capability_overrides,
                     properties: device.properties,
                 };
                 output_devices.push(output_device);

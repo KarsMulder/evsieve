@@ -31,6 +31,7 @@ impl RelToAbsArg {
             default_value: "",
             allow_values: true,
             allow_transitions: false,
+            allow_domains: true,
             allow_ranges: true,
             allow_types: false,
             allow_relative_values: false,
