@@ -9,6 +9,7 @@ pub mod merge;
 pub mod absrel;
 pub mod scale;
 pub mod sink;
+pub mod capability_override;
 
 use std::collections::HashMap;
 
@@ -20,6 +21,7 @@ use self::hook::Hook;
 use self::print::EventPrinter;
 use self::scale::Scale;
 use self::merge::Merge;
+use self::capability_override::CapabilityOverride;
 
 use crate::io::input::InputDevice;
 use crate::state::{State, ToggleIndex};
@@ -59,6 +61,7 @@ pub enum StreamEntry {
     Scale(Scale),
     RelToAbs(RelToAbs),
     Delay(self::delay::Delay),
+    CapabilityOverride(CapabilityOverride),
 }
 
 pub struct Setup<T> {
@@ -265,6 +268,7 @@ fn run_events(events_in: Vec<Event>, events_out: &mut Vec<Event>, stream: &mut [
             StreamEntry::Print(printer) => {
                 printer.apply_to_all(&events);
             },
+            StreamEntry::CapabilityOverride(_) => {},
         }
     }
 
@@ -291,6 +295,7 @@ fn run_wakeup(token: crate::loopback::Token, events_out: &mut Vec<Event>, stream
             StreamEntry::Print(_) => {},
             StreamEntry::Scale(_) => {},
             StreamEntry::RelToAbs(_) => {},
+            StreamEntry::CapabilityOverride(_) => {},
         }
 
         if ! events.is_empty() {
@@ -337,6 +342,11 @@ pub fn run_caps(stream: &[StreamEntry], capabilities: Vec<Capability>) -> Vec<Ca
             },
             StreamEntry::RelToAbs(rel_to_abs) => {
                 rel_to_abs.apply_to_all_caps(&caps, &mut buffer);
+                caps.clear();
+                std::mem::swap(&mut caps, &mut buffer);
+            },
+            StreamEntry::CapabilityOverride(capability_override) => {
+                capability_override.apply_to_all_caps(&caps, &mut buffer);
                 caps.clear();
                 std::mem::swap(&mut caps, &mut buffer);
             },

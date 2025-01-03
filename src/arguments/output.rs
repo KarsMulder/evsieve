@@ -102,6 +102,7 @@ impl OutputDevice {
                 None => return Err(ArgumentError::new(format!("The capability key {capability_override_str} must refer to a single event code."))),
             };
             let value = value_opt.unwrap_or(Interval::new(None, None));
+            // TODO: Make sure we don't allow the same capability to be overridden twice.
             capability_overrides.push((code, value));
         }
 

@@ -341,9 +341,14 @@ impl Capability {
     }
 
     /// Returns a copy of self with the given value range.
-    pub fn with_values(mut self, values: Set) -> Capability {
-        self.values = values;
-        self
+    pub fn with_values(&self, values: Set) -> Capability {
+        Capability {
+            code: self.code,
+            domain: self.domain,
+            namespace: self.namespace,
+            values,
+            abs_meta: self.abs_meta,
+        }
     }
 
     /// Returns the same capability with a different set of values.

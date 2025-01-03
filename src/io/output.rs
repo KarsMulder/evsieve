@@ -250,13 +250,13 @@ impl OutputDevice {
                                     continue;
                                 },
                             };
-                            libevdev::libevdev_enable_event_code(dev, code.ev_type().into(), code.code() as u32, &value as *const libc::c_int as *const libc::c_void)
+                            libevdev::libevdev_enable_event_code(dev, code.ev_type().into(), code.code().into(), &value as *const libc::c_int as *const libc::c_void)
                         } else {
                             eprintln!("Internal error: an output device claims EV_REP capabilities, but no repeat info is available.");
                             continue;
                         }
                     },
-                    _ => libevdev::libevdev_enable_event_code(dev, code.ev_type().into(), code.code() as u32, ptr::null_mut()),
+                    _ => libevdev::libevdev_enable_event_code(dev, code.ev_type().into(), code.code().into(), ptr::null_mut()),
                 };
                 if res < 0 {
                     eprintln!("Warning: failed to enable event {} on uinput device.", ecodes::event_name(*code));
