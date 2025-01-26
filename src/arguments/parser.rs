@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use crate::domain;
+use crate::domain::{self, Domain};
 use crate::error::{ArgumentError, RuntimeError, Context, SystemError};
 use crate::io::output::UInputSystem;
 use crate::key::Key;
@@ -26,6 +26,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 use super::absrel::RelToAbsArg;
+use super::capability::CapabilityArg;
 use super::config::ConfigArg;
 use super::input::PersistMode;
 use super::merge::MergeArg;
@@ -68,6 +69,7 @@ enum Argument {
     WithholdArg(WithholdArg),
     RelToAbsArg(RelToAbsArg),
     ControlFifoArg(ControlFifoArg),
+    CapabilityArg(CapabilityArg),
 }
 
 /// The MetaArgument represents things that may get turned into common arguments.
@@ -99,6 +101,7 @@ impl Argument {
             "--withhold" => Ok(Argument::WithholdArg(WithholdArg::parse(args)?)),
             "--rel-to-abs" => Ok(Argument::RelToAbsArg(RelToAbsArg::parse(args)?)),
             "--control-fifo" => Ok(Argument::ControlFifoArg(ControlFifoArg::parse(args)?)),
+            "--capability" => Ok(Argument::CapabilityArg(CapabilityArg::parse(args)?)),
             _ => Err(ArgumentError::new(format!("Encountered unknown argument: {}", first_arg)).into()),
         }
     }
@@ -229,6 +232,12 @@ pub struct Implementation {
     pub control_fifos: Vec<ControlFifo>,
 }
 
+enum OutputDomainAssignment {
+    HasDomain(Domain),
+    FollowedUpBy(Domain),
+    NotFollowedUp,
+}
+
 /// This function does all of the work of turning the input arguments into the components of a
 /// runnable program, except for the operations that require I/O.
 pub fn process(args_str: Vec<String>)
@@ -263,6 +272,34 @@ pub fn process(args_str: Vec<String>)
         }
     }
 
+    // Reserve output device domains ahead of time, and for each --capability argument, declare which
+    // output device follows said argument.
+    let mut last_output_device = None;
+    let mut output_device_assignment_rev: Vec<OutputDomainAssignment> = Vec::new();
+    for arg in args.iter().rev() {
+        match arg {
+            Argument::OutputDevice(_) => {
+                let assigned_domain = domain::get_unique_domain();
+                last_output_device = Some(assigned_domain);
+                output_device_assignment_rev.push(OutputDomainAssignment::HasDomain(assigned_domain));
+            },
+            Argument::CapabilityArg(_) => {
+                if let Some(assigned_domain) = last_output_device {
+                    output_device_assignment_rev.push(OutputDomainAssignment::FollowedUpBy(assigned_domain));
+                } else {
+                    return Err(ArgumentError::new("All --capability arguments must be followed up by either an --output argument or another --capability argument. The --capability arguments modify only the next output device.").into());
+                }
+            },
+            _ => {
+                last_output_device = None;
+                output_device_assignment_rev.push(OutputDomainAssignment::NotFollowedUp);
+            }
+        }
+    }
+
+    let output_device_assignment = output_device_assignment_rev.into_iter().rev();
+    assert!(output_device_assignment.len() == args.len());
+
     // Associate the --withhold argument with all --hook arguments before it.
     let mut consecutive_hooks: Vec<&mut HookArg> = Vec::new();
     for arg in &mut args {
@@ -282,7 +319,7 @@ pub fn process(args_str: Vec<String>)
     let mut input_device_real_paths: HashSet<PathBuf> = HashSet::new();
 
     // Construct the stream.
-    for arg in args {
+    for (arg, domain_assignment) in args.into_iter().zip(output_device_assignment) {
         match arg {
             Argument::InputDevice(device) => {
                 for path_str in &device.paths {
@@ -332,7 +369,11 @@ pub fn process(args_str: Vec<String>)
             },
             Argument::OutputDevice(device) => {
                 // Create the output device.
-                let target_domain = domain::get_unique_domain();
+                let target_domain = match domain_assignment {
+                    OutputDomainAssignment::HasDomain(domain) => domain,
+                    _ => panic!("No internal domain has been assigned to an output device. This is a bug."),
+                };
+
                 let output_device = PreOutputDevice {
                     domain: target_domain,
                     create_link: device.create_link,
@@ -348,6 +389,14 @@ pub fn process(args_str: Vec<String>)
                         vec![Key::from_domain_and_namespace(target_domain, Namespace::Output)],
                     );
                     stream.push(StreamEntry::Map(map));
+                }
+            },
+            Argument::CapabilityArg(capability) => {
+                if let OutputDomainAssignment::FollowedUpBy(device) = domain_assignment {
+                    // TODO (low-priority): consider
+                    stream.push(StreamEntry::CapabilityOverride(capability.compile(device)));
+                } else {
+                    panic!("A --capability argument appears not to be followed up by a --output device, even though an argument-validity check should already have been made to ensure that it does. This is a bug.");
                 }
             },
             Argument::MapArg(map_arg) => {

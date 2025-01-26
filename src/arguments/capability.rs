@@ -1,10 +1,12 @@
 use std::fmt::Write;
 use std::collections::HashMap;
 
+use crate::domain::Domain;
 use crate::error::{ArgumentError, Context};
 use crate::event::EventCode;
 use crate::key::KeyParser;
 use crate::range::Interval;
+use crate::stream::capability_override::CapabilityOverride;
 
 use super::lib::ComplexArgGroup;
 
@@ -13,6 +15,7 @@ pub(super) struct CapabilityArg {
     pub overrides: HashMap<EventCode, CapabilityOverrideSpec>,
 }
 
+#[derive(Clone, Copy)]
 pub struct CapabilityOverrideSpec {
     pub range: Option<Interval>,
     pub flat: Option<i32>,
@@ -119,5 +122,9 @@ impl CapabilityArg {
 
         todo!();
 
+    }
+
+    pub fn compile(self, device: Domain) -> CapabilityOverride {
+        CapabilityOverride::new(device, self.overrides)
     }
 }
