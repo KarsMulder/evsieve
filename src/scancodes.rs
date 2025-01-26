@@ -138,7 +138,7 @@ lazy_static! {
 
             // We defensively check for None here because whether these codes exist might
             // depend on the version of libevdev we link against.
-            if let Some(event_code) = ecodes::event_code(type_name, code_name) {
+            if let Ok(event_code) = ecodes::event_code(type_name, code_name) {
                 Some((event_code, scancode.clone()))
             } else {
                 None
