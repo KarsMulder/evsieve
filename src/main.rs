@@ -79,6 +79,7 @@ pub mod arguments {
     pub mod test;
     pub mod config;
     pub mod scale;
+    pub mod capability;
 }
 
 pub mod bindings {

@@ -4,8 +4,7 @@ use crate::predevice::RepeatMode;
 use crate::error::ArgumentError;
 use crate::arguments::lib::ComplexArgGroup;
 use crate::key::{Key, KeyParser};
-use crate::event::{EventCode, Namespace};
-use crate::range::Interval;
+use crate::event::Namespace;
 use std::path::PathBuf;
 
 const DEFAULT_NAME: &str = "Evsieve Virtual Device";
@@ -30,14 +29,13 @@ pub(super) struct OutputDevice {
     pub keys: Vec<Key>,
     pub repeat_mode: RepeatMode,
     pub properties: DeviceProperties,
-    pub capability_overrides: Vec<(EventCode, Interval)>,
 }
 
 impl OutputDevice {
 	pub fn parse(args: Vec<String>) -> Result<OutputDevice, ArgumentError> {
         let arg_group = ComplexArgGroup::parse(args,
             &["repeat"],
-            &["create-link", "repeat", "name", "device-id", "version", "bus", "capability"],
+            &["create-link", "repeat", "name", "device-id", "version", "bus"],
             false,
             true,
         )?;
@@ -80,35 +78,9 @@ impl OutputDevice {
             );
         }
 
-        // Parse the capability-override directives.
-        let capability_parser = KeyParser {
-            default_value: "",
-            allow_values: true,
-            allow_domains: false,
-            allow_transitions: false,
-            allow_ranges: true,
-            allow_types: false,
-            allow_relative_values: false,
-            type_whitelist: None,
-            namespace: Namespace::User,
-        };
-
-        let mut capability_overrides = Vec::new();
-        for capability_override_str in arg_group.get_clauses("capability") {
-            let cap_key = capability_parser.parse(&capability_override_str)?;
-            let (code_key, value_opt) = cap_key.split_value();
-            let code = match code_key.requires_event_code() {
-                Some(code) => code,
-                None => return Err(ArgumentError::new(format!("The capability key {capability_override_str} must refer to a single event code."))),
-            };
-            let value = value_opt.unwrap_or(Interval::new(None, None));
-            // TODO: Make sure we don't allow the same capability to be overridden twice.
-            capability_overrides.push((code, value));
-        }
-
 		Ok(OutputDevice {
             create_link: arg_group.get_unique_clause("create-link")?.map(PathBuf::from),
-            keys, repeat_mode, capability_overrides,
+            keys, repeat_mode,
             properties: DeviceProperties {
                 name, device_id, version, bus
             },

@@ -163,6 +163,31 @@ impl ComplexArgGroup {
         }
     }
 
+    pub fn get_unique_clause_i32(&self, name: &str) -> Result<Option<i32>, ArgumentError> {
+        let clause_opt = self.get_unique_clause(name)?;
+        let clause = match clause_opt {
+            Some(x) => x,
+            None => return Ok(None),
+        };
+
+        let parse_res: Result<i32, _> = str::parse(&clause);
+        match parse_res {
+            Ok(value) => Ok(Some(value)),
+            Err(error) => {
+                match error.kind() {
+                    std::num::IntErrorKind::PosOverflow | std::num::IntErrorKind::NegOverflow => 
+                        Err(ArgumentError::new(format!(
+                            "The {} clause requires an integer in the range from {} to {}, e.g.: --{} 1",
+                            name, i32::MIN, i32::MAX, name
+                        ))),
+                    _ => Err(ArgumentError::new(format!(
+                        "The {} clause requires an integer, e.g.: --{} 1", name, name
+                    ))),
+                }
+            }
+        }
+    }
+
     /// Gets a clause of which exacly one must exist.
     pub fn require_unique_clause(&self, name: &str) -> Result<String, ArgumentError> {
         let clause = self.get_unique_clause(name)?;

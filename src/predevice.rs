@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 use crate::capability::Capabilities;
-use crate::event::EventCode;
 use crate::persist::storage::DeviceCache;
-use crate::range::Interval;
 use crate::{domain::Domain, arguments::output::DeviceProperties};
 use std::path::{PathBuf, Path};
 
@@ -83,14 +81,6 @@ pub struct PreOutputDevice {
     pub create_link: Option<PathBuf>,
     /// Determined by "repeat" or "norepeat" flags on output devices.
     pub repeat_mode: RepeatMode,
-    /// If a code is present in this vector, then the output must have this capability with this range,
-    /// regardless of whatever else in inferred.
-    /// 
-    /// If a capability is inferred but not in this vector, then that capability will show up with the
-    /// inferred range. If a capability is inferred and in this vector, then the interval in this vector
-    /// will be used, regardless of whether it is bigger or smaller. If a capability is not inferred but
-    /// shows up in this vector anyway, the capability from this vector shall still show up.
-    pub capability_overrides: Vec<(EventCode, Interval)>,
     /// Properties visible to other programs on the system.
     pub properties: DeviceProperties,
 }

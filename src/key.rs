@@ -141,6 +141,7 @@ impl Key {
         for property in &self.properties {
             match property {
                 KeyProperty::Code(code) => return Some(*code),
+
                 KeyProperty::Type(_)
                 | KeyProperty::VirtualType(_)
                 | KeyProperty::Domain(_)
@@ -148,7 +149,27 @@ impl Key {
                 | KeyProperty::Value(_)
                 | KeyProperty::PreviousValue(_)
                 | KeyProperty::AffineFactor(_)
-                => (),
+                    => (),
+            }
+        }
+        None
+    }
+
+    /// Returns Some(EventType) if this Key will only ever accept events of a certain domain.
+    /// If it may accept different types of domains, returns None.
+    pub fn requires_domain(&self) -> Option<Domain> {
+        for property in &self.properties {
+            match property {
+                KeyProperty::Domain(domain) => return Some(*domain),
+
+                KeyProperty::Code(_)
+                | KeyProperty::Namespace(_)
+                | KeyProperty::Value(_)
+                | KeyProperty::PreviousValue(_)
+                | KeyProperty::Type(_)
+                | KeyProperty::VirtualType(_)
+                | KeyProperty::AffineFactor(_)
+                    => ()
             }
         }
         None
