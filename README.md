@@ -1009,6 +1009,18 @@ Adding the `sequential` flag to the hooks ensures that the A and B keys will not
 
 Although it is not necessary in this case, the `--hook period=...` clause is also often useful in combination with the `--withhold` argument to ensure that events are not withheld for more than a certain amount of time.
 
+Another potentially useful clause is `--hook breaks-on=...`. For example, the following example will withhold the Ctrl key, but releases it as soon as any key that is not A or B is pressed:
+
+```
+evsieve --input /dev/input/by-id/my-keyboard grab \
+        --hook key:leftctrl key:a exec-shell="echo Pressed Ctrl+A" sequential breaks-on=key::1 \
+        --hook key:leftctrl key:b exec-shell="echo Pressed Ctrl+B" sequential breaks-on=key::1 \
+        --withhold \
+        --output
+```
+
+Note that the above script does have some disadvantages compared to the previous one. For example, if you press "Ctrl down, C down, A down", then the system will observe a Ctrl+C combination, but the first hook will not be triggered (and thus "Pressed Ctrl+A" will not be printed) because the first hook broke as soon as the C key was pressed.
+
 Important to note is that the `--withhold` argument applies to all consecutive preceding hooks. So in the above example, the `--withhold` argument will withold potential combinations for both the preceding hooks. However, in the following script, the `--withhold` argument will not withhold the C or D keys, because there is a non-hook argument between them and the `--withhold` argument:
 
 ```
