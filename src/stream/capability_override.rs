@@ -29,6 +29,9 @@ impl CapabilityOverride {
         // Pass on all capabilities. If an overridden range has been specified for a capability,
         // use the specified range instead of the inferred range.
         for cap in caps {
+            // TODO (HIGH-PRIORITY, CRITICAL BUG)
+            // This does NOT work because the capability override is put in the stream BEFORE the output device,
+            // so Namespace::Output will not be encountered!
             if cap.domain != self.device || cap.namespace != Namespace::Output {
                 caps_out.push(cap.clone());
                 continue;

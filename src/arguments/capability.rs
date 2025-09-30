@@ -77,7 +77,6 @@ impl CapabilityArg {
                 ).with_context_of(key_parse_context_msg)),
             };
 
-
             if code.ev_type().is_abs() {
                 if range_opt.is_none() {
                     let type_name = crate::ecodes::type_name(code.ev_type());
@@ -109,18 +108,18 @@ impl CapabilityArg {
                     .collect::<Vec<_>>();
 
             if !improper_clauses.is_empty() {
-                let mut error_msg = "The ".to_owned();
+                let mut error_msg = "The".to_owned();
                 if let &[single_clause] = improper_clauses.as_slice() {
-                    write!(error_msg, "clause {} is", single_clause).unwrap();
+                    write!(error_msg, " clause {} is", single_clause).unwrap();
                 } else {
-                    write!(error_msg, "clauses {} are", improper_clauses.join(", ")).unwrap();
+                    write!(error_msg, " clauses {} are", improper_clauses.join(", ")).unwrap();
                 }
                 write!(error_msg, " only applicable for EV_ABS-type events (e.g. abs:x).").unwrap();
                 return Err(ArgumentError::new(error_msg));
             }
         }
 
-        todo!();
+        Ok(CapabilityArg { overrides })
 
     }
 
