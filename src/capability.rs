@@ -98,6 +98,14 @@ pub struct AbsMeta {
     pub value: i32,
 }
 
+impl AbsMeta {
+    pub fn default() -> AbsMeta {
+        AbsMeta {
+            flat: 0, fuzz: 0, resolution: 0, value: 0
+        }
+    }
+}
+
 impl AbsInfo {
     /// Tells you whether this AbsInfo is equal to the other AbsInfo up to the current value.
     /// You know, maybe it was a bad idea to include the value in the capabilities. But we do need to give a current
@@ -193,45 +201,65 @@ impl Capabilities {
         if cap.values.is_empty() {
             return;
         }
-        self.codes.insert(cap.code);
 
-        // For events of type EV_ABS, an accompanying AbsInfo is required.
         if cap.code.ev_type().is_abs() {
             // It is possible to lack abs_meta on this capability, e.g. if some non-abs event got
             // mapped to an abs-event. In that case, use the sanest default we can think of.
             let meta = match cap.abs_meta {
                 Some(meta) => meta,
-                None => AbsMeta { flat: 0, fuzz: 0, resolution: 0, value: 0 },
+                None => AbsMeta::default(),
             };
-
-            // Check if we already know something about this axis from another source. If so, we
-            // should merge this capability with that one. Otherwise, for code simplicity we assume
-            // that the current info is the same as that of this new capability.
-            let existing_info = self.abs_info.get(&cap.code);
-            let cap_range = cap.values.spanning_interval().expect("Internal error: a capability can assume a nonempty set of values, yet its spanning range is empty. This is a bug.");
-            let (current_range, current_meta) = match existing_info {
-                Some(info) => (Interval::new(Some(info.min_value), Some(info.max_value)), info.meta),
-                None => (cap_range, meta),
+            let range = cap.values.spanning_interval().expect("Internal error: a capability can assume a nonempty set of values, yet its spanning range is empty. This is a bug.");
+            let abs_info = AbsInfo {
+                min_value: range.min,
+                max_value: range.max,
+                meta,
             };
+            self.add_abs(cap.code, abs_info);
 
-            // Merge the current info with this capability.
-            let new_range = current_range.merge(&cap_range);
-            let new_meta = AbsMeta {
-                // Merging is hard. I don't know whether min or max is most appropriate for these.
-                flat: std::cmp::min(current_meta.flat, meta.flat),
-                fuzz: std::cmp::min(current_meta.fuzz, meta.fuzz),
-                resolution: std::cmp::max(current_meta.resolution, meta.resolution),
-                value: new_range.bound(meta.value),
-            };
-
-            let min_value = new_range.min;
-            let max_value = new_range.max;
-
-            // Insert or overwrite the existing value.
-            self.abs_info.insert(cap.code, AbsInfo {
-                min_value, max_value, meta: new_meta
-            });
+        } else {
+            self.add_non_abs(cap.code);
         }
+    }
+
+    pub fn add_non_abs(&mut self, code: EventCode) {
+        assert!(!code.ev_type().is_abs());
+        self.codes.insert(code);
+    }
+
+    /// Adds an EV_ABS capability. Panics if the code is not the EV_ABS type.
+    pub fn add_abs(&mut self, code: EventCode, abs_info: AbsInfo) {
+        assert!(code.ev_type().is_abs());
+        self.codes.insert(code);
+
+        // Check if we already know something about this axis from another source. If so, we
+        // should merge this capability with that one. Otherwise, for code simplicity we assume
+        // that the current info is the same as that of this new capability.
+        let existing_info = self.abs_info.get(&code);
+        let cap_range = Interval { min: abs_info.min_value, max: abs_info.max_value };
+        let meta = abs_info.meta;
+        let (current_range, current_meta) = match existing_info {
+            Some(info) => (Interval::new(Some(info.min_value), Some(info.max_value)), info.meta),
+            None => (cap_range, abs_info.meta),
+        };
+
+        // Merge the current info with this capability.
+        let new_range = current_range.merge(&cap_range);
+        let new_meta = AbsMeta {
+            // Merging is hard. I don't know whether min or max is most appropriate for these.
+            flat: std::cmp::min(current_meta.flat, meta.flat),
+            fuzz: std::cmp::min(current_meta.fuzz, meta.fuzz),
+            resolution: std::cmp::max(current_meta.resolution, meta.resolution),
+            value: new_range.bound(meta.value),
+        };
+
+        let min_value = new_range.min;
+        let max_value = new_range.max;
+
+        // Insert or overwrite the existing value.
+        self.abs_info.insert(code, AbsInfo {
+            min_value, max_value, meta: new_meta
+        });
     }
 
     /// Adds EV_REP capabilities to self with arbitrary delay and period.

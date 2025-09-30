@@ -1,10 +1,12 @@
 
 use std::fmt::Write;
 use std::collections::HashMap;
+use std::i32;
 
+use crate::capability::{AbsInfo, AbsMeta, Capabilities};
 use crate::domain::Domain;
-use crate::error::{ArgumentError, Context};
-use crate::event::EventCode;
+use crate::error::{ArgumentError, Context, InternalError};
+use crate::event::{EventCode};
 use crate::key::KeyParser;
 use crate::range::Interval;
 use crate::stream::capability_override::CapabilityOverride;
@@ -52,8 +54,59 @@ impl CapabilityOverrideSet {
         }
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (&EventCode, &CapabilityOverrideSpec)> {
-        self.inner.iter()
+    /// Tries to add capabilies from another set into this one. Returns an error and short-cirquits if any capability is incompatible.
+    pub fn try_append(&mut self, other: CapabilityOverrideSet) -> Result<(), IncompatibleError> {
+        for (&code, &additional_spec) in other.inner.iter() {
+            self.try_add(code, additional_spec)?;
+        }
+        Ok(())
+    }
+
+    /// Modifies the passed capabilities to make it match the specified overrides.
+    /// TODO (HIGH-PRIORITY): Actually use this function.
+    pub fn apply_to_capabilites(&self, caps: &mut Capabilities) -> Result<(), InternalError> {
+        // Override capabilities that already existed.
+        for (&code, &spec) in self.inner.iter() {
+            let Capabilities { codes, abs_info, rep_info: _ } = caps;
+            if code.ev_type().is_abs() && codes.contains(&code) {
+                let Some(info) = abs_info.get_mut(&code) else {
+                    return Err(InternalError::new("Capability for an abs-type event was declared, but no absinfo was found. This is a bug."));
+                };
+                let CapabilityOverrideSpec { range, flat, fuzz, value } = spec;
+
+                if let Some(range) = range {
+                    info.min_value = range.min;
+                    info.max_value = range.max;
+                }
+                if let Some(flat)  = flat  { info.meta.flat = flat; }
+                if let Some(fuzz)  = fuzz  { info.meta.fuzz = fuzz; }
+                if let Some(value) = value { info.meta.value = value; }
+            }
+        }
+
+        // Add capabilities that did not yet exist.
+        for (&code, &spec) in self.inner.iter() {
+            if ! caps.codes.contains(&code) {
+                if code.ev_type().is_abs() {
+                    let CapabilityOverrideSpec { range, flat, fuzz, value } = spec;
+                    let abs_info = AbsInfo {
+                        min_value: range.map(|r| r.min).unwrap_or(i32::MIN),
+                        max_value: range.map(|r| r.max).unwrap_or(i32::MAX),
+                        meta: AbsMeta {
+                            fuzz: fuzz.unwrap_or(0),
+                            flat: flat.unwrap_or(0),
+                            resolution: 0, // TODO (HIGH-PRIORITY)
+                            value: value.unwrap_or(0),
+                        },
+                    };
+                    caps.add_abs(code, abs_info);
+                } else {
+                    caps.add_non_abs(code);
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
