@@ -9,6 +9,7 @@ use crate::time::Duration;
 
 /// While a certain key is held, the key shall appear to turn on and off in the output stream.
 pub struct Oscillator {
+    /// Only EV_KEY keys that match one of the following keys will be oscillated.
     keys: Vec<Key>,
     /// How long a key will appear to be held down.
     active_time: Duration,
@@ -85,7 +86,7 @@ impl Oscillator {
         }
     }
 
-    /// All delayed events that are overdue will be put back into the stream.
+    /// Activates or deactivates keys that are currently held down and must be oscillated.
     pub fn wakeup(&mut self, token: &Token, output_events: &mut Vec<Event>, loopback: &mut LoopbackHandle) {
         for (channel, state) in &mut self.held_keys {
             if state.next_token == *token {
@@ -96,7 +97,7 @@ impl Oscillator {
                     namespace: crate::event::Namespace::User,
                 };
                 match key_must_be_made_active {
-                    // TODO (HIGH-PRIORITY) Should previous_value match up with the previous vlaue observed by --oscillate?
+                    // TODO (HIGH-PRIORITY) Should previous_value match up with the previous value observed by --oscillate?
                     true => {
                         output_events.push(event_with_value(1, 0));
                         state.next_token = loopback.schedule_wakeup_in(self.active_time);
