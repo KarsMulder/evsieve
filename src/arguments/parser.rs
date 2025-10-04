@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+use crate::arguments::oscillate::OscillateArg;
 use crate::domain::{self, Domain};
 use crate::error::{ArgumentError, RuntimeError, Context, SystemError};
 use crate::io::output::UInputSystem;
@@ -50,6 +51,7 @@ fn get_usage_msg() -> String {
                [--control-fifo PATH...]...
                [--print [EVENTS...] [format=default|direct]]...
                [--delay [EVENTS...] period=SECONDS]...
+               [--oscillate [KEYS...] period=SECONDS]...
                [--output [EVENTS...] [create-link=PATH] [name=NAME] [device-id=VENDOR:PRODUCT] [bus=BUS] [version=VERSION] [repeat[=MODE]]]...".to_owned()
 }
 
@@ -65,6 +67,7 @@ enum Argument {
     PrintArg(PrintArg),
     MergeArg(MergeArg),
     DelayArg(DelayArg),
+    OscillateArg(OscillateArg),
     ScaleArg(ScaleArg),
     WithholdArg(WithholdArg),
     RelToAbsArg(RelToAbsArg),
@@ -97,6 +100,7 @@ impl Argument {
             "--print" => Ok(Argument::PrintArg(PrintArg::parse(args)?)),
             "--merge" => Ok(Argument::MergeArg(MergeArg::parse(args)?)),
             "--delay" => Ok(Argument::DelayArg(DelayArg::parse(args)?)),
+            "--oscillate" => Ok(Argument::OscillateArg(OscillateArg::parse(args)?)),
             "--scale" => Ok(Argument::ScaleArg(ScaleArg::parse(args)?)),
             "--withhold" => Ok(Argument::WithholdArg(WithholdArg::parse(args)?)),
             "--rel-to-abs" => Ok(Argument::RelToAbsArg(RelToAbsArg::parse(args)?)),
@@ -462,6 +466,9 @@ pub fn process(args_str: Vec<String>)
             },
             Argument::DelayArg(delay_arg) => {
                 stream.push(StreamEntry::Delay(delay_arg.compile()));
+            },
+            Argument::OscillateArg(oscillate_arg) => {
+                stream.push(StreamEntry::Oscillate(oscillate_arg.compile()));
             },
             Argument::ScaleArg(scale_arg) => {
                 stream.push(StreamEntry::Scale(scale_arg.compile()));

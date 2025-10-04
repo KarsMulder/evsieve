@@ -37,7 +37,7 @@ impl DelayArg {
 }
 
 /// Parses a number of seconds with up to nanosecond precision.
-pub fn parse_period_value(value: &str) -> Result<Duration, ArgumentError> {
+pub fn parse_period_as_nanoseconds(value: &str) -> Result<u64, ArgumentError> {
     let first_token = match value.chars().next() {
         Some(token) => token,
         None => return Err(ArgumentError::new("Empty period specified.")),
@@ -78,7 +78,11 @@ pub fn parse_period_value(value: &str) -> Result<Duration, ArgumentError> {
         return Err(ArgumentError::new("Cannot specify a period of zero."));
     }
 
-    Ok(Duration::from_nanos(total_nanoseconds))
+    Ok(total_nanoseconds)
+}
+
+pub fn parse_period_value(value: &str) -> Result<Duration, ArgumentError> {
+    Ok(Duration::from_nanos(parse_period_as_nanoseconds(value)?))
 }
 
 #[test]

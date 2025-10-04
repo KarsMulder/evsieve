@@ -80,6 +80,7 @@ pub mod arguments {
     pub mod config;
     pub mod scale;
     pub mod capability;
+    pub mod oscillate;
 }
 
 pub mod bindings {

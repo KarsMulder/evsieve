@@ -10,6 +10,7 @@ pub mod absrel;
 pub mod scale;
 pub mod sink;
 pub mod capability_override;
+pub mod oscillator;
 
 use std::collections::HashMap;
 
@@ -29,6 +30,7 @@ use crate::event::Event;
 use crate::capability::{Capability, InputCapabilites};
 use crate::io::output::OutputSystem;
 use crate::loopback::{Loopback, LoopbackHandle, Delay};
+use crate::stream::oscillator::Oscillator;
 use crate::time::Instant;
 
 /// An enum of everything that can be part of the event processing stream.
@@ -61,6 +63,7 @@ pub enum StreamEntry {
     Scale(Scale),
     RelToAbs(RelToAbs),
     Delay(self::delay::Delay),
+    Oscillate(Oscillator),
     CapabilityOverride(CapabilityOverride),
 }
 
@@ -265,6 +268,11 @@ fn run_events(events_in: Vec<Event>, events_out: &mut Vec<Event>, stream: &mut [
                 events.clear();
                 std::mem::swap(&mut events, &mut buffer);
             },
+            StreamEntry::Oscillate(oscillator) => {
+                oscillator.apply_to_all(&events, &mut buffer, loopback);
+                events.clear();
+                std::mem::swap(&mut events, &mut buffer);
+            },
             StreamEntry::Print(printer) => {
                 printer.apply_to_all(&events);
             },
@@ -291,6 +299,9 @@ fn run_wakeup(token: crate::loopback::Token, events_out: &mut Vec<Event>, stream
             },
             StreamEntry::Delay(delay) => {
                 delay.wakeup(&token, &mut events);
+            },
+            StreamEntry::Oscillate(oscillator) => {
+                oscillator.wakeup(&token, &mut events, loopback);
             },
             StreamEntry::Print(_) => {},
             StreamEntry::Scale(_) => {},
@@ -356,6 +367,7 @@ pub fn run_caps(stream: &[StreamEntry], capabilities: Vec<Capability>) -> Vec<Ca
                 print.observe_caps(&caps);
             },
             StreamEntry::Delay(_) => (),
+            StreamEntry::Oscillate(_) => (),
         }
 
         // Merge capabilities that differ only in value together when possible.
