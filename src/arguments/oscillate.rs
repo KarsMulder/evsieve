@@ -9,8 +9,9 @@ use crate::time::Duration;
 
 /// Represents a --oscillate argument.
 pub(super) struct OscillateArg {
-    // Must all be EV_KEY keys.
+    // Note: regardless of what `keys` says, only EV_KEY events will be oscillated.
     pub keys: Vec<Key>,
+
     pub active_time: Duration,
     pub inactive_time: Duration,
 }
@@ -24,6 +25,9 @@ impl OscillateArg {
             true,
         )?;
 
+        // Accepts some keys that are not specifically EV_KEY, such as "@in", which is why the oscillator
+        // will later do a manual check to make sure it only works with events that are EV_KEY and match
+        // one of the provided keys.
         let keys = KeyParser {
             default_value: "",
             allow_values: false,
@@ -41,10 +45,12 @@ impl OscillateArg {
             &arg_group.require_unique_clause("period")?
         )?;
 
-        if period_ns <= 2 {
+        // The period is split over an active period and an inactive period, requiring a minimum of two
+        // nanoseconds to make this split. (Which is not to say that any CPU can keep up with emitting
+        // event every two nanoseconds, but this check just makes the program _theoretically_ sound.)
+        if period_ns < 2 {
             return Err(ArgumentError::new("The period must be at least two nanoseconds."));
         }
-
         let active_time_ns = period_ns.div_ceil(2);
         let inactive_time_ns = period_ns - active_time_ns;
 

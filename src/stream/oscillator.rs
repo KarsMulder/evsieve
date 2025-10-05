@@ -41,6 +41,7 @@ impl Oscillator {
     }
 
     fn apply(&mut self, event: Event, output_events: &mut Vec<Event>, loopback: &mut LoopbackHandle) {
+        // Ignore non-EV_KEY events, which might otherwise match some key such as "@in".
         if ! event.ev_type().is_key() {
             return output_events.push(event);
         }
@@ -49,11 +50,14 @@ impl Oscillator {
         }
 
         let channel = event.channel();
+
+        // If the user releases the key, propagate the key_up event if the key formerly appeared to be
+        // held down. If due to oscillation the key was already appearing to be released, drop the event.
         if event.value == 0 {
             let last_state = self.held_keys.remove(&channel);
             if let Some(state) = last_state {
+                loopback.cancel_token(state.next_token);
                 if state.appears_active {
-                    loopback.cancel_token(state.next_token);
                     return output_events.push(event);
                 }
             }
@@ -62,9 +66,13 @@ impl Oscillator {
         } else if event.value == 1 {
             let state_entry = self.held_keys.entry(channel);
             match state_entry {
+                // An entry should only exist if the channel was already held down, so we receive a key_down
+                // event for a key that was already held down. To maintain the illusion of --oscillate being
+                // the source of the key events, drop this duplicate event.
                 std::collections::hash_map::Entry::Occupied(_) => {
                     return; // Drop event
                 },
+                // Otherwise, pass the event on as _the_ event that caused this key to be pressed.
                 std::collections::hash_map::Entry::Vacant(vacant_entry) => {
                     vacant_entry.insert(OscillationState {
                         appears_active: true, next_token: loopback.schedule_wakeup_in(self.active_time)
@@ -96,6 +104,7 @@ impl Oscillator {
                     code, domain, value, previous_value,
                     namespace: crate::event::Namespace::User,
                 };
+
                 match key_must_be_made_active {
                     // TODO (HIGH-PRIORITY) Should previous_value match up with the previous value observed by --oscillate?
                     true => {
