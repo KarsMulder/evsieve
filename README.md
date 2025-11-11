@@ -547,6 +547,66 @@ When using a SELinux-enabled operating system such as Fedora, systemd may fail t
 
 When evsieve is not ran as root, evsieve may be unable to notify the systemd daemon that it is ready unless the property `NotifyAccess=all` is set. When running evsieve using `systemd-run`, this property can be set like `systemd-run --service-type=notify --property=NotifyAccess=all evsieve`.
 
+## Config udev to run evsieve on device plug in
+
+Hot-plug devices are usually unavailable at startup, you can use udev [SYSTEMD_WANTS/SYSTEMD_USER_WANTS](https://www.freedesktop.org/software/systemd/man/latest/systemd.device.html) feature to run evsieve on device plug in, below are example configs for DualSense controller, work for both bluetooth and usb connection.
+
+`/etc/udev/rules.d/99-evsieve.rules`:
+
+```
+ACTION=="add", SUBSYSTEM=="input", KERNEL=="event*", ATTRS{id/vendor}=="054c", ATTRS{id/product}=="0ce6", ENV{ID_INPUT_JOYSTICK}=="1", ENV{SYSTEMD_WANTS}+="evsieve-dualsense@%k.service", TAG+="systemd"
+```
+
+`/etc/systemd/system/evsieve-dualsense@.service`:
+
+```
+[Unit]
+Description=Evsieve for DualSense controller at /dev/input/%i
+
+[Service]
+Type=simple
+DynamicUser=yes
+SupplementaryGroups=input uinput
+ExecStart=/usr/local/bin/evsieve \
+        --input /dev/input/%i \
+        --copy btn:west  key:z@kb \
+        --copy btn:east  key:x@kb \
+        --copy btn:south key:c@kb \
+        --copy btn:north key:v@kb \
+        --output @kb repeat
+```
+
+Reload systemd and udev, `sudo systemctl daemon-reload`, `sudo udevadm control --reload`, turn off/on or unplug/plug device, evsieve should be running, you can check the systemd service status by `systemctl status 'evsieve-dualsense@*'`, and log by `journalctl --unit 'evsieve-dualsense@*'`.
+
+One benefit of this approach is that when the device is unplugged, evsieve will exit and consume no resources.
+
+If you need evsieve to run commands as your own user in desktop environment, e.g., run Firefox, it's better to use `SYSTEMD_USER_WANTS`.
+
+`/etc/udev/rules.d/99-evsieve.rules`:
+
+```
+ACTION=="add", SUBSYSTEM=="input", KERNEL=="event*", ATTRS{id/vendor}=="054c", ATTRS{id/product}=="0ce6", ENV{ID_INPUT_JOYSTICK}=="1", ENV{SYSTEMD_USER_WANTS}+="evsieve-dualsense@%k.service", TAG+="systemd"
+```
+
+`~/.config/systemd/user/evsieve-dualsense@.service`:
+
+```
+[Unit]
+Description=Evsieve for DualSense controller at /dev/input/%i
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/evsieve \
+        --input /dev/input/%i \
+        --hook btn:mode btn:start exec-shell="firefox"
+```
+
+As systemd user services are run as your own user, make sure your user has permission to read `/dev/input/eventX` and write `/dev/uinput`.
+
+The commands for reload/status/log are a bit difference, use `systemctl --user daemon-reload`, `systemctl --user status 'evsieve-dualsense@*'`, `journalctl --user --unit 'evsieve-dualsense@*'`.
+
+For more about how to write udev rules, check https://wiki.archlinux.org/title/Udev.
+
 # Usage: In detail
 
 In this section, we'll provide comprehensive documentation about all the arguments evsieve accepts.
