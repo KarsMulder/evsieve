@@ -551,9 +551,19 @@ When evsieve is not ran as root, evsieve may be unable to notify the systemd dae
 
 Hot-plug devices are usually unavailable at startup, you can use udev [SYSTEMD_WANTS/SYSTEMD_USER_WANTS](https://www.freedesktop.org/software/systemd/man/latest/systemd.device.html) feature to run evsieve on device plug in, below are example configs for DualSense controller, work for both bluetooth and usb connection.
 
+Create `uinput` group:
+
+```
+sudo groupadd --system uinput
+```
+
 `/etc/udev/rules.d/99-evsieve.rules`:
 
 ```
+# Make `/dev/uinput` writable by `uinput` group
+SUBSYSTEM=="misc", KERNEL=="uinput", MODE="0660", GROUP="uinput", OPTIONS+="static_node=uinput"
+
+# Run evsieve systemd service on device plug in
 ACTION=="add", SUBSYSTEM=="input", KERNEL=="event*", ATTRS{id/vendor}=="054c", ATTRS{id/product}=="0ce6", ENV{ID_INPUT_JOYSTICK}=="1", ENV{SYSTEMD_WANTS}+="evsieve-dualsense@%k.service", TAG+="systemd"
 ```
 
@@ -564,11 +574,12 @@ ACTION=="add", SUBSYSTEM=="input", KERNEL=="event*", ATTRS{id/vendor}=="054c", A
 Description=Evsieve for DualSense controller at /dev/input/%i
 
 [Service]
-Type=simple
+Type=notify
+NotifyAccess=all
 DynamicUser=yes
 SupplementaryGroups=input uinput
 ExecStart=/usr/local/bin/evsieve \
-        --input /dev/input/%i \
+        --input /dev/input/%i persist=exit \
         --copy btn:west  key:z@kb \
         --copy btn:east  key:x@kb \
         --copy btn:south key:c@kb \
@@ -576,7 +587,7 @@ ExecStart=/usr/local/bin/evsieve \
         --output @kb repeat
 ```
 
-Reload systemd and udev, `sudo systemctl daemon-reload`, `sudo udevadm control --reload`, turn off/on or unplug/plug device, evsieve should be running, you can check the systemd service status by `systemctl status 'evsieve-dualsense@*'`, and log by `journalctl --unit 'evsieve-dualsense@*'`.
+Reload systemd and udev, `sudo systemctl daemon-reload`, `sudo udevadm trigger`, turn off/on or unplug/plug device, evsieve should be running, you can check the systemd service status by `systemctl status 'evsieve-dualsense@*'`, and log by `journalctl --unit 'evsieve-dualsense@*'`.
 
 One benefit of this approach is that when the device is unplugged, evsieve will exit and consume no resources.
 
@@ -595,9 +606,10 @@ ACTION=="add", SUBSYSTEM=="input", KERNEL=="event*", ATTRS{id/vendor}=="054c", A
 Description=Evsieve for DualSense controller at /dev/input/%i
 
 [Service]
-Type=simple
+Type=notify
+NotifyAccess=all
 ExecStart=/usr/local/bin/evsieve \
-        --input /dev/input/%i \
+        --input /dev/input/%i persist=exit \
         --hook btn:mode btn:start exec-shell="firefox"
 ```
 
