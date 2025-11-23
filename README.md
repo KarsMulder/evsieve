@@ -549,22 +549,25 @@ When evsieve is not ran as root, evsieve may be unable to notify the systemd dae
 
 ## Config udev to run evsieve on device plug in
 
-Hot-plug devices are usually unavailable at startup, you can use udev [SYSTEMD_WANTS/SYSTEMD_USER_WANTS](https://www.freedesktop.org/software/systemd/man/latest/systemd.device.html) feature to run evsieve on device plug in, below are example configs for DualSense controller, work for both bluetooth and usb connection.
-
-Create `uinput` group:
-
-```
-sudo groupadd --system uinput
-```
+Hot-plug devices may be unavailable at startup. You can use the udev [SYSTEMD_WANTS/SYSTEMD_USER_WANTS](https://www.freedesktop.org/software/systemd/man/latest/systemd.device.html) feature to run evsieve when a device plugs in. Here is an example configuration for DualSense controller, which work for both Bluetooth and USB connections.
 
 `/etc/udev/rules.d/99-evsieve.rules`:
 
 ```
-# Make `/dev/uinput` writable by `uinput` group
-SUBSYSTEM=="misc", KERNEL=="uinput", MODE="0660", GROUP="uinput", OPTIONS+="static_node=uinput"
-
 # Run evsieve systemd service on device plug in
 ACTION=="add", SUBSYSTEM=="input", KERNEL=="event*", ATTRS{id/vendor}=="054c", ATTRS{id/product}=="0ce6", ENV{ID_INPUT_JOYSTICK}=="1", ENV{SYSTEMD_WANTS}+="evsieve-dualsense@%k.service", TAG+="systemd"
+
+# The device ID denoted by ATTRS{id/vendor}=="054c", ATTRS{id/product}=="0ce6" can be obtained by running the `lsusb` command.
+# For the dualsense controller, `lsusb` would show an id of 054c:0ce6.
+#
+# The ENV{ID_INPUT_JOYSTICK}=="1" part is here because the DualSense controller is a single physical device that generates multiple
+# event devices. Without this check, three instances of evsieve would be spawned, one for each event device the DualSense creates.
+# By checking the device type this way, you can spawn evsieve for only the particular you want.
+#
+# If your input device is of a different type or doesn't create multiple event devices per physical device, just remove the
+# ENV{ID_INPUT_JOYSTICK}=="1" part. Other input device types are listed here:
+#
+#   https://wayland.freedesktop.org/libinput/doc/latest/device-configuration-via-udev.html#udev-device-type
 ```
 
 `/etc/systemd/system/evsieve-dualsense@.service`:
@@ -575,9 +578,6 @@ Description=Evsieve for DualSense controller at /dev/input/%i
 
 [Service]
 Type=notify
-NotifyAccess=all
-DynamicUser=yes
-SupplementaryGroups=input uinput
 ExecStart=/usr/local/bin/evsieve \
         --input /dev/input/%i persist=exit \
         --copy btn:west  key:z@kb \
@@ -587,35 +587,9 @@ ExecStart=/usr/local/bin/evsieve \
         --output @kb repeat
 ```
 
-Reload systemd and udev, `sudo systemctl daemon-reload`, `sudo udevadm trigger`, turn off/on or unplug/plug device, evsieve should be running, you can check the systemd service status by `systemctl status 'evsieve-dualsense@*'`, and log by `journalctl --unit 'evsieve-dualsense@*'`.
+Reload systemd and udev, `sudo systemctl daemon-reload`, `sudo udevadm trigger`, turn off/on or unplug/plug the device. Evsieve should be running; you can check the systemd service status by `systemctl status 'evsieve-dualsense@*'`, and check the log by `journalctl --unit 'evsieve-dualsense@*'`.
 
-One benefit of this approach is that when the device is unplugged, evsieve will exit and consume no resources.
-
-If you need evsieve to run commands as your own user in desktop environment, e.g., run Firefox, it's better to use `SYSTEMD_USER_WANTS`.
-
-`/etc/udev/rules.d/99-evsieve.rules`:
-
-```
-ACTION=="add", SUBSYSTEM=="input", KERNEL=="event*", ATTRS{id/vendor}=="054c", ATTRS{id/product}=="0ce6", ENV{ID_INPUT_JOYSTICK}=="1", ENV{SYSTEMD_USER_WANTS}+="evsieve-dualsense@%k.service", TAG+="systemd"
-```
-
-`~/.config/systemd/user/evsieve-dualsense@.service`:
-
-```
-[Unit]
-Description=Evsieve for DualSense controller at /dev/input/%i
-
-[Service]
-Type=notify
-NotifyAccess=all
-ExecStart=/usr/local/bin/evsieve \
-        --input /dev/input/%i persist=exit \
-        --hook btn:mode btn:start exec-shell="firefox"
-```
-
-As systemd user services are run as your own user, make sure your user has permission to read `/dev/input/eventX` and write `/dev/uinput`.
-
-The commands for reload/status/log are a bit difference, use `systemctl --user daemon-reload`, `systemctl --user status 'evsieve-dualsense@*'`, `journalctl --user --unit 'evsieve-dualsense@*'`.
+This approach has two benefits: first, when the device is unplugged, evsieve will exit and consume no resources. Second, this allows you to spawn a process for each instance of your input device, e.g. it should seamlessly spawn two evsieve instances if you were to plug in two controllers thanks to systemd template units.
 
 For more about how to write udev rules, check https://wiki.archlinux.org/title/Udev.
 
