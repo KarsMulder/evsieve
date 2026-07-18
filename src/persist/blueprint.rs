@@ -13,6 +13,9 @@ pub struct Blueprint {
     /// if the input device ends up having a different name than specified here, it is just cause to issue
     /// a warning to help find problematic setups.
     pub name: Option<InputDeviceName>,
+    /// Counts how many times in a row try_open() has returned an Error for this blueprint. Used to
+    /// bound how long we keep retrying a device that keeps failing to open with a hard error.
+    pub error_retries: u32,
 }
 
 pub enum TryOpenBlueprintResult {
@@ -20,7 +23,10 @@ pub enum TryOpenBlueprintResult {
     Success(InputDevice),
     /// Represents that the blueprint could not be opened right now, but you may try again later.
     NotOpened(Blueprint),
-    /// Represents an error of sufficient magnitude that you should not try opening this blueprint again.
+    /// Represents an error while trying to open the blueprint. This does not necessarily mean that
+    /// the blueprint should be dropped immediately: some such errors are transient (e.g. a device
+    /// node that briefly exists with restrictive permissions before udev applies its rules), so the
+    /// caller is expected to retry a bounded number of times before giving up.
     Error(Blueprint, SystemError),
 }
 
@@ -37,6 +43,7 @@ impl Blueprint {
                     pre_device,
                     capabilities: self.capabilities,
                     name: self.name,
+                    error_retries: self.error_retries,
                 }, error);
             },
         };
