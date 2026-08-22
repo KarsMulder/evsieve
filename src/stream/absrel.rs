@@ -97,13 +97,15 @@ impl RelToAbs {
 pub struct AbsToRel {
     input_key: Key,
     output_key: Key,
+    reset_on: Vec<Key>,
+
     speed: f64,
     state: HashMap<Channel, EventValue>,
 }
 
 impl AbsToRel {
-    pub fn new(input_key: Key, output_key: Key, speed: f64) -> AbsToRel {
-        AbsToRel { input_key, output_key, speed, state: HashMap::new() }
+    pub fn new(input_key: Key, output_key: Key, reset_on: Vec<Key>, speed: f64) -> AbsToRel {
+        AbsToRel { input_key, output_key, reset_on, speed, state: HashMap::new() }
     }
 
     fn as_affine_factor(&self) -> AffineFactor {
@@ -115,8 +117,19 @@ impl AbsToRel {
     }
 
     fn apply(&mut self, mut event: Event, output_events: &mut Vec<Event>) {
+        let is_reset = self.reset_on.iter().any(|key| key.matches(&event));
+        if is_reset {
+            // reset-on=... rule one: when a event matching a reset-on clause is encountered, all future events will be treated as the
+            // first event of their channel.
+            self.state.clear();
+        }
+
         if ! self.input_key.matches(&event) {
             return output_events.push(event);
+        }
+        if is_reset {
+            // reset-on=... rule one: if a event matched BOTH the reset-on clause AND the input key, the event is dropped.
+            return;
         }
 
         // Temporarily overwrite the event's previous value with its previous value as observed by this --abs-to-rel argument.

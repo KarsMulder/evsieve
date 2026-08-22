@@ -80,6 +80,16 @@ impl RelToAbsArg {
 pub(super) struct AbsToRelArg {
     pub input_key: Key,
     pub output_key: Key,
+
+    /// Does two things:
+    /// 1. If an event matching any reset-on clause is encountered, the internal state is reset and future events will be
+    ///    treated as if they were the first event ever.
+    /// 2. If an event matches BOTH the reset-on clause AND the input key, the event is dropped.
+    /// 
+    /// This is useful for trackpads that report their state as zero whenever the user lifts their finger of the trackpad.
+    /// It could also be used to respond to BTN_TOOL_* and similar. I think.
+    pub reset_on: Vec<Key>,
+
     pub speed: f64,
 }
 
@@ -87,7 +97,7 @@ impl AbsToRelArg {
     pub fn parse(args: Vec<String>) -> Result<AbsToRelArg, ArgumentError> {
         let arg_group = ComplexArgGroup::parse(args,
             &[],
-            &["speed"],
+            &["speed", "reset-on"],
             false,
             true,
         )?;
@@ -117,6 +127,8 @@ impl AbsToRelArg {
             namespace: crate::event::Namespace::User,
         };
 
+        let reset_on_parser = KeyParser::default_filter();
+
         let key_strs = arg_group.get_keys_or_empty_key();
         let (input_key_str, output_key_str) = match key_strs.as_slice() {
             [a, b] => (a, b),
@@ -125,6 +137,7 @@ impl AbsToRelArg {
 
         let input_key = abs_parser.parse(input_key_str)?;
         let output_key = rel_parser.parse(output_key_str)?;
+        let reset_on = reset_on_parser.parse_all(&arg_group.get_clauses("reset-on"))?;
 
         let speed = match arg_group.get_unique_clause("speed")? {
             Some(speed_str) => match speed_str.parse() {
@@ -136,10 +149,10 @@ impl AbsToRelArg {
             None => 1.0,
         };
 
-        Ok(AbsToRelArg { input_key, output_key, speed })
+        Ok(AbsToRelArg { input_key, output_key, reset_on, speed })
     }
 
     pub fn compile(self) -> AbsToRel {
-        AbsToRel::new(self.input_key, self.output_key, self.speed)
+        AbsToRel::new(self.input_key, self.output_key, self.reset_on, self.speed)
     }
 }
