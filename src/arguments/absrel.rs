@@ -5,7 +5,7 @@ use crate::arguments::lib::ComplexArgGroup;
 use crate::event::EventType;
 use crate::key::{Key, KeyParser};
 use crate::range::Interval;
-use crate::stream::absrel::RelToAbs;
+use crate::stream::absrel::{RelToAbs, AbsToRel};
 
 /// Represents a --rel-to-abs argument.
 pub(super) struct RelToAbsArg {
@@ -73,5 +73,72 @@ impl RelToAbsArg {
 
     pub fn compile(self) -> RelToAbs {
         RelToAbs::new(self.input_key, self.output_key, self.output_range, self.speed)
+    }
+}
+
+/// Represents a --abs-to-rel argument.
+pub(super) struct AbsToRelArg {
+    pub input_key: Key,
+    pub output_key: Key,
+    pub speed: f64,
+}
+
+impl AbsToRelArg {
+    pub fn parse(args: Vec<String>) -> Result<AbsToRelArg, ArgumentError> {
+        let arg_group = ComplexArgGroup::parse(args,
+            &[],
+            &["speed"],
+            false,
+            true,
+        )?;
+
+        let abs_parser = KeyParser {
+            default_value: "",
+            allow_values: true,
+            allow_transitions: false,
+            allow_domains: true,
+            allow_ranges: true,
+            allow_types: false,
+            allow_relative_values: false,
+            type_whitelist: Some(vec![EventType::ABS]),
+            namespace: crate::event::Namespace::User,
+        };
+
+        let rel_parser = KeyParser {
+            default_value: "",
+            allow_values: false,
+            allow_transitions: false,
+            allow_domains: true,
+            allow_ranges: false,
+            allow_types: false,
+            allow_relative_values: false,
+            type_whitelist: Some(vec![EventType::REL]),
+            namespace: crate::event::Namespace::User,
+        };
+
+        let key_strs = arg_group.get_keys_or_empty_key();
+        let (input_key_str, output_key_str) = match key_strs.as_slice() {
+            [a, b] => (a, b),
+            _ => return Err(ArgumentError::new("The --abs-to-rel argument needs to be provided exactly two keys, the first one matching the abs events that get mapped and the second matching the target rel event.")),
+        };
+
+        let input_key = abs_parser.parse(input_key_str)?;
+        let output_key = rel_parser.parse(output_key_str)?;
+
+        let speed = match arg_group.get_unique_clause("speed")? {
+            Some(speed_str) => match speed_str.parse() {
+                Ok(value) => value,
+                Err(err) => return Err(ArgumentError::new(
+                    format!("Cannot parse the speed of \"{}\" as a number: {}", speed_str, err)
+                )),
+            },
+            None => 1.0,
+        };
+
+        Ok(AbsToRelArg { input_key, output_key, speed })
+    }
+
+    pub fn compile(self) -> AbsToRel {
+        AbsToRel::new(self.input_key, self.output_key, self.speed)
     }
 }

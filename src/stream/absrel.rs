@@ -2,8 +2,9 @@
 
 use std::collections::HashMap;
 
+use crate::affine::AffineFactor;
 use crate::key::Key;
-use crate::event::{Event, Channel};
+use crate::event::{Channel, Event, EventValue};
 use crate::capability::{Capability, Certainty};
 use crate::range::{Interval, Set};
 
@@ -63,8 +64,6 @@ impl RelToAbs {
 
     fn apply_to_cap(&self, cap: &Capability, output_caps: &mut Vec<Capability>) {
         // Compute the merged cap, though we are not writing it to the output caps yet.
-        
-
         let (match_certainty, matching_values) = self.input_key.matches_cap(&cap);
         let potentially_nonmatching_values = match match_certainty {
             Certainty::Maybe => cap.values.clone(),
@@ -88,6 +87,64 @@ impl RelToAbs {
     }
 
     /// Analogue of Map::apply_to_all_caps().
+    pub fn apply_to_all_caps(&self, caps: &[Capability], output_caps: &mut Vec<Capability>) {
+        for cap in caps {
+            self.apply_to_cap(cap, output_caps);
+        }
+    }
+}
+
+pub struct AbsToRel {
+    input_key: Key,
+    output_key: Key,
+    speed: f64,
+    state: HashMap<Channel, EventValue>,
+}
+
+impl AbsToRel {
+    pub fn new(input_key: Key, output_key: Key, speed: f64) -> AbsToRel {
+        AbsToRel { input_key, output_key, speed, state: HashMap::new() }
+    }
+
+    fn apply(&mut self, _event: Event, _output_events: &mut Vec<Event>) {
+        unimplemented!()
+    }
+
+    pub fn apply_to_all(&mut self, events: &[Event], output_events: &mut Vec<Event>) {
+        for event in events {
+            self.apply(*event, output_events);
+        }
+    }
+
+    fn apply_to_cap(&self, cap: &Capability, output_caps: &mut Vec<Capability>) {
+        // Compute the merged cap, though we are not writing it to the output caps yet.
+        let (match_certainty, matching_values) = self.input_key.matches_cap(&cap);
+        let potentially_nonmatching_values = match match_certainty {
+            Certainty::Maybe => cap.values.clone(),
+            Certainty::Always => cap.values.setminus(&matching_values),
+        };
+        let potentially_nonmatching_cap = cap.clone().with_values(potentially_nonmatching_values);
+    
+        if !matching_values.is_empty() {
+            let matchable_cap = cap.clone().with_values(matching_values);
+            
+            // The rounding follows basically the same rules as an affine map, so I'm reusing its machinery.
+            let merged_cap = self.output_key.merge_cap(
+                AffineFactor {
+                    absolute: 0.0,
+                    relative: self.speed,
+                    addition: 0.0,
+                }.merge_cap(matchable_cap)
+            );
+
+            output_caps.push(merged_cap)
+        }
+
+        if !potentially_nonmatching_cap.values.is_empty() {
+            output_caps.push(potentially_nonmatching_cap);
+        }
+    }
+
     pub fn apply_to_all_caps(&self, caps: &[Capability], output_caps: &mut Vec<Capability>) {
         for cap in caps {
             self.apply_to_cap(cap, output_caps);

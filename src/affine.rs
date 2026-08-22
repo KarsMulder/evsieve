@@ -15,9 +15,9 @@ use crate::range::Set;
 
 #[derive(Clone, Copy, Debug)]
 pub struct AffineFactor {
-    absolute: f64,
-    relative: f64,
-    addition: f64,
+    pub absolute: f64,
+    pub relative: f64,
+    pub addition: f64,
 }
 
 impl AffineFactor {

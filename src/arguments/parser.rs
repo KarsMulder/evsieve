@@ -26,7 +26,7 @@ use crate::arguments::control_fifo::ControlFifoArg;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
-use super::absrel::RelToAbsArg;
+use super::absrel::{RelToAbsArg, AbsToRelArg};
 use super::capability::CapabilityArg;
 use super::config::ConfigArg;
 use super::input::PersistMode;
@@ -45,6 +45,7 @@ fn get_usage_msg() -> String {
                [--hook KEY... [exec-shell=COMMAND]... [toggle[=[ID][:INDEX]]]... [sequential] [period=SECONDS] [send-key=KEY]... [breaks-on=KEY]...]...
                [--withhold [KEY...]]...
                [--rel-to-abs REL_KEY ABS_KEY [speed=FACTOR]]...
+               [--abs-to-rel ABS_KEY REL_KEY [speed=FACTOR]]...
                [--merge [EVENTS...]]...
                [--scale [EVENTS...] factor=FACTOR]...
                [--config PATH...]...
@@ -71,6 +72,7 @@ enum Argument {
     ScaleArg(ScaleArg),
     WithholdArg(WithholdArg),
     RelToAbsArg(RelToAbsArg),
+    AbsToRelArg(AbsToRelArg),
     ControlFifoArg(ControlFifoArg),
     CapabilityArg(CapabilityArg),
 }
@@ -104,6 +106,7 @@ impl Argument {
             "--scale" => Ok(Argument::ScaleArg(ScaleArg::parse(args)?)),
             "--withhold" => Ok(Argument::WithholdArg(WithholdArg::parse(args)?)),
             "--rel-to-abs" => Ok(Argument::RelToAbsArg(RelToAbsArg::parse(args)?)),
+            "--abs-to-rel" => Ok(Argument::AbsToRelArg(AbsToRelArg::parse(args)?)),
             "--control-fifo" => Ok(Argument::ControlFifoArg(ControlFifoArg::parse(args)?)),
             "--capability" => Ok(Argument::CapabilityArg(CapabilityArg::parse(args)?)),
             _ => Err(ArgumentError::new(format!("Encountered unknown argument: {}", first_arg)).into()),
@@ -449,6 +452,9 @@ pub fn process(args_str: Vec<String>)
             },
             Argument::RelToAbsArg(rel_to_abs_arg) => {
                 stream.push(StreamEntry::RelToAbs(rel_to_abs_arg.compile()));
+            },
+            Argument::AbsToRelArg(abs_to_rel_arg) => {
+                stream.push(StreamEntry::AbsToRel(abs_to_rel_arg.compile()));
             },
             Argument::ToggleArg(toggle_arg) => {
                 let index = match &toggle_arg.id {
