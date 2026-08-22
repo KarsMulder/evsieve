@@ -132,7 +132,7 @@ pub struct Event {
 
     /// The value this event had the last time it was emitted by the same input device.
     /// 
-    /// The (`value`, `previous_value`) variablse are set when the event is read from an input device.
+    /// The (`value`, `previous_value`) variables are set when the event is read from an input device.
     /// Usually, the `previous_value` will stay unchanged thereafter; most arguments will only modify
     /// the current value of the event.
     pub previous_value: EventValue,
