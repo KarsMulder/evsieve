@@ -123,12 +123,18 @@ impl VirtualEventType {
     }
 }
 
+/// An input event. Means roughly the same as an event in the evdev protocol, but has some additional
+/// evsieve-specific metadata attached to it.
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub struct Event {
     pub code: EventCode,
     pub value: EventValue,
 
-    /// The value this event had the last time it was emitted by a device.
+    /// The value this event had the last time it was emitted by the same input device.
+    /// 
+    /// The (`value`, `previous_value`) variablse are set when the event is read from an input device.
+    /// Usually, the `previous_value` will stay unchanged thereafter; most arguments will only modify
+    /// the current value of the event.
     pub previous_value: EventValue,
 
     pub domain: Domain,
