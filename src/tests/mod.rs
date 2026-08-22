@@ -372,14 +372,26 @@ fn test_abs_to_rel_first_event() {
 
 #[test]
 fn test_abs_to_rel_sequence() {
-    // Subsequent events produce the delta between the current and the previously observed abs value.
     run_test(
         // Arguments
         "--abs-to-rel abs:x rel:x",
         // Input
-        "abs:x:0 abs:x:50 abs:x:30",
+        "abs:x:0@a abs:x:50@a abs:x:30@a  abs:x:0@b abs:x:30@b abs:x:70@b abs:x:80@a",
         // Output
-        "rel:x:0 rel:x:50 rel:x:-20",
+        "rel:x:0@a rel:x:50@a rel:x:-20@a rel:x:0@b rel:x:30@b rel:x:40@b rel:x:50@a",
+    )
+}
+
+#[test]
+fn test_abs_to_rel_sequence_2() {
+    // Same as previous test, but checks that setting the domain on the output key does work properly.
+    run_test(
+        // Arguments
+        "--abs-to-rel abs:x rel:x@c",
+        // Input
+        "abs:x:0@a abs:x:50@a abs:x:30@a  abs:x:0@b abs:x:30@b abs:x:70@b abs:x:80@a",
+        // Output
+        "rel:x:0@c rel:x:50@c rel:x:-20@c rel:x:0@c rel:x:30@c rel:x:40@c rel:x:50@c",
     )
 }
 
