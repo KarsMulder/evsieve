@@ -425,3 +425,29 @@ fn test_abs_to_rel_composition() {
         "rel:x:0 rel:x:100",
     )
 }
+
+#[test]
+fn test_abs_to_rel_reset_on_passthrough() {
+    // When the reset event doesn't match the input key, it passes through unchanged and resets state.
+    run_test(
+        // Arguments
+        "--abs-to-rel abs:x rel:x reset-on=key:a:0",
+        // Input
+        "abs:x:0 abs:x:50 key:a:0 abs:x:80",
+        // Output
+        "rel:x:0 rel:x:50 key:a:0 rel:x:0",
+    )
+}
+
+#[test]
+fn test_abs_to_rel_reset_on_drop() {
+    // When the reset event also matches the input key, it is dropped rather than converted, and state is reset.
+    run_test(
+        // Arguments
+        "--abs-to-rel abs:x rel:x reset-on=abs:x:0",
+        // Input
+        "abs:x:0 abs:x:50 abs:x:70 abs:x:0 abs:x:80",
+        // Output
+        "rel:x:0 rel:x:20 rel:x:0",
+    )
+}
