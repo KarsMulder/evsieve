@@ -344,3 +344,72 @@ fn test_withhold_for_channelless_hooks() {
         "
     )
 }
+
+#[test]
+fn test_abs_to_rel_passthrough() {
+    run_test(
+        // Arguments
+        "--abs-to-rel abs:x rel:x",
+        // Input
+        "key:a:1 abs:y:100 key:b:0",
+        // Output
+        "key:a:1 abs:y:100 key:b:0",
+    )
+}
+
+#[test]
+fn test_abs_to_rel_first_event() {
+    // First event on a channel has no prior state, so the output rel value is 0.
+    run_test(
+        // Arguments
+        "--abs-to-rel abs:x rel:x",
+        // Input
+        "abs:x:100",
+        // Output
+        "rel:x:0",
+    )
+}
+
+#[test]
+fn test_abs_to_rel_sequence() {
+    // Subsequent events produce the delta between the current and the previously observed abs value.
+    run_test(
+        // Arguments
+        "--abs-to-rel abs:x rel:x",
+        // Input
+        "abs:x:0 abs:x:50 abs:x:30",
+        // Output
+        "rel:x:0 rel:x:50 rel:x:-20",
+    )
+}
+
+#[test]
+fn test_abs_to_rel_speed() {
+    run_test(
+        // Arguments
+        "
+        --abs-to-rel abs:x rel:x speed=2
+        --abs-to-rel abs:y rel:y speed=0.5
+        ",
+        // Input
+        "abs:x:0 abs:x:50 abs:y:0 abs:y:50",
+        // Output
+        "rel:x:0 rel:x:100 rel:y:0 rel:y:25",
+    )
+}
+
+
+#[test]
+fn test_abs_to_rel_composition() {
+    run_test(
+        // Arguments
+        "
+        --block abs:x:50
+        --abs-to-rel abs:x rel:x
+        ",
+        // Input
+        "abs:x:0 abs:x:50 abs:x:100",
+        // Output
+        "rel:x:0 rel:x:100",
+    )
+}
