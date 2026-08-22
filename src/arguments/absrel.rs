@@ -52,7 +52,7 @@ impl RelToAbsArg {
         let output_range = match output_range_opt {
             Some(range) => range,
             None => return Err(ArgumentError::new(
-                "You need to provide a range for the possible output values of the --abs-to-rel argument. For example, \"--abs-to-rel rel:x abs:x:0~255\" will ensure that the outputted values for abs:x stay between 0 and 255."
+                "You need to provide a range for the possible output values of the --rel-to-abs argument. For example, \"--rel-to-abs rel:x abs:x:0~255\" will ensure that the outputted values for abs:x stay between 0 and 255."
             )),
         };
 
