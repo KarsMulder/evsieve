@@ -106,8 +106,33 @@ impl AbsToRel {
         AbsToRel { input_key, output_key, speed, state: HashMap::new() }
     }
 
-    fn apply(&mut self, _event: Event, _output_events: &mut Vec<Event>) {
-        unimplemented!()
+    fn as_affine_factor(&self) -> AffineFactor {
+        AffineFactor {
+            absolute: 0.0,
+            relative: self.speed,
+            addition: 0.0,
+        }
+    }
+
+    fn apply(&mut self, mut event: Event, output_events: &mut Vec<Event>) {
+        if ! self.input_key.matches(&event) {
+            return output_events.push(event);
+        }
+
+        // Temporarily overwrite the event's previous value with its previous value as observed by this --abs-to-rel argument.
+        let actual_previous_value = event.previous_value;
+        let stored_previous_value = self.state.entry(event.channel()).or_insert(event.value);
+        event.previous_value = *stored_previous_value;
+        *stored_previous_value = event.value;
+
+        let mut mapped_event = self.output_key.merge(
+            self.as_affine_factor().merge(event)
+        );
+        // Restore the previous value to be consistent with everything else. Frankly, this doesn't help anyone and attaching
+        // a previous value to an event was likely a bad design decision, but it would break backwards compatibility to fix that.
+        mapped_event.previous_value = actual_previous_value;
+        
+        output_events.push(mapped_event);
     }
 
     pub fn apply_to_all(&mut self, events: &[Event], output_events: &mut Vec<Event>) {
@@ -129,12 +154,12 @@ impl AbsToRel {
             let matchable_cap = cap.clone().with_values(matching_values);
             
             // The rounding follows basically the same rules as an affine map, so I'm reusing its machinery.
+            //
+            // TODO (HIGH PRIORITY): now I think about it, it is possible to let events have a previous values
+            // that lies outside the range of its possible current values. That would mean that the estimated
+            // range by merge_cap on relative factors is wrong...
             let merged_cap = self.output_key.merge_cap(
-                AffineFactor {
-                    absolute: 0.0,
-                    relative: self.speed,
-                    addition: 0.0,
-                }.merge_cap(matchable_cap)
+                self.as_affine_factor().merge_cap(matchable_cap)
             );
 
             output_caps.push(merged_cap)

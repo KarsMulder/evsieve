@@ -104,6 +104,7 @@ impl AbsToRelArg {
             namespace: crate::event::Namespace::User,
         };
 
+        // TODO (HIGH-PRIORITY): This parser seems to accept "" as key, which would make it possible to generate abs events as outputs.
         let rel_parser = KeyParser {
             default_value: "",
             allow_values: false,
