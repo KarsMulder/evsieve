@@ -53,6 +53,7 @@ pub fn open_and_query_capabilities(pre_input_devices: Vec<PreInputDevice>)
                                     pre_device,
                                     capabilities,
                                     name: None,
+                                    error_retries: 0,
                                 });
                             },
                             // If they are not found, then the best thing we could either exit with an error, or assume
@@ -67,7 +68,9 @@ pub fn open_and_query_capabilities(pre_input_devices: Vec<PreInputDevice>)
                                     device_cache.location.display(),
                                 );
 
-                                blueprints.push(Blueprint { pre_device, capabilities: Capabilities::new(), name: None })
+                                blueprints.push(Blueprint {
+                                    pre_device, capabilities: Capabilities::new(), name: None, error_retries: 0,
+                                })
                             },
                             CachedCapabilities::Corrupted => {
                                 eprintln!(
@@ -76,7 +79,9 @@ pub fn open_and_query_capabilities(pre_input_devices: Vec<PreInputDevice>)
                                     device_cache.location.display(),
                                 );
 
-                                blueprints.push(Blueprint { pre_device, capabilities: Capabilities::new(), name: None })
+                                blueprints.push(Blueprint {
+                                    pre_device, capabilities: Capabilities::new(), name: None, error_retries: 0,
+                                })
                             },
                         }
                     },
@@ -351,6 +356,7 @@ impl InputDevice {
                 domain: self.domain,
                 persist_state: self.persist_state,
             },
+            error_retries: 0,
         }
     }
 }

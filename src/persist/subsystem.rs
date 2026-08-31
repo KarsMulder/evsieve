@@ -205,6 +205,9 @@ impl Daemon {
     ///    successfully opened devices to just disappear if an error happened later.
     fn try_open(&mut self) -> TryOpenResult {
         const MAX_TRIES: usize = 5;
+        // Bounds how many times in a row a blueprint may fail to open with a hard Error before we
+        // give up on it entirely, so a truly broken device does not get retried forever.
+        const MAX_ERROR_RETRIES: u32 = 60;
         let mut result = TryOpenResult {
             opened_devices: Vec::new(),
             broken_blueprints: Vec::new(),
@@ -218,9 +221,21 @@ impl Daemon {
                 match blueprint.try_open() {
                     TryOpenBlueprintResult::Success(device) => result.opened_devices.push(device),
                     TryOpenBlueprintResult::NotOpened(blueprint) => remaining_blueprints.push(blueprint),
-                    TryOpenBlueprintResult::Error(blueprint, error) => {
+                    TryOpenBlueprintResult::Error(mut blueprint, error) => {
                         error.print_err();
-                        result.broken_blueprints.push(blueprint);
+
+                        // Some errors are transient, e.g. on some systems a reconnected device node
+                        // is briefly owned by root until udev applies the appropriate ACL, which
+                        // causes a spurious permission error here. Retry a bounded number of times
+                        // instead of dropping the blueprint on the very first error, but still give
+                        // up eventually in case the error turns out to be permanent.
+                        blueprint.error_retries += 1;
+                        if blueprint.error_retries > MAX_ERROR_RETRIES {
+                            eprintln!("Giving up on reopening a device after {} failed attempts.", blueprint.error_retries);
+                            result.broken_blueprints.push(blueprint);
+                        } else {
+                            remaining_blueprints.push(blueprint);
+                        }
                     }
                 }
             }
